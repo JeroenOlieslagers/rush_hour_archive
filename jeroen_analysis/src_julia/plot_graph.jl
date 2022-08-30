@@ -49,39 +49,69 @@ function add_node(g, node; invisible_nodes=false, color="")
     """
     Adds node to graph
     """
-    if invisible_nodes
-        if color != ""
-            return g *= string(node) * """[label="" fillcolor=""" * color * """ style=filled];"""
-        else
-            return g *= string(node) * """[label=""];"""
-        end
-    else
-        if color != ""
-            return g *= string(node) * """[fillcolor=""" * color * """ style=filled];"""
-        else
-            return g *= string(node) * ";"
-        end
+    g *= string(node)
+    if color != "" || invisible_nodes
+        g *= "["
     end
+    if color != ""
+        g *= "fillcolor=" * color * ";style=filled;"
+    end
+    if invisible_nodes
+        g *= """label="";"""
+    end
+    if color != "" || invisible_nodes
+        g *= "]"
+    end
+    return g *= ";"
+    # if invisible_nodes
+    #     if color != ""
+    #         return g *= string(node) * """[label="" fillcolor=""" * color * """ style=filled];"""
+    #     else
+    #         return g *= string(node) * """[label=""];"""
+    #     end
+    # else
+    #     if color != ""
+    #         return g *= string(node) * """[fillcolor=""" * color * """ style=filled];"""
+    #     else
+    #         return g *= string(node) * ";"
+    #     end
+    # end
 end
 
-function add_edge(g, a, b; constraint=true, color="")
+function add_edge(g, a, b; constraint=true, color="", bidirectional=false)
     """
     Draw edge between nodes a and b, if constraint, enforce to keep hierarchy
     """
     g *= string(a) * "->" * string(b)
-    if !constraint
-        if color != ""
-            return g *= """[color=""" * color * """, constraint=false];"""
-        else
-            return g *= "[constraint=false];"
-        end
-    else
-        if color != ""
-            return g *= """[color=""" * color * """];"""
-        else
-            return g *= ";"
-        end
+    if color != "" || !constraint || bidirectional
+        g *= "["
     end
+    if color != ""
+        g *= "color=" * color * ";"
+    end
+    if !constraint
+        g *= "constraint=false;"
+    end
+    if bidirectional
+        g *= "dir=both;"
+    end
+    if color != "" || !constraint || bidirectional
+        g *= "]"
+    end
+    return g *= ";"
+    # if !constraint
+    #     if color != ""
+    #         return g *= """[color=""" * color * """, constraint=false];"""
+    #     else
+    #         return g *= "[constraint=false, dir=both];"
+    #     end
+    # else
+    #     if color != ""
+    #         return g *= """[color=""" * color * """];"""
+    #     else
+    #         return g *= ";"
+    #     end
+    # end
 end
 
 function close_graph(g)
@@ -195,8 +225,8 @@ function draw_directed_tree(parents; solution_paths=[], all_parents=[])
     x = reverse(collect(keys(parents)))
     optimal_nodes = Set{BigInt}()
     solutions = Set{BigInt}()
-    # Set of drawn nodes
-    visited = Set{BigInt}()
+    # All edges drawn so far
+    all_edges = DefaultDict{BigInt, Array{BigInt, 1}}([])
     if length(solution_paths) > 0
         # Get list of all nodes on optimal path
         optimal_nodes = Set(reduce(vcat, collect(values(solution_paths))))
@@ -213,13 +243,20 @@ function draw_directed_tree(parents; solution_paths=[], all_parents=[])
             end
         end
         g = add_node(g, child, invisible_nodes=true, color=node_color)
-        push!(visited, child)
         for parent in parents[child]
-            g = add_edge(g, parent, child, color=node_color)
+            g = add_edge(g, parent, child, color=node_color, bidirectional=length(all_parents) > 0)
+            push!(all_edges[parent], child)
+            push!(all_edges[child], parent)
         end
-        if length(all_parents) > 0
+    end
+    if length(all_parents) > 0
+        for child in x
             for parent in all_parents[child]
-                g = add_edge(g, parent, child, color=node_color, constraint=false)
+                if !(parent in all_edges[child])
+                    g = add_edge(g, parent, child, constraint=false, bidirectional=true)
+                    push!(all_edges[parent], child)
+                    push!(all_edges[child], parent)
+                end
             end
         end
     end

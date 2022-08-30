@@ -103,7 +103,7 @@ function noise()
     return 0#.001*randn()
 end
 
-board = load_data("hard_puzzle_1")
-v, graph, all_parents = traverse(board, 2, 0, noise=noise)
+board = load_data("hard_puzzle_11")
+v, graph, all_parents = traverse(board, 999, 0.01, h=multi_mag_size_nodes, noise=noise);
 
 g = draw_directed_tree(graph, all_parents=all_parents)
