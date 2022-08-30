@@ -1,0 +1,61 @@
+
+\documentclass{article}
+\usepackage{graphicx}
+
+\begin{document}
+
+\title{Bounded approximation of log likelihood for plans}
+\author{Zahy  Bnaya}
+
+\maketitle
+
+\begin{abstract}
+ The likelihood of a sequence of decisions is very hard to calculate. 
+ We suggest a method that allows a bounded approximation of log likelihood.
+\end{abstract}
+
+\section{The problem}
+
+Most psychophysics tasks assume that pairs of responses and stimuli within a sequence of an experiment are all independent of each other. 
+\begin{equation}
+    \label{Likelihood}
+    \mathcal{L}(S) = \prod_{s_i \in S}{P(s_i)} 
+\end{equation}
+
+Therefore it is possible to compare log likelihoods. 
+$$
+   \log{\mathcal{L}(S)} = \sum_{s_i \in S} {\log(P(s_i))}
+$$
+
+However, when the task involves a sequence the correct way to calculate likelihood is: 
+$$
+\mathcal{L}(S) = \prod_{s_i \in S}{P(s_i|s_0,s_1,\ldots,s_{i-1})} 
+$$
+
+\section{Solution}
+Let $\lambda(s)$ be the approximated distribution over the successors of state $s$. 
+Let $F(s)$ be the calculated part of the distribution.
+Let $F^{-1}(s)$ be the approximated part of the distribution. 
+
+For a certain model we calculate the partial distribution $\lambda(s)$ as following:
+For every state in $F^{-1}(s)$ we assign $\epsilon/|F^{-1}(s)|$ for the rest, we assign the true probability. 
+
+For every level we repeat this
+
+
+\subsection{Error bounds}
+
+The error of a state $s$ on every level is $e(s)= |\lambda(s)- p(s)|$.
+
+For every approximated state $0 < p(s) < \epsilon$ therefore
+$e(s)<\epsilon (1-1/|F^{-1}(s)|)$ or $e(s)<\epsilon/|F^{-1}(s)|$.
+
+\section{practical example from rush-hour}
+
+Take an instance of rush-hour.
+Use noisy model to calculate 15 levels down. 
+Show the values and error bounds
+
+
+\end{document}
+

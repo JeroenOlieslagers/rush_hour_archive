@@ -1,0 +1,8 @@
+digraph prb70_move_17 {
+	dummy [label="Move 17" shape=box]
+	dummy -> 9 [style=invis]
+	subgraph cluster_0 {
+		peripheries=0
+		9 [label=R fillcolor="#ff0000" style=filled]
+	}
+}

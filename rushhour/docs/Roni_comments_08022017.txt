@@ -1,0 +1,16 @@
+Do people do random?
+Real time algorithms A*
+LRTA*
+Lapse within search 
+Hierarichal planning (Dana nau.)
+Plan recognition (Dekel et al.)
+Linerazation 
+Stay at high level questions.
+Difficult to distinguish between LM-cut, etc. 
+Forward, backward, or hierarchal planning. 
+When people are doing what? (maze, rush-hour, etc)
+Bayes people to certain tasks! (hierarchal, backward, forward, etc).
+Charecterize the problems that require which
+Trail and error within trials (forward doesn’t work).
+SAT - closed learning
+Take real algorithms
