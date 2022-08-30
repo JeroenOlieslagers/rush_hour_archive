@@ -1,0 +1,35 @@
+<div id="container-instructions">
+	<h1>Instructions</h1>
+	<!--hr /-->
+	<div class="instructions well">
+	    <P>
+	    In this experiment you are asked to solve a series of puzzles. 
+        Each puzzle consists of a board with several <i>"cars"</i>.
+        One of these cars is red. This is your <b>goal</b> car.
+        Each board has an <b>EXIT</b> (located on the right side of the goal car).
+	    </P>
+	    <p>Here is an example of such a board. Try to locate the red goal car and the EXIT. Click the "Next" button when ready. </p>
+        <p>
+	<img src="static/images/board.png" style="border: 2px solid" height="400" width="400" alt="Example board" >
+        </p>
+	    <script type="text/javascript">
+	    //console.log(psiTurk.getInstructionIndicator())
+	    </script>
+	</div>
+
+    <div class="instructionsnav">
+        <div class="row">
+            <div class="col-xs-2">
+            	<!-- no previous button on first screen -->
+            </div>
+            <div class="col-xs-8">
+            </div>
+            <div class="col-xs-2">
+                <button type="button" id="next" value="next" class="btn btn-primary btn-lg continue">
+                Next <span class="glyphicon glyphicon-arrow-right"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
