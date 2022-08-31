@@ -45,12 +45,12 @@ function add_layer(g, n, nodes; heurs=[], max_heur=0, root=false, invisible_node
     return g * "}"
 end
 
-function add_node(g, node; invisible_nodes=false, color="")
+function add_node(g, node; invisible_nodes=false, color="", label="")
     """
     Adds node to graph
     """
     g *= string(node)
-    if color != "" || invisible_nodes
+    if color != "" || invisible_nodes || label != ""
         g *= "["
     end
     if color != ""
@@ -58,8 +58,10 @@ function add_node(g, node; invisible_nodes=false, color="")
     end
     if invisible_nodes
         g *= """label="";"""
+    elseif label != ""
+        g *= "label=" * label * ";"
     end
-    if color != "" || invisible_nodes
+    if color != "" || invisible_nodes || label != ""
         g *= "]"
     end
     return g *= ";"
@@ -215,7 +217,7 @@ function draw_solution_paths(solution_paths, parents, stat, max_heur)
     return GraphViz.Graph(g)
 end
 
-function draw_directed_tree(parents; solution_paths=[], all_parents=[])
+function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], value_map=[])
     """
     Draws full tree of parents
     """
@@ -242,7 +244,11 @@ function draw_directed_tree(parents; solution_paths=[], all_parents=[])
                 node_color = """ "#0000ff" """
             end
         end
-        g = add_node(g, child, invisible_nodes=true, color=node_color)
+        if length(value_map) > 0
+            g = add_node(g, child, color=node_color, label=string(round(value_map[child], digits=2)))
+        else
+            g = add_node(g, child, invisible_nodes=true, color=node_color)
+        end
         for parent in parents[child]
             g = add_edge(g, parent, child, color=node_color, bidirectional=length(all_parents) > 0)
             push!(all_edges[parent], child)
