@@ -105,14 +105,17 @@ function traverse(board, value_start, γ; h=(x,y)->0, noise=randn)
     return value_map, parents, all_parents
 end
 
-function animate_expand(board, value_start, steps; h=(x,y)->0, noise=randn)
+function animate_expand_astar(board, value_start, steps, graph; h=(x,y)->0, noise=randn)
     """
     Creates series of png images of graph for animation
     """
+    # Seed
+    Random.seed!(3)
     # Get current state
     arr_start = get_board_arr(board)
     T = get_type(arr_start)
     start = board_to_int(arr_start, T)
+    past = start
     # open_set is priority queue that will indicate which node to expand next (best first)
     open_set = PriorityQueue{T, Float64}()
     enqueue!(open_set, start, 0)
@@ -128,7 +131,9 @@ function animate_expand(board, value_start, steps; h=(x,y)->0, noise=randn)
     value_map = Dict{T, Float64}()
     value_map[start] = h(board, arr_start)
     # Draw first frame
-    display(draw_directed_tree(parents, value_map=value_map))
+    color_map = Dict()
+    g = draw_subgraph(parents, graph, value_map, color_map)
+    save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_000")
     # Loop over animation steps
     for step in 1:steps
         # Get state with best value
@@ -141,8 +146,11 @@ function animate_expand(board, value_start, steps; h=(x,y)->0, noise=randn)
             end
         end
         # Color smallest value
-        colored_node = Dict(0=>current)
-        display(draw_directed_tree(parents, value_map=value_map, solution_paths=colored_node))
+        color_map = Dict(current=>""" "#00ff00" """, past=>""" "#0000ff" """)
+        g= draw_subgraph(parents, graph, value_map, color_map)
+        fill = (2*step)-1 < 10 ? "00" : (2*step)-1 < 100 ? "0" : ""
+        save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_" * fill * string((2*step)-1))
+        delete!(color_map, past)
         # Get current board int-string
         arr_current = get_board_arr(board)
         # Expand current node by getting all available moves
@@ -161,21 +169,25 @@ function animate_expand(board, value_start, steps; h=(x,y)->0, noise=randn)
                 f_score_new = tentative_score + h(board, arr_new) + noise()
                 # Update heuristic value
                 value_map[new] = f_score_new
-                # Update parents
-                push!(parents[new], current)
                 # If neighbor is not yet queued to be visited, queue it
                 if !(new in keys(open_set))
                     # Push node onto heap
                     enqueue!(open_set, new, f_score_new)
                 end
             end
+            # Update parents
+            push!(parents[new], current)
+            # Update colors
+            color_map[new] = """ "#ff0000" """
             undo_moves(board, [move])
         end
         # Undo rest of moves back to initial board
         undo_moves(board, past_moves)
         # Color expanded nodes
-        colored_node = Dict(0=>[], 1=>current)
-        display(draw_directed_tree(parents, value_map=value_map, solution_paths=colored_node))
+        g = draw_subgraph(parents, graph, value_map, color_map)
+        fill = 2*step < 10 ? "00" : 2*step < 100 ? "0" : ""
+        save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_" * fill * string(2*step))
+        past = current
     end
 end
 
@@ -185,9 +197,9 @@ function noise()
 end
 
 board = load_data("hard_puzzle_1");
-v, graphh, all_parents = traverse(board, 0, 0, noise=noise, h=multi_mag_size_nodes);
+v, graph, all_parents = traverse(board, 0, 0, noise=noise);#, h=multi_mag_size_nodes);
 
 g = draw_directed_tree(graph, value_map=v)#, all_parents=all_parents, all_parents=all_parents)
 
 board = load_data("hard_puzzle_1");
-animate_expand(board, 0, 5)
+animate_expand_astar(board, 0, 111, graph);

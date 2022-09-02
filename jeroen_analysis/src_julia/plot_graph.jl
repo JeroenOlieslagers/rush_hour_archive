@@ -45,23 +45,26 @@ function add_layer(g, n, nodes; heurs=[], max_heur=0, root=false, invisible_node
     return g * "}"
 end
 
-function add_node(g, node; invisible_nodes=false, color="", label="")
+function add_node(g, node; invisible_nodes=false, color="", label="", invis=false)
     """
     Adds node to graph
     """
     g *= string(node)
-    if color != "" || invisible_nodes || label != ""
+    if color != "" || invisible_nodes || label != "" || invis
         g *= "["
     end
     if color != ""
         g *= "fillcolor=" * color * ";style=filled;"
+    end
+    if invis
+        g *= "style=invis;"
     end
     if invisible_nodes
         g *= """label="";"""
     elseif label != ""
         g *= "label=" * label * ";"
     end
-    if color != "" || invisible_nodes || label != ""
+    if color != "" || invisible_nodes || label != "" || invis
         g *= "]"
     end
     return g *= ";"
@@ -80,16 +83,19 @@ function add_node(g, node; invisible_nodes=false, color="", label="")
     # end
 end
 
-function add_edge(g, a, b; constraint=true, color="", bidirectional=false)
+function add_edge(g, a, b; constraint=true, color="", bidirectional=false, invis=false)
     """
     Draw edge between nodes a and b, if constraint, enforce to keep hierarchy
     """
     g *= string(a) * "->" * string(b)
-    if color != "" || !constraint || bidirectional
+    if color != "" || !constraint || bidirectional || invis
         g *= "["
     end
     if color != ""
         g *= "color=" * color * ";"
+    end
+    if invis
+        g *= "style=invis;"
     end
     if !constraint
         g *= "constraint=false;"
@@ -97,7 +103,7 @@ function add_edge(g, a, b; constraint=true, color="", bidirectional=false)
     if bidirectional
         g *= "dir=both;"
     end
-    if color != "" || !constraint || bidirectional
+    if color != "" || !constraint || bidirectional || invis
         g *= "]"
     end
     return g *= ";"
@@ -264,6 +270,47 @@ function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], valu
                     push!(all_edges[child], parent)
                 end
             end
+        end
+    end
+    g = close_graph(g)
+    return GraphViz.Graph(g)
+end
+
+
+function draw_subgraph(parents, graph, value_map, color_map)
+    """
+    Draws tree (parents) with full structure of graph so that
+    subsequent calls do not change structure. all_parents sets
+    all edges, value_map displays values and color_map displays colors
+    for each node.
+    """
+    # Start graph
+    g = initialise_graph()
+    # Get children of subgraph
+    sub_children = reverse(collect(keys(parents)))
+    # Get children of full graph
+    full_children = reverse(collect(keys(graph)))
+    # Draw invisible full graph
+    for child in full_children
+        # Set color for node in colormap, defaults to none
+        node_color = haskey(color_map, child) ? color_map[child] : ""
+        if child in sub_children
+            # Add nodes from subgraph
+            g = add_node(g, child, color=node_color, label=string(round(value_map[child], digits=2)))
+        else
+            # Add invisible nodes from full graph
+            g = add_node(g, child, invisible_nodes=true, invis=true)
+        end
+        # Add invisible edges from full graph
+        for parent in graph[child]
+            g = add_edge(g, parent, child, invis=true)
+        end
+    end
+    # Draw visible subgraphe edges
+    for child in sub_children
+        # Add visible edges from subgraph
+        for parent in parents[child]
+            g = add_edge(g, parent, child, constraint=false)
         end
     end
     g = close_graph(g)
