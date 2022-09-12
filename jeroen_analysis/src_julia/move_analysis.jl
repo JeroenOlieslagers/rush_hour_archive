@@ -133,7 +133,7 @@ function animate_expand_astar(board, value_start, steps, graph; h=(x,y)->0, nois
     # Draw first frame
     color_map = Dict()
     g = draw_subgraph(parents, graph, value_map, color_map)
-    save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_000")
+    #save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_000")
     # Loop over animation steps
     for step in 1:steps
         # Get state with best value
@@ -147,9 +147,10 @@ function animate_expand_astar(board, value_start, steps, graph; h=(x,y)->0, nois
         end
         # Color smallest value
         color_map = Dict(current=>""" "#00ff00" """, past=>""" "#0000ff" """)
-        g= draw_subgraph(parents, graph, value_map, color_map)
+        g = draw_subgraph(parents, graph, value_map, color_map)
+        display(g)
         fill = (2*step)-1 < 10 ? "00" : (2*step)-1 < 100 ? "0" : ""
-        save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_" * fill * string((2*step)-1))
+        #save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_" * fill * string((2*step)-1))
         delete!(color_map, past)
         # Get current board int-string
         arr_current = get_board_arr(board)
@@ -185,8 +186,9 @@ function animate_expand_astar(board, value_start, steps, graph; h=(x,y)->0, nois
         undo_moves(board, past_moves)
         # Color expanded nodes
         g = draw_subgraph(parents, graph, value_map, color_map)
+        display(g)
         fill = 2*step < 10 ? "00" : 2*step < 100 ? "0" : ""
-        save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_" * fill * string(2*step))
+        #save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_" * fill * string(2*step))
         past = current
     end
 end
@@ -196,7 +198,7 @@ function animate_expand_backprop(board, value_start, steps, graph; h=(x,y)->0, n
     Creates series of png images of graph for animation of backprop expansion method
     """
     # Seed
-    Random.seed!(0)
+    Random.seed!(3)
     # Get current state
     arr_start = get_board_arr(board)
     T = get_type(arr_start)
@@ -219,12 +221,14 @@ function animate_expand_backprop(board, value_start, steps, graph; h=(x,y)->0, n
     # Draw first frame
     color_map = Dict()
     g = draw_subgraph(parents, graph, value_map, color_map)
-    #save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_000")
+    save_graph(g, "puzzle_hard_1_backprop_" * string(steps) * "_steps_frame_000")
+    # Keep track of frames
+    frame = 0
     # Loop over animation steps
     for step in 1:steps
         # Get state with best value
         current = dequeue!(open_set)
-        value_old, past_moves = dict[current]
+        f_score_old, past_moves = dict[current]
         # Move to current node
         if length(past_moves) > 0
             for move in past_moves
@@ -234,9 +238,10 @@ function animate_expand_backprop(board, value_start, steps, graph; h=(x,y)->0, n
         # Color smallest value
         color_map = Dict(current=>""" "#00ff00" """)#, past=>""" "#0000ff" """)
         g = draw_subgraph(parents, graph, value_map, color_map)
-        display(g)
-        fill = (2*step)-1 < 10 ? "00" : (2*step)-1 < 100 ? "0" : ""
-        #save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_" * fill * string((2*step)-1))
+        #display(g)
+        frame += 1
+        fill = frame < 10 ? "00" : frame < 100 ? "0" : ""
+        save_graph(g, "puzzle_hard_1_backprop_" * string(steps) * "_steps_frame_" * fill * string(frame))
         delete!(color_map, past)
         # Get current board int-string
         arr_current = get_board_arr(board)
@@ -250,6 +255,20 @@ function animate_expand_backprop(board, value_start, steps, graph; h=(x,y)->0, n
             # Get board int-string
             arr_new = get_board_arr(board)
             new = board_to_int(arr_new, T)
+            # Calculates g score of neighbor
+            # tentative_score = f_score_old + 1
+            # if tentative_score < dict[new][1]
+            #     # Update score
+            #     dict[new] = [tentative_score, vcat(past_moves, [move])]
+            #     value_new = tentative_score + h(board, arr_new) + noise()
+            #     # Update heuristic value
+            #     value_map[new] = value_new
+            #     # If neighbor is not yet queued to be visited, queue it
+            #     if !(new in keys(open_set))
+            #         # Push node onto heap
+            #         enqueue!(open_set, new, value_new)
+            #     end
+            # end
             if !(new in keys(dict))
                 # Update value
                 value_new = h(board, arr_new) + noise()
@@ -270,12 +289,13 @@ function animate_expand_backprop(board, value_start, steps, graph; h=(x,y)->0, n
         end
         # Color expanded nodes
         g = draw_subgraph(parents, graph, value_map, color_map)
-        display(g)
-        fill = 2*step < 10 ? "00" : 2*step < 100 ? "0" : ""
-        #save_graph(g, "puzzle_hard_1_astar_" * string(steps) * "_steps_frame_" * fill * string(2*step))
+        #display(g)
+        frame += 1
+        fill = frame < 10 ? "00" : frame < 100 ? "0" : ""
+        save_graph(g, "puzzle_hard_1_backprop_" * string(steps) * "_steps_frame_" * fill * string(frame))
         # Backprop if smallest child value lower than current
-        if value_map[smallest] < value_old
-            backprop(smallest, parents, value_map, graph)
+        if value_map[smallest] < value_map[current]
+            frame = backprop(smallest, parents, value_map, graph, frame, steps)
         end
         # Undo rest of moves back to initial board
         undo_moves(board, past_moves)
@@ -283,7 +303,7 @@ function animate_expand_backprop(board, value_start, steps, graph; h=(x,y)->0, n
     end
 end
 
-function backprop(child, parents, value_map, graph)
+function backprop(child, parents, value_map, graph, frame, steps)
     """
     Takes new smallest value and backpropagates it up the tree
     """
@@ -311,12 +331,16 @@ function backprop(child, parents, value_map, graph)
                     color_map[updated_node] = """ "#ff00ff" """
                 end
                 g = draw_subgraph(parents, graph, value_map, color_map)
-                display(g)
+                #display(g)
+                frame += 1
+                fill = frame < 10 ? "00" : frame < 100 ? "0" : ""
+                save_graph(g, "puzzle_hard_1_backprop_" * string(steps) * "_steps_frame_" * fill * string(frame))
                 # Add for colored path
                 push!(updated, parent)
             end
         end
     end
+    return frame
 end
 
 function noise()
@@ -329,4 +353,5 @@ v, graph, all_parents = traverse(board, 0, 0, noise=noise);#, h=multi_mag_size_n
 g = draw_directed_tree(graph, value_map=v)#, all_parents=all_parents, all_parents=all_parents)
 
 board = load_data("hard_puzzle_1");
-animate_expand_backprop(board, 0, 55, graph);
+animate_expand_astar(board, 0, 5, graph);
+animate_expand_backprop(board, 0, 111, graph);

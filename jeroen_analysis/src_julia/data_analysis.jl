@@ -7,7 +7,7 @@ using PDFmerger
 
 
 function load_raw_data()
-    csv_reader = CSV.File("data/raw/trialdata_headers.csv");
+    csv_reader = CSV.File("jeroen_analysis/data/raw/trialdata_headers.csv");
     data = pre_process(csv_reader)
     return data
 end
@@ -19,7 +19,7 @@ function pre_process(csv)
     # Data dictionary has subject ID as key and dataframe object as value, containing all the data
     data = Dict{String, DataFrame}()
     # Load problem files
-    jsons = readdir("data/problems")
+    jsons = readdir("jeroen_analysis/data/problems")
     # Loop over all data
     for row in csv
         # Remove backslashes
@@ -270,6 +270,9 @@ function analyse_subject(subject_data)
     excl_events = findall(x->x∉["drag_end", "restart"], events)
     tot_arrs = Array{Array{Matrix{Int}, 1}, 1}()
     tot_move_tuples = Array{Array{Tuple{Int, Int}, 1}, 1}()
+    # Record number of moves per puzzle per attempt
+    #attempts = DefaultDict{String, Dict{Int, Int}}(Dict{Int, Int})
+    attempts = Dict{String, Int}()
     for (n, uni) in enumerate(uniq)
         # Get indices that correspond to the current problem instance
         idx = findall(x->x==uni, probs)
@@ -297,6 +300,19 @@ function analyse_subject(subject_data)
         prob_targets = targets[idx]
         prob_pieces = pieces[idx]
         prob_events = events[idx]
+        if idx[end]+1 <= length(events)
+            #println(events[idx[end]+1])
+            if events[idx[end]+1] != "win"
+                continue
+            end
+        else
+            #continue
+            if events[idx[end]] != "win"
+                continue
+            end
+        end
+        # Add to attempts dictionary to keep track of total number of moves per attempt
+        attempts[uni] = length(idx)
         # Find restarts
         restarts = findall(x->x=="restart", prob_events)
         # Add restart at beginning and end to create correct intervals
@@ -305,6 +321,8 @@ function analyse_subject(subject_data)
         for i in 1:length(restarts)-1
             # Get indices for intervals between restarts
             idx = (restarts[i]+1):(restarts[i+1]-1)
+            # # Add to attempts dictionary to keep track of total number of moves per attempt
+            # attempts[uni][i] = length(idx)
             # Initialise board
             board = load_data(uni)
             arrs = Array{Matrix{Int}, 1}()
@@ -334,7 +352,7 @@ function analyse_subject(subject_data)
         #p = plot(prob_moves)
         #display(p)
     end
-    return tot_arrs, tot_move_tuples
+    return tot_arrs, tot_move_tuples, attempts
 end
 
 function filter_subjects(data)
@@ -389,12 +407,56 @@ function filter_subjects(data)
     return filtered_data
 end
 
-subj = "A3CTXNQ2GXIQSP:34HJIJKLP64Z5YMIU6IKNXSH7PDV4I"
-arrs, move_tuples = analyse_subject(data[subj]);
+"""
+    boxplot_figure(data)
 
-# problem_plot(data)
+Plots the number of moves for each puzzle across all subjects,
+where moves are considered if they result in a win (moves before
+a restart or a surrender are not considered)
+"""
+function boxplot_figure(data)
+    y = DefaultDict{String, Array{Int}}([])
+    for subj in keys(data)
+        arrs, move_tuples, attempts = analyse_subject(data[subj]);
+        for prob in keys(attempts)
+            push!(y[prob], attempts[prob])
+            # for restart in values(attempts[prob])
+            #     push!(y[prob], restart)
+            # end
+        end
+    end
+    xx = [[k] for k in keys(y)]
+    yy = collect(values(y))
 
-total_data = load_raw_data(); 
+    n = DefaultDict{Int, Dict{String, Array{Int}}}(Dict{String, Array{Int}})
+    for i in 1:length(xx)
+        prob_str = xx[i][1]
+        opt = parse(Int, split(prob_str, "_")[2])-1
+        #push!(n, [opt])
+        n[opt][prob_str] = yy[i]
+    end
+
+    ps = []
+    for opt in sort(collect(keys(n)))
+        xx = [[k] for k in keys(n[opt])]
+        yy = collect(values(n[opt]))
+        p = boxplot(xx, yy, label=nothing, marker=(:black, Plots.stroke(0)), ylim=(0, 150), xticks=[], grid=false)
+        if opt == 15
+            plot!([l[1] for l in xx], [opt for _ in xx], color=:red, label="Optimal move", xlabel="Problem")
+        else
+            plot!([l[1] for l in xx], [opt for _ in xx], color=:red, label=nothing)
+        end
+        push!(ps, p)
+    end
+
+    p = plot(ps..., layout=(4, 1), ylabel="Moves", legend=:topright)
+    #savefig(p,"boxplot_high_ylim.png")
+end
+
+total_data = load_raw_data();
 data = filter_subjects(total_data);
 
-# time_plot(data)
+time_plot(data)
+problem_plot(data)
+
+#subj = "A3CTXNQ2GXIQSP:34HJIJKLP64Z5YMIU6IKNXSH7PDV4I"
