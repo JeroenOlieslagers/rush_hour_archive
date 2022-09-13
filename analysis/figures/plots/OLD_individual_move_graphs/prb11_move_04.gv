@@ -1,0 +1,6 @@
+digraph prb11_move_04 {
+	subgraph cluster_0 {
+		peripheries=0
+		9 [label=R fillcolor="#ff0000" style=filled]
+	}
+}

@@ -1,43 +1,55 @@
-# repo_template
-This section should contain an overview of your repository.
-For example, this is a general-purpose template repository for 
-all projects in Ma Lab.
-
-## Get Started
-To use this template for your own project, select the 
-green button titled "Use this Template". By default, 
-the owner should be "NYUMaLab". Give your repository a 
-descriptive name, separated by underscores instead of spaces
-e.g. `my_project_name`. [Click here for a guide on how to use
-Github Repo Templates](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template)
-
-# Directory
-Every repository should have a directory for files
-describing the structure of the repository and a high-level
-overview of the contents
+# Rush Hour
+Analysis code for analyzing data from previous rush hour experiment data as well as solvers.
 
 ```
-repo_template
-│   README.md 
-│
-└─── analysis : all analysis files
-│   │
-│   └───demos : runnable demonstration scripts
-│   │
-│   └───figures
-│   │
-│   └───processed_data
-│   │
-│   └───src : analysis code goes here
-│
-│   
-└─── experiment : all experiment files
-│   │
-│   └───raw_data : unmodified data -- DO NOT EDIT
-│   │
-│   └───src : experiment code goes here
-│
-└─── resources : tutorials, presentations, papers, posters, etc.
+rush_hour
+├── README.md
+├── analysis
+│   ├── demos
+│   ├── figures
+│   │   ├── animations
+│   │   │   ├── move_analysis
+│   │   │   ├── old_animation_test
+│   │   │   └── subject_A3CTXNQ2GXIQSP
+│   │   └── plots
+│   │       ├── OLD_individual_move_graphs
+│   │       ├── comparing_data_with_random_agents
+│   │       ├── heuristic_analysis
+│   │       ├── raw_data_figures
+│   │       └── state_space_graphs
+│   ├── processed_data
+│   ├── src
+│   │   ├── best_first_model.jl
+│   │   ├── data_analysis.jl
+│   │   ├── main.jl
+│   │   ├── move_analysis.jl
+│   │   ├── plot_graph.jl
+│   │   ├── rushhour.jl
+│   │   ├── solvers.jl
+│   │   └── testt.jl
+│   └── src_python
+│       ├── Weird_subjects
+│       ├── Weird_subjects_2
+│       ├── __pycache__
+│       ├── plotting.py
+│       ├── problem_opt_boards.npy
+│       ├── problem_tree_sizes.npy
+│       ├── rushhour.py
+│       ├── solvers.py
+│       ├── subject_analysis.py
+│       ├── test.py
+│       └── testt.py
+├── experiment
+│   ├── raw_data
+│   │   ├── problems : directory containing all puzzles for experiment in .json format
+│   │   ├── trialdata.csv
+│   │   └── trialdata_headers.csv : all move data from experiment
+│   └── src
+└── resources
+    └── Presentations
+        ├── expansion_method_example.key
+        ├── heuristic_animation.key
+        └── why_julia.key
 
 ```
 
@@ -54,7 +66,7 @@ Instructions for how to run analysis
 Description of demos
 
 # Authors and Acknowledgements
-Your name and other collaborators here
+Jeroen Olieslagers
 
 # License
 Contact lab about licensing code
