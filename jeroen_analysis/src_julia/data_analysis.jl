@@ -1,4 +1,5 @@
 include("rushhour.jl")
+include("solvers.jl")
 using CSV
 using DataFrames
 using DataStructures
@@ -415,6 +416,7 @@ where moves are considered if they result in a win (moves before
 a restart or a surrender are not considered)
 """
 function boxplot_figure(data)
+    # Concatenate all subject's data
     y = DefaultDict{String, Array{Int}}([])
     for subj in keys(data)
         arrs, move_tuples, attempts = analyse_subject(data[subj]);
@@ -427,7 +429,7 @@ function boxplot_figure(data)
     end
     xx = [[k] for k in keys(y)]
     yy = collect(values(y))
-
+    # Get optimal length
     n = DefaultDict{Int, Dict{String, Array{Int}}}(Dict{String, Array{Int}})
     for i in 1:length(xx)
         prob_str = xx[i][1]
@@ -436,6 +438,7 @@ function boxplot_figure(data)
         n[opt][prob_str] = yy[i]
     end
 
+    # Box plot everything sorted by optimal move length
     ps = []
     for opt in sort(collect(keys(n)))
         xx = [[k] for k in keys(n[opt])]
@@ -453,10 +456,49 @@ function boxplot_figure(data)
     #savefig(p,"boxplot_high_ylim.png")
 end
 
+function random_agent_boxplot(data)
+    y = DefaultDict{String, Array{Int}}([])
+    for subj in keys(data)
+        arrs, move_tuples, attempts = analyse_subject(data[subj]);
+        for prob in keys(attempts)
+            board = load_data(prob)
+            push!(y[prob], random_agent(board))
+        end
+    end
+    xx = [[k] for k in keys(y)]
+    yy = collect(values(y))
+    # Get optimal length
+    n = DefaultDict{Int, Dict{String, Array{Int}}}(Dict{String, Array{Int}})
+    for i in 1:length(xx)
+        prob_str = xx[i][1]
+        opt = parse(Int, split(prob_str, "_")[2])-1
+        #push!(n, [opt])
+        n[opt][prob_str] = yy[i]
+    end
+    # Box plot everything sorted by optimal move length
+    ps = []
+    for opt in sort(collect(keys(n)))
+        xx = [[k] for k in keys(n[opt])]
+        yy = collect(values(n[opt]))
+        p = boxplot(xx, yy, label=nothing, marker=(:black, Plots.stroke(0)), ylim=(0, 5000), xticks=[], grid=false)
+        if opt == 15
+            plot!([l[1] for l in xx], [opt for _ in xx], color=:red, label="Optimal move", xlabel="Problem")
+        else
+            plot!([l[1] for l in xx], [opt for _ in xx], color=:red, label=nothing)
+        end
+        push!(ps, p)
+    end
+
+    p = plot(ps..., layout=(4, 1), ylabel="Moves", legend=:topright)
+    savefig(p,"random_agent_high_ylim.png")
+end
+
 total_data = load_raw_data();
 data = filter_subjects(total_data);
 
 time_plot(data)
 problem_plot(data)
+
+random_agent_boxplot(data)
 
 #subj = "A3CTXNQ2GXIQSP:34HJIJKLP64Z5YMIU6IKNXSH7PDV4I"

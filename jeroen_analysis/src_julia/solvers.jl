@@ -2,6 +2,7 @@ include("rushhour.jl")
 include("plot_graph.jl")
 using DataStructures
 using BenchmarkTools
+using Distributions
 
 
 function a_star(board, h=(x,y)->0, graph_search=false)
@@ -210,6 +211,40 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
         delete!(tree, depth+1)
     end
     return tree, seen, stat, dict, parents
+end
+
+"""
+    random_agent(board, max_iters=10000)
+
+Return number of moves an agent which makes moves randomly takes to complete puzzle.
+Returns Inf if not solved within `max_iters` expansions.
+"""
+function random_agent(board, max_iters=1000000)
+    # board = load_data("hard_puzzle_40")
+    # Random.seed!(2)
+    expansions = 0
+    # Stores all moves performed
+    #moves = Array{Tuple{Int, Int}, 1}()
+    while expansions < max_iters
+        arr_current = get_board_arr(board)
+        # Check if complete
+        if check_solved(arr_current)
+            return expansions
+        end
+        # Expand current node by getting all available moves
+        available_moves = get_all_available_moves(board, arr_current)
+        # Increment
+        expansions += 1
+        # Randomly choose a move
+        selected_move_idx = rand(1:length(available_moves))
+        selected_move = available_moves[selected_move_idx]
+        # Make move
+        make_move(board, (selected_move[1], selected_move[2]))
+        #push!(moves, selected_move)
+        # if expansions % 10000 == 0
+        #     println(expansions)
+        # end
+    end
 end
 
 function red_distance(board, arr)
