@@ -462,7 +462,7 @@ function random_agent_boxplot(data)
         arrs, move_tuples, attempts = analyse_subject(data[subj]);
         for prob in keys(attempts)
             board = load_data(prob)
-            push!(y[prob], random_agent(board))
+            push!(y[prob], random_agent_no_undo(board))
         end
     end
     xx = [[k] for k in keys(y)]
@@ -490,7 +490,7 @@ function random_agent_boxplot(data)
     end
 
     p = plot(ps..., layout=(4, 1), ylabel="Moves", legend=:topright)
-    savefig(p,"random_agent_high_ylim.png")
+    savefig(p,"random_agent_no_undo_high_ylim.png")
 end
 
 total_data = load_raw_data();
