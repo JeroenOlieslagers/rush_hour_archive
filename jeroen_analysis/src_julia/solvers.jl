@@ -214,7 +214,7 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
 end
 
 """
-    random_agent(board, max_iters=10000)
+    random_agent(board, max_iters=1000000)
 
 Return number of moves an agent which makes moves randomly takes to complete puzzle.
 Returns Inf if not solved within `max_iters` expansions.
@@ -237,14 +237,116 @@ function random_agent(board, max_iters=1000000)
         expansions += 1
         # Randomly choose a move
         selected_move_idx = rand(1:length(available_moves))
-        selected_move = available_moves[selected_move_idx]
         # Make move
-        make_move(board, (selected_move[1], selected_move[2]))
+        make_move(board, available_moves[selected_move_idx])
         #push!(moves, selected_move)
-        # if expansions % 10000 == 0
-        #     println(expansions)
-        # end
     end
+    return Inf
+end
+
+"""
+    random_agent_explore(board, max_iters=100000)
+
+Return number of moves an agent which makes moves randomly amongst
+moves that bring agent to unseen states until puzzle is complete.
+If none of the moves are 'exploratory', choose a move at random.
+Returns Inf if not solved within `max_iters` expansions.
+"""
+function random_agent_explore(board, max_iters=100000)
+    # board = load_data("hard_puzzle_40")
+    # Random.seed!(2)
+    expansions = 0
+    # Stores all visited states
+    arr_start = get_board_arr(board)
+    T = get_type(arr_start)
+    visited = Set{T}()
+    while expansions < max_iters
+        arr_current = get_board_arr(board)
+        # Add to visited if not yet visited
+        current = board_to_int(arr_current, T)
+        if !(current in visited)
+            push!(visited, current)
+        end
+        # Check if complete
+        if check_solved(arr_current)
+            return expansions
+        end
+        # Expand current node by getting all available moves
+        available_moves = get_all_available_moves(board, arr_current)
+        # Increment
+        expansions += 1
+        # Check which moves don't lead to already visited states
+        choices = []
+        for move in available_moves
+            make_move(board, move)
+            arr_new = get_board_arr(board)
+            new = board_to_int(arr_new, T)
+            if !(new in visited)
+                push!(choices, move)
+            end
+            # Undo move
+            undo_moves(board, [move])
+        end
+        if length(choices) == 0
+            # Randomly choose a move
+            selected_move_idx = rand(1:length(available_moves))
+            selected_move = available_moves[selected_move_idx]
+        else
+            # Randomly choose a move that leads to unvisited state
+            selected_move_idx = rand(1:length(choices))
+            selected_move = choices[selected_move_idx]
+        end
+        # Make move
+        make_move(board, selected_move)
+    end
+    return Inf
+end
+
+"""
+    random_agent_no_undo(board, max_iters=1000000)
+
+Return number of moves an agent which makes moves randomly (except moving back)
+takes to complete puzzle.
+Returns Inf if not solved within `max_iters` expansions.
+"""
+function random_agent_no_undo(board, max_iters=1000000)
+    # board = load_data("hard_puzzle_40")
+    # Random.seed!(2)
+    expansions = 0
+    prev_move = [0, 0]
+    # Stores all moves performed
+    #moves = Array{Tuple{Int, Int}, 1}()
+    while expansions < max_iters
+        arr_current = get_board_arr(board)
+        # Check if complete
+        if check_solved(arr_current)
+            return expansions
+        end
+        # Expand current node by getting all available moves
+        available_moves = get_all_available_moves(board, arr_current)
+        choices = []
+        for move in available_moves
+            if !([move[1], -move[2]] == prev_move)
+                push!(choices, move)
+            end
+        end
+        # Increment
+        expansions += 1
+        if length(choices) == 0
+            # Randomly choose a move
+            selected_move_idx = rand(1:length(available_moves))
+            selected_move = available_moves[selected_move_idx]
+        else
+            # Randomly choose a move that is not an undo
+            selected_move_idx = rand(1:length(choices))
+            selected_move = choices[selected_move_idx]
+        end
+        # Make move
+        make_move(board, selected_move)
+        prev_move = selected_move
+        #push!(moves, selected_move)
+    end
+    return Inf
 end
 
 function red_distance(board, arr)
