@@ -1,23 +1,34 @@
 using JSON
 using DataStructures
 
-mutable struct Car
-    """
-    Mutable class to store basic car properties
-    """
-    x::Int
-    y::Int
-    len::Int
-    id::Int
-    is_horizontal::Bool
+
+"""
+    Car(x, y, len, id, is_horizontal)
+
+Mutable class to store basic car properties
+# Arguments
+- `x::Integer`:         x position of car.
+- `y::Integer`:         y position of car.
+- `len::Integer`:       how long the car is.
+- `id::Integer`:        car identifier.
+- `x::Boolean`:         whether car is horizontal or not
+"""
+mutable struct Car{X<:Int, Y<:Int, LEN<:Int, ID<:Int, IH<:Bool}
+    x::X
+    y::Y
+    len::LEN
+    id::ID
+    is_horizontal::IH
 end
 
-struct Board
-    """
-    Holds list of cars and problem ID
-    """
-    cars::Array{Car}
-    id::String
+"""
+    Board{cars, id}
+
+Holds array of cars and problem ID of current board
+"""
+struct Board{CARS<:Array{Car, 1}, ID<:String}
+    cars::CARS
+    id::ID
 end
 
 
