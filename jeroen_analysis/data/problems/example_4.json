@@ -1,7 +1,0 @@
-{"cars": 
-    [
-        {"player": false, "position": 11, "length": 2, "id": "0", "orientation": "vertical"}, 
-        {"player": false, "position": 10, "length": 2, "id": "1", "orientation": "vertical"}, 
-        {"player": true, "position": 13, "length": 2, "id": "r", "orientation": "horizontal"}
-    ], 
-"id": "ex4"}
