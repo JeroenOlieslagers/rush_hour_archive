@@ -1,10 +1,19 @@
 using JSON
 using DataStructures
 
+
+"""
+    Car(x, y, len, id, is_horizontal)
+
+Mutable class to store basic car properties
+# Arguments
+- `x::Integer`:         x position of car.
+- `y::Integer`:         y position of car.
+- `len::Integer`:       how long the car is.
+- `id::Integer`:        car identifier.
+- `x::Boolean`:         whether car is horizontal or not
+"""
 mutable struct Car
-    """
-    Mutable class to store basic car properties
-    """
     x::Int
     y::Int
     len::Int
@@ -12,6 +21,11 @@ mutable struct Car
     is_horizontal::Bool
 end
 
+"""
+    Board{cars, id}
+
+Holds array of cars and problem ID of current board
+"""
 struct Board
     """
     Holds list of cars and problem ID
@@ -35,9 +49,9 @@ function load_data(js)
     Returns Board class from json file
     """
     if length(js) > 1
-        data = JSON.parsefile("jeroen_analysis/data/problems/" * js * ".json")
+        data = JSON.parsefile("experiment/raw_data/problems/" * js * ".json")
     else
-        data = JSON.parsefile("jeroen_analysis/data/problems/hard_puzzle_40.json")#prb19369_9.json")#prb39654_9.json")#prb3092_9.json")#prb11306_13.json")#prb10546_6.json")
+        data = JSON.parsefile("experiment/raw_data/problems/hard_puzzle_40.json")#prb19369_9.json")#prb39654_9.json")#prb3092_9.json")#prb11306_13.json")#prb10546_6.json")
     end
     size = length(data["cars"])
     cars = Array{Car}(undef, size)
@@ -49,7 +63,7 @@ function load_data(js)
     return Board(cars, data["id"])
 end
 
-function make_move(board, move)
+function make_move!(board, move)
     """
     Moves car in board move=[car id, move amount (±)]
     """
@@ -60,33 +74,40 @@ function make_move(board, move)
     else
         car.y += m
     end
+    return nothing
 end
 
-function undo_moves(board, moves)
+function undo_moves!(board, moves)
     """
     Undoes list of moves
     """
     for move in reverse(moves)
         make_move(board, [move[1], -move[2]])
     end
+    return nothing
 end
 
-function get_board_arr(board)
+function get_board_arr!(arr, board)
     """
     Return 6x6 array with car id as integer values
     """
     # Initialise with zeros
-    arr = zeros(Int, 6, 6)
+    #arr = zeros(Int, 6, 6)
+    arr .= 0
     for car in board.cars
-        # Get ID arrays to fill in
-        id = ones(Int, car.len)*car.id
+        # Fill in array
         if car.is_horizontal
-            arr[car.y, car.x:car.x+car.len-1] = id
+            for l in 1:car.len
+                arr[car.y, car.x+l-1] = car.id
+            end
         else
-            arr[car.y:car.y+car.len-1, car.x] = id
+            for l in 1:car.len
+                arr[car.y+l-1, car.x] = car.id
+            end
         end
     end
-    return arr
+    return nothing
+    #return arr
 end
 
 function get_1d_arr(arr, car)
@@ -94,31 +115,34 @@ function get_1d_arr(arr, car)
     Helper function that extracts row or column of current car
     """
     if car.is_horizontal
-        row = arr[car.y, :]
+        row = @view arr[car.y, :]
     else
-        row = arr[:, car.x]
+        row = @view arr[:, car.x]
     end
     return row
 end
 
-function get_all_available_moves(board, arr)
+function get_all_available_moves!(available_moves, board, arr)
     """
     Get list of all available moves on board
     """
     # Initalise available move array
-    available_moves = Array{Array{Int, 1}, 1}()
+    #available_moves = Array{Array{Int, 1}, 1}()
+    empty!(available_moves)
     for car in board.cars
-        available_moves = vcat(available_moves, get_available_moves(arr, car))
+        get_available_moves!(available_moves, arr, car)
     end
-    return available_moves
+    return nothing
+    #return available_moves
 end
 
-function get_available_moves(arr, car)
+
+function get_available_moves!(available_moves, arr, car)
     """
     Calculates all available moves of given car
     """
     # Initialise
-    available_moves = Array{Array{Int, 1}, 1}()
+    #available_moves = Array{Array{Int, 1}, 1}()
     # Get row/col
     row = get_1d_arr(arr, car)
     # Get id
@@ -126,7 +150,7 @@ function get_available_moves(arr, car)
     # Split row/col
     idx = findfirst(x -> x == id, row)
     # Get backward moves
-    b = reverse(row[1:idx-1])
+    b = reverse(@view row[1:idx-1])
     for (m, pos) in enumerate(b)
         if pos == 0
             push!(available_moves, [id, -m])
@@ -135,7 +159,7 @@ function get_available_moves(arr, car)
         end
     end
     # Get forward moves
-    f = row[idx+car.len:end]
+    f = @view row[idx+car.len:end]
     for (m, pos) in enumerate(f)
         if pos == 0
             push!(available_moves, [id, m])
@@ -143,7 +167,8 @@ function get_available_moves(arr, car)
             break
         end
     end
-    return available_moves
+    return nothing
+    #return available_moves
 end
 
 function get_type(arr)
@@ -190,7 +215,7 @@ function blocked_by(arr, car)
     # Only register cars to the right of red car as blockages
     if id == maximum(arr)
         idx = findfirst(x -> x == id, row)
-        row = row[idx+2:end]
+        row = @view row[idx+2:end]
     end
     # Get other cars on same row/column
     uniq = unique(row)

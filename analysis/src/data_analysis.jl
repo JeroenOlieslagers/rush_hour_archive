@@ -8,7 +8,7 @@ using PDFmerger
 
 
 function load_raw_data()
-    csv_reader = CSV.File("jeroen_analysis/data/raw/trialdata_headers.csv");
+    csv_reader = CSV.File("experiment/raw_data/trialdata_headers.csv");
     data = pre_process(csv_reader)
     return data
 end
@@ -20,7 +20,7 @@ function pre_process(csv)
     # Data dictionary has subject ID as key and dataframe object as value, containing all the data
     data = Dict{String, DataFrame}()
     # Load problem files
-    jsons = readdir("jeroen_analysis/data/problems")
+    jsons = readdir("experiment/raw_data/problems")
     # Loop over all data
     for row in csv
         # Remove backslashes
@@ -490,15 +490,15 @@ function random_agent_boxplot(data)
     end
 
     p = plot(ps..., layout=(4, 1), ylabel="Moves", legend=:topright)
-    savefig(p,"random_agent_no_undo_high_ylim.png")
+    #savefig(p,"random_agent_no_undo_high_ylim.png")
 end
 
-total_data = load_raw_data();
-data = filter_subjects(total_data);
+# total_data = load_raw_data();
+# data = filter_subjects(total_data);
 
-time_plot(data)
-problem_plot(data)
+# time_plot(data)
+# problem_plot(data)
 
-random_agent_boxplot(data)
+# random_agent_boxplot(data)
 
 #subj = "A3CTXNQ2GXIQSP:34HJIJKLP64Z5YMIU6IKNXSH7PDV4I"

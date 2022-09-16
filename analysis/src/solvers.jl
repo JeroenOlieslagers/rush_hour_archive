@@ -3,6 +3,7 @@ include("plot_graph.jl")
 using DataStructures
 using BenchmarkTools
 using Distributions
+using Random
 
 
 function a_star(board, h=(x,y)->0, graph_search=false)
@@ -225,23 +226,26 @@ function random_agent(board, max_iters=1000000)
     expansions = 0
     # Stores all moves performed
     #moves = Array{Tuple{Int, Int}, 1}()
+    available_moves = Array{Array{Int, 1}, 1}()
+    arr = zeros(Int, 6, 6)
     while expansions < max_iters
-        arr_current = get_board_arr(board)
+        #arr_current = get_board_arr(board)
+        get_board_arr!(arr, board)
         # Check if complete
-        if check_solved(arr_current)
-            return expansions
-        end
+        # if check_solved(arr_current)
+        #     return expansions
+        # end
         # Expand current node by getting all available moves
-        available_moves = get_all_available_moves(board, arr_current)
+        get_all_available_moves!(available_moves, board, arr)
         # Increment
-        expansions += 1
+        expansions += 1a
         # Randomly choose a move
-        selected_move_idx = rand(1:length(available_moves))
+        #selected_move_idx = rand(1:length(available_moves))
         # Make move
-        make_move(board, available_moves[selected_move_idx])
+        make_move!(board, available_moves[rand(1:length(available_moves))])
         #push!(moves, selected_move)
     end
-    return Inf
+    #return Inf
 end
 
 """

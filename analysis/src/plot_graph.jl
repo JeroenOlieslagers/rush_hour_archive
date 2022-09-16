@@ -1,4 +1,4 @@
-using GraphViz, FileIO, Cairo, ImageIO
+using GraphViz, FileIO, ImageIO
 using Plots
 
 function initialise_graph(title="")
