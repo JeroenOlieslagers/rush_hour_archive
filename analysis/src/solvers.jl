@@ -6,7 +6,7 @@ using Distributions
 using Random
 
 
-function a_star(board, h=(x,y)->0, graph_search=false)
+function a_star(board; h=(x,y)->0, graph_search=false)
     """
     Implementation of A* algorithm with zero heuristic as default heuristic function.
     The search is a tree-search, not a graph-search, which means visited nodes can be
@@ -29,6 +29,7 @@ function a_star(board, h=(x,y)->0, graph_search=false)
     push!(closed_set, start)
     # count node expansions to prevent infinite loop
     expansions = 0
+    available_moves = Array{Array{Int, 1}, 1}()
     while length(open_set) > 0
         # Exit if too many expansions occured
         if expansions > 100000
@@ -40,7 +41,7 @@ function a_star(board, h=(x,y)->0, graph_search=false)
         # Move to current node
         if length(past_moves) > 0
             for move in past_moves
-                make_move(board, move)
+                make_move!(board, move)
             end
         end
         # Get current board int-string
@@ -55,12 +56,12 @@ function a_star(board, h=(x,y)->0, graph_search=false)
             return arr_current, past_moves, expansions
         end
         # Expand current node by getting all available moves
-        available_moves = get_all_available_moves(board, arr_current)
+        get_all_available_moves!(available_moves, board, arr_current)
         # Increment expansion counter
         expansions += 1
         for move in available_moves
             # Perform available move
-            make_move(board, move)
+            make_move!(board, move)
             # Get board int-string
             arr_new = get_board_arr(board)
             new = board_to_int(arr_new, T)
@@ -68,7 +69,7 @@ function a_star(board, h=(x,y)->0, graph_search=false)
                 # Ignore if neighbor already visited
                 if new in closed_set
                     # Undo move
-                    undo_moves(board, [move])
+                    undo_moves!(board, [move])
                     continue
                 # Add to list if not yet visited
                 else
@@ -91,10 +92,10 @@ function a_star(board, h=(x,y)->0, graph_search=false)
                 end
             end
             # Undo move
-            undo_moves(board, [move])
+            undo_moves!(board, [move])
         end
         # Undo rest of moves back to initial board
-        undo_moves(board, past_moves)
+        undo_moves!(board, past_moves)
     end
     println("--------------------------")
     println("A* did not find a solution")
@@ -137,6 +138,7 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
     expansions = 0
     # set optimal length depth
     depth = 10000
+    available_moves = Array{Array{Int, 1}, 1}()
     while length(q) > 0
         # Exit if too many expansions occured
         if expansions > 100000
@@ -153,7 +155,7 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
         # Move to current node
         if layer > 0
             for move in past_moves
-                make_move(board, move)
+                make_move!(board, move)
             end
         end
         # Get current board int-string
@@ -167,12 +169,12 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
         stat[current] = [layer, is_solved, heuristic(board, arr_current)]
         if layer < depth
             # Expand current node by getting all available moves
-            available_moves = get_all_available_moves(board, arr_current)
+            get_all_available_moves!(available_moves, board, arr_current)
             # Increment expansion counter
             expansions += 1
             for move in available_moves
                 # Perform available move
-                make_move(board, move)
+                make_move!(board, move)
                 # Get board int-string
                 arr_new = get_board_arr(board)
                 new = board_to_int(arr_new, T)
@@ -193,11 +195,11 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
                     push!(parents[new], current)
                 end  
                 # Undo move
-                undo_moves(board, [move])
+                undo_moves!(board, [move])
             end
         end
         # Undo rest of moves back to initial board
-        undo_moves(board, past_moves)
+        undo_moves!(board, past_moves)
     end
     # Delete nodes beyond optimal depth
     if !traverse_full
@@ -264,6 +266,7 @@ function random_agent_explore(board, max_iters=100000)
     arr_start = get_board_arr(board)
     T = get_type(arr_start)
     visited = Set{T}()
+    available_moves = Array{Array{Int, 1}, 1}()
     while expansions < max_iters
         arr_current = get_board_arr(board)
         # Add to visited if not yet visited
@@ -276,20 +279,20 @@ function random_agent_explore(board, max_iters=100000)
             return expansions
         end
         # Expand current node by getting all available moves
-        available_moves = get_all_available_moves(board, arr_current)
+        get_all_available_moves!(available_moves, board, arr_current)
         # Increment
         expansions += 1
         # Check which moves don't lead to already visited states
         choices = []
         for move in available_moves
-            make_move(board, move)
+            make_move!(board, move)
             arr_new = get_board_arr(board)
             new = board_to_int(arr_new, T)
             if !(new in visited)
                 push!(choices, move)
             end
             # Undo move
-            undo_moves(board, [move])
+            undo_moves!(board, [move])
         end
         if length(choices) == 0
             # Randomly choose a move
@@ -301,7 +304,7 @@ function random_agent_explore(board, max_iters=100000)
             selected_move = choices[selected_move_idx]
         end
         # Make move
-        make_move(board, selected_move)
+        make_move!(board, selected_move)
     end
     return Inf
 end
@@ -320,6 +323,7 @@ function random_agent_no_undo(board, max_iters=1000000)
     prev_move = [0, 0]
     # Stores all moves performed
     #moves = Array{Tuple{Int, Int}, 1}()
+    available_moves = Array{Array{Int, 1}, 1}()
     while expansions < max_iters
         arr_current = get_board_arr(board)
         # Check if complete
@@ -327,7 +331,7 @@ function random_agent_no_undo(board, max_iters=1000000)
             return expansions
         end
         # Expand current node by getting all available moves
-        available_moves = get_all_available_moves(board, arr_current)
+        get_all_available_moves!(available_moves, board, arr_current)
         choices = []
         for move in available_moves
             if !([move[1], -move[2]] == prev_move)
@@ -346,7 +350,7 @@ function random_agent_no_undo(board, max_iters=1000000)
             selected_move = choices[selected_move_idx]
         end
         # Make move
-        make_move(board, selected_move)
+        make_move!(board, selected_move)
         prev_move = selected_move
         #push!(moves, selected_move)
     end
@@ -478,13 +482,13 @@ function calculate_heur(board, moves, h)
     Calculates h at each of the moves, returns list with values
     """
     # Undo moves
-    undo_moves(board, moves)
+    undo_moves!(board, moves)
     # Initialise list
     arr = get_board_arr(board)
     heurs = [h(board, arr)]
     for move in moves
         # Commit move
-        make_move(board, move)
+        make_move!(board, move)
         arr = get_board_arr(board)
         # Calculate and append heuristic
         push!(heurs, h(board, arr))

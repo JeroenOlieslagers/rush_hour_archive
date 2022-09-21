@@ -5,6 +5,7 @@ using DataFrames
 using DataStructures
 using Plots
 using PDFmerger
+using StatsPlots
 
 
 function load_raw_data()
@@ -342,7 +343,7 @@ function analyse_subject(subject_data)
                 # Get move amount
                 m = get_move_amount(move_piece, target, board)
                 # Make move
-                make_move(board, (move_piece, m))
+                make_move!(board, (move_piece, m))
                 arr = get_board_arr(board)
                 push!(arrs, arr)
                 push!(move_tuples, (move_piece, m))
@@ -499,6 +500,6 @@ end
 # time_plot(data)
 # problem_plot(data)
 
-# random_agent_boxplot(data)
+# boxplot_figure(data)
 
 #subj = "A3CTXNQ2GXIQSP:34HJIJKLP64Z5YMIU6IKNXSH7PDV4I"

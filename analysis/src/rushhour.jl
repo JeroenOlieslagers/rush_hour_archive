@@ -82,7 +82,7 @@ function undo_moves!(board, moves)
     Undoes list of moves
     """
     for move in reverse(moves)
-        make_move(board, [move[1], -move[2]])
+        make_move!(board, [move[1], -move[2]])
     end
     return nothing
 end
@@ -108,6 +108,27 @@ function get_board_arr!(arr, board)
     end
     return nothing
     #return arr
+end
+
+function get_board_arr(board)::Matrix{Int}
+    """
+    Return 6x6 array with car id as integer values
+    """
+    # Initialise with zeros
+    arr = zeros(Int, 6, 6)
+    for car in board.cars
+        # Fill in array
+        if car.is_horizontal
+            for l in 1:car.len
+                arr[car.y, car.x+l-1] = car.id
+            end
+        else
+            for l in 1:car.len
+                arr[car.y+l-1, car.x] = car.id
+            end
+        end
+    end
+    return arr
 end
 
 function get_1d_arr(arr, car)
