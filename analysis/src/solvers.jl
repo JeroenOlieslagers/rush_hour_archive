@@ -6,7 +6,7 @@ using Distributions
 using Random
 
 
-function a_star(board; h=(x,y)->0, graph_search=false)
+function a_star(board; h=(x,y)->0, graph_search=false, solve=true)
     """
     Implementation of A* algorithm with zero heuristic as default heuristic function.
     The search is a tree-search, not a graph-search, which means visited nodes can be
@@ -16,11 +16,11 @@ function a_star(board; h=(x,y)->0, graph_search=false)
     arr_start = get_board_arr(board)
     T = get_type(arr_start)
     start = board_to_int(arr_start, T)
-    # dict is a map that gives cheapest cost from start to node currently known
-    # (initialised with infinity as default value) as first element, the second element
-    # is an array with the shortest path in moves to board state
-    dict = DefaultDict{T, Array}([100000, []])
-    dict[start] = [0, []]
+    # f_dict is a map that gives cheapest cost from start to node currently known
+    f_dict = DefaultDict{T, Int}(10000)
+    f_dict[start] = 0
+    # dict is an array with the shortest path in moves to board state
+    dict = DefaultDict{T, Array{Array{Int, 1}}}(Int[])
     # open_set is priority queue that will indicate which node to expand next
     open_set = PriorityQueue{T, Int}()
     enqueue!(open_set, start, h(board, arr_start))
@@ -37,7 +37,8 @@ function a_star(board; h=(x,y)->0, graph_search=false)
         end
         # Get state with lowest f score
         current = dequeue!(open_set)
-        f_score_old, past_moves = dict[current]
+        f_score_old = f_dict[current]
+        past_moves = dict[current]
         # Move to current node
         if length(past_moves) > 0
             for move in past_moves
@@ -47,13 +48,15 @@ function a_star(board; h=(x,y)->0, graph_search=false)
         # Get current board int-string
         arr_current = get_board_arr(board)
         # Check if solved
-        if check_solved(arr_current)
-            # println("------")
-            # println("Size of dict: " * string(Base.summarysize(dict)) * " bytes")
-            # println("Number of node expansions: " * string(expansions))
-            # println("Optimal length: " * string(length(past_moves)))
-            # println("------")
-            return arr_current, past_moves, expansions
+        if solve
+            if check_solved(arr_current)
+                # println("------")
+                # println("Size of dict: " * string(Base.summarysize(dict)) * " bytes")
+                # println("Number of node expansions: " * string(expansions))
+                # println("Optimal length: " * string(length(past_moves)))
+                # println("------")
+                return arr_current, past_moves, expansions
+            end
         end
         # Expand current node by getting all available moves
         get_all_available_moves!(available_moves, board, arr_current)
@@ -79,9 +82,10 @@ function a_star(board; h=(x,y)->0, graph_search=false)
             # Calculates g score of neighbor
             tentative_score = f_score_old + 1
             # If this is the fastest way to get to neighbor, update its costs
-            if tentative_score < dict[new][1]
+            if tentative_score < f_dict[new]
                 # Update score
-                dict[new] = [tentative_score, vcat(past_moves, [move])]
+                f_dict[new] = tentative_score
+                dict[new] = vcat(past_moves, [move])
                 f_score_new = tentative_score + h(board, arr_new)
                 # Set all moves leading to current neighbor
                 #move_dict[new] = vcat(past_moves, [move])
@@ -97,12 +101,13 @@ function a_star(board; h=(x,y)->0, graph_search=false)
         # Undo rest of moves back to initial board
         undo_moves!(board, past_moves)
     end
-    println("--------------------------")
-    println("A* did not find a solution")
-    println(expansions)
-    println(Base.summarysize(dict))
-    println("--------------------------")
-    return nothing, nothing
+    # println("--------------------------")
+    # println("A* did not find a solution")
+    # println(expansions)
+    # println(Base.summarysize(dict))
+    # println("--------------------------")
+    # return nothing, nothing
+    return nothing, nothing, expansions
 end
 
 function bfs_path_counters(board; traverse_full=false, heuristic=zer)
@@ -134,6 +139,10 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
     # parents keeps track of the parent nodes for each node in tree
     parents = DefaultDict{T, Array{T, 1}}([])
     parents[start] = []
+    # children keeps track of the children nodes for each node in tree
+    children = DefaultDict{T, Array{T, 1}}([])
+    # solutions is a list of the nodes that are solved
+    solutions = Array{T, 1}()
     # count node expansions to prevent infinite loop
     expansions = 0
     # set optimal length depth
@@ -165,6 +174,10 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
         if (!traverse_full) && is_solved && depth == 10000
             depth = layer
         end
+        # Add solutions to list
+        if is_solved
+            push!(solutions, current)
+        end
         # Update stat
         stat[current] = [layer, is_solved, heuristic(board, arr_current)]
         if layer < depth
@@ -191,8 +204,9 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
                 if length(dict[new]) > layer
                     # Increment seen counter
                     seen[new] += seen[current]
-                    # Add to parents
+                    # Add to parents and children
                     push!(parents[new], current)
+                    push!(children[current], new)
                 end  
                 # Undo move
                 undo_moves!(board, [move])
@@ -209,11 +223,17 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
                 delete!(seen, key)
                 delete!(stat, key)
                 delete!(parents, key)
+                delete!(children, key)
             end
         end
         delete!(tree, depth+1)
     end
-    return tree, seen, stat, dict, parents
+    for child in keys(parents)
+        if !(child in keys(children))
+            children[child] = []
+        end
+    end
+    return tree, seen, stat, dict, parents, children, solutions
 end
 
 """
@@ -496,31 +516,47 @@ function calculate_heur(board, moves, h)
     return heurs
 end
 
-function get_solution_paths(tree, seen, stat)
-    solved = []
-    solutions = []
-    for key in keys(stat)
-        layer, is_solved = stat[key]
-        if is_solved == 1# && layer == 3
-            push!(solved, key)
-            println(seen[key])
-            push!(solutions, key)
-        end
-    end
-    soln_len = length(tree)
+function get_solution_paths(solutions, parents, stat)
+    # for solution in solutions
+    #     soln_len = stat[solution][1]
+    #     old_parents = [solution]
+    #     for i in 0:soln_len
+    #         layer = soln_len - i
+    #         println(layer)
+    #         dummy_parents = Array{Int128, 1}()
+    #         for old_parent in old_parents
+    #             new_parents = parents[old_parent]
+    #             for new_parent in new_parents
+    #                 if !(old_parent in solution_paths[new_parent])
+    #                     push!(solution_paths[new_parent], old_parent)
+    #                     push!(dummy_parents, new_parent)
+    #                     fake_tree[layer] += 1
+    #                 end
+    #             end
+    #         end
+    #         old_parents = dummy_parents
+    #     end
+    # end
+    # return solution_paths, fake_tree
     
-    solution_paths = DefaultOrderedDict{Int, Array{T, 1}}([])
-    solution_paths[soln_len] = solutions
+    solution_paths = DefaultOrderedDict{Int, Array{Int128, 1}}([])
+    for solution in solutions
+        push!(solution_paths[stat[solution][1]], solution)
+    end
     fake_tree = OrderedDict{Int, Int}()
-    fake_tree[soln_len] = length(solutions)
+    max_len = maximum(keys(solution_paths))
+    fake_tree[max_len] = length(solution_paths[max_len])
     
     max_heur = 0
-    for i in 1:(soln_len-1)
-        layer = soln_len - i
+    for i in 1:(max_len-1)
+        layer = max_len - i
         for child in solution_paths[layer + 1]
-            push!(solution_paths[layer], parents[child]...)
+            for parent in parents[child]
+                if !(parent in solution_paths[layer])
+                    push!(solution_paths[layer], parent)
+                end
+            end
         end
-        solution_paths[layer] = unique(solution_paths[layer])
         for node in solution_paths[layer]
             if stat[node][3] > max_heur
                 max_heur = stat[node][3]
@@ -532,6 +568,7 @@ function get_solution_paths(tree, seen, stat)
     return solution_paths, fake_tree, max_heur
 end
 
+solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);
 
 # board = load_data("hard_puzzle_40")
 
@@ -591,3 +628,4 @@ end
 # save_graph(g, "optimal_moves_heuristic_prb77267")
 # save_graph(g, "solution_hard_puzzle_39_complete")
 
+ 
