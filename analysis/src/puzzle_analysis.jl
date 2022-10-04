@@ -2,23 +2,10 @@ include("data_analysis.jl")
 include("solvers.jl")
 using FileIO
 using Distributions
+using StatsPlots
+
 
 data = load("analysis/processed_data/filtered_data.jld2")["data"]
-
-puzzle_level_data = DataFrame(
-    prb=String[], 
-    Ls=Array{Int, 1}[], 
-    optimal_len=Int[], 
-    av_branch=Float64[], 
-    nr_sol=Int[], 
-    nr_opt_path=Int[], 
-    state_space_size=Int[], 
-    av_state_space_width=Float64[], 
-    min_state_space_width=Int[], 
-    max_depth=Int[], 
-    av_rand=Float64[], 
-    var_rand=Float64[])
-
 
 """
     get_Ls(data)
@@ -142,39 +129,25 @@ function get_av_branchs(leaf, parents, children, depth; N=1)::Tuple{Float64, Flo
     return total_in / N, total_out / N
 end
 
-
 """
-    get_av_branchs(optimal_moves)
+get_random_agent_stats(prbs, N=100)
 
-Return dictionary where keys are problem ids and values are average branching factor
-along optimal path specified in optimal_moves dict.
+Returns mean and standard deviation of moves a random agent performs to solve the problem
+over N iterations.
 """
-function get_av_branchs(optimal_moves::Dict{String, Array{Array{Int, 1}}})::Dict{String, Float64}
-    # Initialise
-    dict = Dict{String, Float64}()
-    available_moves = Array{Array{Int, 1}, 1}()
-    arr = zeros(Int, 6, 6)
-    # Loop over puzzles
-    for prb in keys(optimal_moves)
-        # Initialise board
-        board = load_data(prb)
-        get_board_arr!(arr, board)
-        get_all_available_moves!(available_moves, board, arr)
-        total_branching = length(available_moves)
-        # Loop over optimal path
-        for move in optimal_moves[prb]
-            make_move!(board, move)
-            get_board_arr!(arr, board)
-            get_all_available_moves!(available_moves, board, arr)
-            println(length(available_moves))
-            total_branching += length(available_moves)
+function get_random_agent_stats(prbs::Vector{String}; N=100)
+    dict = Dict{String, Vector{Float64}}()
+    for prb in prbs
+        println(prb)
+        exps = zeros(Int, N)
+        for i in 1:N
+            board = load_data(prb)
+            exps[i] = random_agent(board)
         end
-        # Divide total branches over optimal path length to get average
-        dict[prb] = total_branching / length(optimal_moves[prb])
+        dict[prb] = [mean(exps), std(exps)]
     end
     return dict
 end
-
 
     
 Ls = get_Ls(data)
@@ -182,11 +155,35 @@ prbs = collect(keys(Ls))[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1
 
 state_space_features = get_state_spaces(prbs)
 
-x = []
+random_agent_stats = get_random_agent_stats(prbs)
+
+x = [[] for _ in 1:13]
 y = []
 for prb in prbs
-    push!(x, [state_space_features[prb][1] for _ in 1:length(Ls[prb])]...)
+    for i in 1:11
+        push!(x[i], [state_space_features[prb][i] for _ in 1:length(Ls[prb])]...)
+    end
+    for i in 12:13
+        push!(x[i], [random_agent_stats[prb][i-11] for _ in 1:length(Ls[prb])]...)
+    end
     push!(y, Ls[prb]...)
 end
 
-scatter(x, y, ylims=(0, 20))
+scatter(x[12], y, legend=nothing)
+
+X = zeros(70, 13)
+for (i, prb) in enumerate(prbs)
+    for j in 1:13
+        if j <= 11
+            X[i, j] = state_space_features[prb][j]
+        elseif j > 11
+            X[i, j] = random_agent_stats[prb][j-11]
+        end
+    end
+end
+
+XX = zeros(size(X))
+for i in 1:13
+    XX[:, i] = X[:, i] .- mean(X[:, i])
+    XX[:, i] = XX[:, i] / norm(XX[:, i])
+end

@@ -254,13 +254,13 @@ function random_agent(board, max_iters=1000000)
         #arr_current = get_board_arr(board)
         get_board_arr!(arr, board)
         # Check if complete
-        # if check_solved(arr_current)
-        #     return expansions
-        # end
+        if check_solved(arr)
+            return expansions
+        end
         # Expand current node by getting all available moves
         get_all_available_moves!(available_moves, board, arr)
         # Increment
-        expansions += 1a
+        expansions += 1
         # Randomly choose a move
         #selected_move_idx = rand(1:length(available_moves))
         # Make move
@@ -568,7 +568,7 @@ function get_solution_paths(solutions, parents, stat)
     return solution_paths, fake_tree, max_heur
 end
 
-solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);
+#solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);
 
 # board = load_data("hard_puzzle_40")
 
