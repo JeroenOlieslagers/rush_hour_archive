@@ -81,7 +81,7 @@ function get_state_spaces(prbs::Vector{String})::Dict{String, Vector{Float64}}
         av_width = mean(tree_shape)
         min_width = minimum(tree_shape)
         max_width = maximum(tree_shape)
-        depth = length(tree_shape) + 1
+        depth = length(tree_shape)
         state_space_features[prb] = [optimal_length, average_children, in_degree, out_degree, n_solutions, n_optimal_paths, size_state_space, av_width, min_width, max_width, depth]
     end
     return state_space_features
@@ -130,7 +130,14 @@ function get_random_agent_stats(prbs::Vector{String}; N=100)::Dict{String, Vecto
             board = load_data(prb)
             exps[i] = random_agent(board)
         end
-        dict[prb] = [mean(exps), std(exps)]
+        # A star solvers
+        board = load_data(prb)
+        _, _, expansions_bfs = a_star(board)
+        board = load_data(prb)
+        _, _, expansions_red = a_star(board, h=red_distance)
+        board = load_data(prb)
+        _, _, expansions_forest = a_star(board, h=multi_mag_size_nodes)
+        dict[prb] = [mean(exps), std(exps), expansions_bfs, expansions_red, expansions_forest]
     end
     return dict
 end
@@ -157,7 +164,10 @@ function get_dataframe(prbs::Vector{String}, dict::DefaultDict{String, Dict{Stri
         min_width=Int[],
         depth=Int[],
         mean_random=Float64[],
-        std_random=Float64[])
+        std_random=Float64[],
+        exp_bfs=Int[],
+        exp_red=Int[],
+        exp_forest=Int[])
 
     for subject in keys(dict)
         subj_prbs = dict[subject]
@@ -250,9 +260,9 @@ data = load("analysis/processed_data/filtered_data.jld2")["data"]
 Ls, dict = get_Ls(data)
 prbs = collect(keys(Ls))[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in keys(Ls)])]
 
-# state_space_features = get_state_spaces(prbs)
+state_space_features = get_state_spaces(prbs)
 
-# random_agent_stats = get_random_agent_stats(prbs)
+random_agent_stats = get_random_agent_stats(prbs, N=10000)
 
 # df = get_dataframe(prbs, dict, state_space_features, random_agent_stats)
 
@@ -267,8 +277,8 @@ df = DataFrame(CSV.File("analysis/processed_data/13_features.csv"))
 #AICs, BICs, CVs = exhaustive_linear(df)
 #save("analysis/processed_data/exhaustive_linear_CVs.jld2", "data", CVs)
 BICs = load("analysis/processed_data/exhaustive_linear_BICs.jld2")["data"]
-BICs = load("analysis/processed_data/exhaustive_linear_AICs.jld2")["data"]
-BICs = load("analysis/processed_data/exhaustive_linear_CVs.jld2")["data"]
+AICs = load("analysis/processed_data/exhaustive_linear_AICs.jld2")["data"]
+CVs = load("analysis/processed_data/exhaustive_linear_CVs.jld2")["data"]
 
 fm = @formula(L ~ opt_L)
 fm = Term(:L) ~ (term(1) | Term(:subj)) +([Term(Symbol(name)) for name in names(df) if name ∉ ["subj", "prb", "L"]]...)
@@ -282,6 +292,8 @@ av_L = [mean(Ls[prb]) for prb in prbs]
 
 en = ElasticNetRegression(0, 0)
 p = MLJLinearModels.fit(en, XX, av_L)
+
+board = load_data("example_4")
 
 X = zeros(70, 13)
 for (i, prb) in enumerate(prbs)

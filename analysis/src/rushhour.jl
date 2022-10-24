@@ -87,7 +87,7 @@ function undo_moves!(board, moves)
     return nothing
 end
 
-function get_board_arr!(arr, board)
+function get_board_arr!(arr, board::Board)
     """
     Return 6x6 array with car id as integer values
     """
@@ -110,7 +110,7 @@ function get_board_arr!(arr, board)
     #return arr
 end
 
-function get_board_arr(board)::Matrix{Int}
+function get_board_arr(board::Board)::Matrix{Int}
     """
     Return 6x6 array with car id as integer values
     """
@@ -143,7 +143,7 @@ function get_1d_arr(arr, car)
     return row
 end
 
-function get_all_available_moves!(available_moves, board, arr)
+function get_all_available_moves!(available_moves, board::Board, arr)
     """
     Get list of all available moves on board
     """
@@ -218,7 +218,7 @@ function check_solved(arr)
     # Get forward moves
     f = row[idx+2:end]
     # Check if there is anything blocking red car
-    if unique(f) == [0]
+    if unique(f) == [0] || length(f) == 0
         return true
     else
         return false
@@ -243,7 +243,7 @@ function blocked_by(arr, car)
     return [car_id for car_id in uniq if !(car_id in [0, id])]
 end
 
-function get_mag(board, arr)
+function get_mag(board::Board, arr)
     """
     Calculates macro-action graph (MAG)
     """
@@ -356,7 +356,7 @@ function moves_that_unblock(car1, car2, arr)
     return constrained_moves, [blockages[i] for i in constrained_moves]
 end
 
-function get_constrained_mag(board, arr)
+function get_constrained_mag(board::Board, arr)
     """
     Get MAG where only blockages that are 'relevant' (i.e. prevent red car from moving)
     are considered instead of every blockage
@@ -414,7 +414,7 @@ function get_constrained_mag(board, arr)
     return mag
 end
 
-function get_multiple_mags(board, arr)
+function get_multiple_mags(board::Board, arr)
     """
     Return list of MAGs for moves which have same number of blockages
     """
@@ -532,7 +532,7 @@ function get_multiple_mags(board, arr)
     return mags
 end
 
-function get_move_amount(piece, target, board)
+function get_move_amount(piece, target, board::Board)
     """
     From piece ID and target location, get move amount
     """

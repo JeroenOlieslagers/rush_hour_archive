@@ -162,7 +162,7 @@ function save_graph(g, file_name)
     """
     Save graph as png
     """
-    FileIO.save(file_name * ".png", g)
+    FileIO.save(file_name * ".svg", g)
 end
 
 function plot_mag(mag; title="")
@@ -223,7 +223,7 @@ function draw_solution_paths(solution_paths, parents, stat, max_heur)
     return GraphViz.Graph(g)
 end
 
-function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], value_map=[])
+function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], value_map=[], solutions=[])
     """
     Draws full tree of parents
     """
@@ -232,22 +232,22 @@ function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], valu
     # Get parents
     x = reverse(collect(keys(parents)))
     optimal_nodes = Set{BigInt}()
-    solutions = Set{BigInt}()
     # All edges drawn so far
     all_edges = DefaultDict{BigInt, Array{BigInt, 1}}([])
     if length(solution_paths) > 0
         # Get list of all nodes on optimal path
         optimal_nodes = Set(reduce(vcat, collect(values(solution_paths))))
-        # Get final solution nodes
-        solutions = Set(last(reverse(collect(values(solution_paths)))))
     end
     for child in x
         node_color = ""
         if length(solution_paths) > 0
+            if child in optimal_nodes
+                node_color = """ "#0000ff" """
+            end
+        end
+        if length(solutions) > 0
             if child in solutions
                 node_color = """ "#00ff00" """
-            elseif child in optimal_nodes
-                node_color = """ "#0000ff" """
             end
         end
         if length(value_map) > 0

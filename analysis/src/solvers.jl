@@ -110,7 +110,7 @@ function a_star(board; h=(x,y)->0, graph_search=false, solve=true)
     return nothing, nothing, expansions
 end
 
-function bfs_path_counters(board; traverse_full=false, heuristic=zer)
+function bfs_path_counters(board; traverse_full=false, heuristic=zer, all_parents=false)
     """
     Breadth first search algorithm that counts how many paths there are to
     all nodes in same layer as optimal solution
@@ -174,12 +174,14 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
         if (!traverse_full) && is_solved && depth == 10000
             depth = layer
         end
+        # Update stat
+        stat[current] = [layer, is_solved, heuristic(board, arr_current)]
         # Add solutions to list
         if is_solved
             push!(solutions, current)
+            undo_moves!(board, past_moves)
+            continue
         end
-        # Update stat
-        stat[current] = [layer, is_solved, heuristic(board, arr_current)]
         if layer < depth
             # Expand current node by getting all available moves
             get_all_available_moves!(available_moves, board, arr_current)
@@ -205,9 +207,14 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer)
                     # Increment seen counter
                     seen[new] += seen[current]
                     # Add to parents and children
-                    push!(parents[new], current)
+                    if !all_parents
+                        push!(parents[new], current)
+                    end
                     push!(children[current], new)
                 end  
+                if all_parents
+                    push!(parents[new], current)
+                end
                 # Undo move
                 undo_moves!(board, [move])
             end
@@ -539,7 +546,7 @@ function get_solution_paths(solutions, parents, stat)
     # end
     # return solution_paths, fake_tree
     
-    solution_paths = DefaultOrderedDict{Int, Array{Int128, 1}}([])
+    solution_paths = DefaultOrderedDict{Int, Array{BigInt, 1}}([])
     for solution in solutions
         push!(solution_paths[stat[solution][1]], solution)
     end
@@ -548,7 +555,7 @@ function get_solution_paths(solutions, parents, stat)
     fake_tree[max_len] = length(solution_paths[max_len])
     
     max_heur = 0
-    for i in 1:(max_len-1)
+    for i in 1:max_len
         layer = max_len - i
         for child in solution_paths[layer + 1]
             for parent in parents[child]
