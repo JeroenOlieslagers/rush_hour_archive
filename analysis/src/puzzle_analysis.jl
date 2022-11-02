@@ -1,16 +1,19 @@
 include("data_analysis.jl")
 include("solvers.jl")
-using FileIO
-using Distributions
-using StatsPlots
-using MixedModels
+# using FileIO
+# using Distributions
+# using StatsPlots
+# using MixedModels
 using StatsModels
+using StatsBase
 using GLM
-using MLJLinearModels
-using ColorSchemes
-using LaTeXStrings
+# using MLJLinearModels
+# using ColorSchemes
+# using LaTeXStrings
 using Combinatorics
-using MLDataUtils
+using ProgressBars
+using Colors
+# using MLDataUtils
 
 
 """
@@ -53,11 +56,11 @@ returns all necessary features:
 9. minimum width of state space
 10. maximum width of state space
 11. depth of state space
+12. number of nodes in constrained MAG
 """
 function get_state_spaces(prbs::Vector{String})::Dict{String, Vector{Float64}}
     state_space_features = Dict{String, Vector{Float64}}()
-    for prb in prbs
-        println(prb)
+    for prb in ProgressBar(prbs)
         board = load_data(prb)
         tree, seen, stat, dict, parents, children, solutions = bfs_path_counters(board, traverse_full=true)
         optimal_length = minimum([stat[solution][1] for solution in solutions])
@@ -82,7 +85,9 @@ function get_state_spaces(prbs::Vector{String})::Dict{String, Vector{Float64}}
         min_width = minimum(tree_shape)
         max_width = maximum(tree_shape)
         depth = length(tree_shape)
-        state_space_features[prb] = [optimal_length, average_children, in_degree, out_degree, n_solutions, n_optimal_paths, size_state_space, av_width, min_width, max_width, depth]
+        arr = get_board_arr(board)
+        mag_size = mag_size_nodes(board, arr)
+        state_space_features[prb] = [optimal_length, average_children, in_degree, out_degree, n_solutions, n_optimal_paths, size_state_space, av_width, min_width, max_width, depth, mag_size]
     end
     return state_space_features
 end
@@ -163,6 +168,7 @@ function get_dataframe(prbs::Vector{String}, dict::DefaultDict{String, Dict{Stri
         max_width=Int[],
         min_width=Int[],
         depth=Int[],
+        mag_nodes=Int[],
         mean_random=Float64[],
         std_random=Float64[],
         exp_bfs=Int[],
@@ -214,22 +220,19 @@ Fits a range of linear regression models over powerset of features.
 Returns AIC, BIC and 5-fold cross validated log likelihood.
 """
 function exhaustive_linear(df)
-    feature_sets = powerset([feature for feature in names(df) if feature ∉ ["subj", "prb", "L"]])
+    feature_sets = collect(powerset([feature for feature in names(df) if feature ∉ ["subj", "prb", "L"]]))
     BICs = zeros(length(collect(feature_sets)))
     AICs = zeros(length(collect(feature_sets)))
     CVs = zeros(length(collect(feature_sets)))
-    for (n, feature_set) in enumerate(feature_sets)
+    for n in ProgressBar(eachindex(feature_sets))
         # Skip empty set
         if n == 1
             continue
         end
-        if n % 100 == 0
-            println(n)
-        end
-        fm = Term(:L) ~ term(1) +([Term(Symbol(name)) for name in feature_set]...)
+        fm = Term(:L) ~ term(1) +([Term(Symbol(name)) for name in feature_sets[n]]...)
         M = fit(LinearModel, fm, df)
-        BICs[n] = bic(M)
-        AICs[n] = aic(M)
+        BICs[n] = GLM.bic(M)
+        AICs[n] = GLM.aic(M)
         # 5 fold Cross Validation (CV)
         folds = kfolds(shuffle(1:size(df)[1]), 5)
         for fold in folds
@@ -260,21 +263,51 @@ data = load("analysis/processed_data/filtered_data.jld2")["data"]
 Ls, dict = get_Ls(data)
 prbs = collect(keys(Ls))[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in keys(Ls)])]
 
-state_space_features = get_state_spaces(prbs)
+state_space_features = get_state_spaces(jsons)
 
 random_agent_stats = get_random_agent_stats(prbs, N=10000)
 
-# df = get_dataframe(prbs, dict, state_space_features, random_agent_stats)
+df = get_dataframe(prbs, dict, state_space_features, random_agent_stats)
 
-X = load("analysis/processed_data/features.jld2")["data"]
-XX = load("analysis/processed_data/norm_features.jld2")["data"]
+#save("analysis/processed_data/all_prbs_stat_space_features.jld2", state_space_features)
+#save("analysis/processed_data/new_norm_features.jld2", "data", XX)
+X = load("analysis/processed_data/new_features.jld2")["data"]
+state_space_features_all = load("analysis/processed_data/all_prbs_stat_space_features.jld2")
+XX = load("analysis/processed_data/new_norm_features.jld2")["data"]
+
+L = [mean(Ls[prb]) for prb in prbs]
+LL = L./std(L)
+
+plot(layout=grid(2,2), size=(700, 700))
+scatter!(XX[:, 13], LL, sp=1, legend=nothing, xscale=:log10, xlabel="Mean random agent moves", title="Spearman r="*string(round(cor(ordinalrank(L), ordinalrank(log10.(XX[:, 13]))), digits=3))*"("*string(round(pvalue(CorrelationTest(ordinalrank(log10.(XX[:, 13])), ordinalrank(LL))), sigdigits=1))*")")
+scatter!(XX[:, 15], LL, sp=2, legend=nothing, xscale=:log10, xlabel="BFS expansions", title="Spearman r="*string(round(cor(ordinalrank(L), ordinalrank(log10.(XX[:, 15]))), digits=3))*"("*string(round(pvalue(CorrelationTest(ordinalrank(log10.(XX[:, 15])), ordinalrank(LL))), sigdigits=1))*")")
+scatter!(XX[:, 16], LL, sp=3, legend=nothing, xscale=:log10, xlabel="A* red distance expansions", title="Spearman r="*string(round(cor(ordinalrank(L), ordinalrank(log10.(XX[:, 16]))), digits=3))*"("*string(round(pvalue(CorrelationTest(ordinalrank(log10.(XX[:, 16])), ordinalrank(LL))), sigdigits=1))*")")
+scatter!(XX[:, 17], LL, sp=4, legend=nothing, xscale=:log10, xlabel="A* forest expansions", title="Spearman r="*string(round(cor(ordinalrank(L), ordinalrank(log10.(XX[:, 17]))), digits=3))*"("*string(round(pvalue(CorrelationTest(ordinalrank(log10.(XX[:, 17])), ordinalrank(LL))), sigdigits=1))*")")
+
+#plot(layout=grid(4, 3), size=(1000, 1400))
+cors = zeros(12, 12)
+for i in 1:12
+    #f=scatter!(XX[:, i], LL, sp=i, legend=nothing, xscale=:log10, xlabel=names(df)[i+3], title="Spearman r="*string(round(cor(ordinalrank(L), ordinalrank(log10.(XX[:, i]))), digits=3))*"("*string(round(pvalue(CorrelationTest(ordinalrank(log10.(XX[:, i])), ordinalrank(LL))), sigdigits=1))*")")
+    #display(f)
+    for j in 1:12
+        cors[i, j] = cor(ordinalrank(XX_F[:, i]), ordinalrank(XX_F[:, j]))
+    end
+end
+
+cmap = [i < 500 ? RGB(0, 0, 1) : i < 1500 ? RGB(1, 1, 0) : RGB(1, 0, 0) for i in 1:2000]
+
+heatmap(cors, yflip=true, clim=(-1, 1), size=(600, 500), xmirror=true, xticks=(1:12, names(df)[4:16]), yticks=(1:12, names(df)[4:16]), right_margin = 5Plots.mm, colorbar_title="\nSpearman correlation", xrotation=60, c=cmap)
+
 
 df = DataFrame(CSV.File("analysis/processed_data/13_features.csv"))
 
 #df = DataFrame(load("analysis/processed_data/13_features.jld2"))
 #prbs = unique(df[!, "prb"])[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in unique(df[!, "prb"])])]
 
-#AICs, BICs, CVs = exhaustive_linear(df)
+dff = DataFrame(XXX, names(df)[3:15])
+AICs, BICs, CVs = exhaustive_linear(dff)
+#save("analysis/processed_data/exhaustive_linear_BICs.jld2", "data", AICs)
+#save("analysis/processed_data/exhaustive_linear_AICs.jld2", "data", BICs)
 #save("analysis/processed_data/exhaustive_linear_CVs.jld2", "data", CVs)
 BICs = load("analysis/processed_data/exhaustive_linear_BICs.jld2")["data"]
 AICs = load("analysis/processed_data/exhaustive_linear_AICs.jld2")["data"]
@@ -289,55 +322,33 @@ M = fit(LinearModel, fm, df)
 av_L = [mean(Ls[prb]) for prb in prbs]
 
 
+jsons = readdir("experiment/raw_data/problems")[14:end]
+jsons = [js[1:end-5] for js in jsons]
+
 
 en = ElasticNetRegression(0, 0)
 p = MLJLinearModels.fit(en, XX, av_L)
 
 board = load_data("example_4")
 
-X = zeros(70, 13)
+X = zeros(70, 12)
 for (i, prb) in enumerate(prbs)
-    for j in 1:13
-        if j <= 11
+    for j in 1:12
+        if j <= 12
             X[i, j] = state_space_features[prb][j]
-        elseif j > 11
-            X[i, j] = random_agent_stats[prb][j-11]
+        elseif j > 12
+            X[i, j] = random_agent_stats[prb][j-12]
         end
     end
 end
 
 XX = zeros(size(X))
-for i in 1:13
+for i in 1:17
     #XX[:, i] = X[:, i] .- mean(X[:, i])
     #XX[:, i] = XX[:, i] / norm(XX[:, i])
     XX[:, i] = X[:, i] / std(X[:, i])
 end
 
-
-
-
-
-
-A = -0.5
-σ = 0.3
-dts = 10 .^(range(-3, 0, 100))
-
-
-function ou(dts::Vector{Float64}, A::Float64, σ::Float64)::Vector{Float64}
-    vars = zeros(length(dts))
-    for i in 1:length(dts)
-        v = randn(100000000)
-        x = zeros(100000000)
-        x[1] = randn()*σ/sqrt(-2*A)
-        adt = 1 + A*dts[i]
-        sdt = σ*sqrt(dts[i])
-        @inbounds for t in 1:(100000000-1)
-            x[t+1] = x[t]*adt + v[t]*sdt
-        end
-        vars[i] = var(x)
-    end
-    return vars
-end
 
 
 
