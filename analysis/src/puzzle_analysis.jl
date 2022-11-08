@@ -13,6 +13,7 @@ using GLM
 using Combinatorics
 using ProgressBars
 using Colors
+using HypothesisTests
 # using MLDataUtils
 
 
@@ -56,7 +57,7 @@ returns all necessary features:
 9. minimum width of state space
 10. maximum width of state space
 11. depth of state space
-12. number of nodes in constrained MAG
+12. number of nodes in MAG
 """
 function get_state_spaces(prbs::Vector{String})::Dict{String, Vector{Float64}}
     state_space_features = Dict{String, Vector{Float64}}()
@@ -165,8 +166,8 @@ function get_dataframe(prbs::Vector{String}, dict::DefaultDict{String, Dict{Stri
         paths=Int[],
         ss_size=Int[],
         av_width=Float64[],
-        max_width=Int[],
         min_width=Int[],
+        max_width=Int[],
         depth=Int[],
         mag_nodes=Int[],
         mean_random=Float64[],
@@ -263,7 +264,7 @@ data = load("analysis/processed_data/filtered_data.jld2")["data"]
 Ls, dict = get_Ls(data)
 prbs = collect(keys(Ls))[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in keys(Ls)])]
 
-state_space_features = get_state_spaces(jsons)
+state_space_features = get_state_spaces(prbs)
 
 random_agent_stats = get_random_agent_stats(prbs, N=10000)
 
@@ -284,23 +285,24 @@ scatter!(XX[:, 15], LL, sp=2, legend=nothing, xscale=:log10, xlabel="BFS expansi
 scatter!(XX[:, 16], LL, sp=3, legend=nothing, xscale=:log10, xlabel="A* red distance expansions", title="Spearman r="*string(round(cor(ordinalrank(L), ordinalrank(log10.(XX[:, 16]))), digits=3))*"("*string(round(pvalue(CorrelationTest(ordinalrank(log10.(XX[:, 16])), ordinalrank(LL))), sigdigits=1))*")")
 scatter!(XX[:, 17], LL, sp=4, legend=nothing, xscale=:log10, xlabel="A* forest expansions", title="Spearman r="*string(round(cor(ordinalrank(L), ordinalrank(log10.(XX[:, 17]))), digits=3))*"("*string(round(pvalue(CorrelationTest(ordinalrank(log10.(XX[:, 17])), ordinalrank(LL))), sigdigits=1))*")")
 
-#plot(layout=grid(4, 3), size=(1000, 1400))
+plot(layout=grid(4, 3), size=(1000, 1400), plot_title="Log feature histograms across 5082 puzzles")
 cors = zeros(12, 12)
 for i in 1:12
     #f=scatter!(XX[:, i], LL, sp=i, legend=nothing, xscale=:log10, xlabel=names(df)[i+3], title="Spearman r="*string(round(cor(ordinalrank(L), ordinalrank(log10.(XX[:, i]))), digits=3))*"("*string(round(pvalue(CorrelationTest(ordinalrank(log10.(XX[:, i])), ordinalrank(LL))), sigdigits=1))*")")
-    #display(f)
-    for j in 1:12
-        cors[i, j] = cor(ordinalrank(XX_F[:, i]), ordinalrank(XX_F[:, j]))
-    end
+    histogram!(log10.(X[:, i]), sp=i, legend=nothing, xlabel=names(df)[i+3], yticks=[])
+    # for j in 1:12
+    #     cors[i, j] = cor(ordinalrank(XX[:, i]), ordinalrank(XX[:, j]))
+    # end
 end
 
 cmap = [i < 500 ? RGB(0, 0, 1) : i < 1500 ? RGB(1, 1, 0) : RGB(1, 0, 0) for i in 1:2000]
 
-heatmap(cors, yflip=true, clim=(-1, 1), size=(600, 500), xmirror=true, xticks=(1:12, names(df)[4:16]), yticks=(1:12, names(df)[4:16]), right_margin = 5Plots.mm, colorbar_title="\nSpearman correlation", xrotation=60, c=cmap)
+heatmap(cors, yflip=true, clim=(-1, 1), size=(600, 500), xmirror=true, xticks=(1:12, names(df)[4:16]), yticks=(1:12, names(df)[4:16]), right_margin = 5Plots.mm, colorbar_title="\nSpearman correlation", xrotation=60, c=cgrad(:Spectral_11, rev=true))
 
 
-df = DataFrame(CSV.File("analysis/processed_data/13_features.csv"))
+df = DataFrame(CSV.File("analysis/processed_data/new_17_features.csv"))
 
+#CSV.write("analysis/processed_data/new_17_features.csv", df)
 #df = DataFrame(load("analysis/processed_data/13_features.jld2"))
 #prbs = unique(df[!, "prb"])[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in unique(df[!, "prb"])])]
 
@@ -322,7 +324,7 @@ M = fit(LinearModel, fm, df)
 av_L = [mean(Ls[prb]) for prb in prbs]
 
 
-jsons = readdir("experiment/raw_data/problems")[14:end]
+jsons = readdir("experiment/raw_data/problems")[15:end]
 jsons = [js[1:end-5] for js in jsons]
 
 
@@ -331,11 +333,11 @@ p = MLJLinearModels.fit(en, XX, av_L)
 
 board = load_data("example_4")
 
-X = zeros(70, 12)
+X = zeros(5082, 12)
 for (i, prb) in enumerate(prbs)
     for j in 1:12
         if j <= 12
-            X[i, j] = state_space_features[prb][j]
+            X[i, j] = state_space_features_all[prb][j]
         elseif j > 12
             X[i, j] = random_agent_stats[prb][j-12]
         end
@@ -343,13 +345,17 @@ for (i, prb) in enumerate(prbs)
 end
 
 XX = zeros(size(X))
-for i in 1:17
+for i in 1:12
     #XX[:, i] = X[:, i] .- mean(X[:, i])
     #XX[:, i] = XX[:, i] / norm(XX[:, i])
     XX[:, i] = X[:, i] / std(X[:, i])
 end
 
-
+for i in eachindex(X[1, :])
+    println(names(df)[3+i])
+    println(extrema(X[:, i]))
+    println("-----")
+end
 
 
 

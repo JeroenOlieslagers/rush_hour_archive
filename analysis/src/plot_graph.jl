@@ -191,13 +191,21 @@ function plot_mag(mag; title="")
     return GraphViz.Graph(g)
 end
 
-function plot_tree(tree)
+function plot_tree(tree, fake_tree; sp=0)
     """
     Creates centered horizontal bar graph to display tree shape
     """
     x = collect(keys(tree))
-    y = collect(values(tree))
-    bar(x,y,orientation=:h, fillto=-y, yflip=true, grid=false, legend=false, xticks=[-round(maximum(y), sigdigits=1), 0, round(maximum(y), sigdigits=1)])
+    y = collect(values(tree))./2
+    xx = collect(keys(fake_tree))
+    yy = collect(values(fake_tree))./2
+    if sp > 0
+        bar!(x,y,sp=sp,orientation=:h, fillto=-y, yflip=true, grid=false, label=nothing, yticks=[], xticks=[])
+        bar!(xx,yy,sp=sp,orientation=:h, fillto=-yy, yflip=true, label=nothing)
+    else
+        bar(x,y,orientation=:h, fillto=-y, yflip=true, grid=false, xlabel="Number of states", ylabel="Moves from root", label="Total states", xticks=[-round(maximum(y), sigdigits=1), 0, round(maximum(y), sigdigits=1)])
+        bar!(xx,yy,orientation=:h, fillto=-yy, yflip=true, label="States on solution path")
+    end
 end
 
 function draw_solution_paths(solution_paths, parents, stat, max_heur)
@@ -238,7 +246,7 @@ function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], valu
         # Get list of all nodes on optimal path
         optimal_nodes = Set(reduce(vcat, collect(values(solution_paths))))
     end
-    for child in x
+    for child in ProgressBar(x)
         node_color = ""
         if length(solution_paths) > 0
             if child in optimal_nodes
@@ -315,4 +323,66 @@ function draw_subgraph(parents, graph, value_map, color_map)
     end
     g = close_graph(g)
     return GraphViz.Graph(g)
+end
+
+
+function plot_tree(prb)
+    board = load_data(prb)
+    arr = get_board_arr(board)
+    tree, seen, stat, dict, parents, children, solutions = bfs_path_counters(board, traverse_full=true);
+    solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);
+    plot_tree(tree, fake_tree)
+end
+
+function plot_state_space(prb)
+    board = load_data(prb)
+    arr = get_board_arr(board)
+    tree, seen, stat, dict, parents, children, solutions = bfs_path_counters(board, traverse_full=true);
+    tree, seen, stat, dict, all_parents, children, solutions = bfs_path_counters(board, traverse_full=true, all_parents=true);
+    solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);
+    g = draw_directed_tree(parents, solution_paths=solution_paths, solutions=solutions, all_parents=all_parents)
+    return g
+end
+
+function draw_board(prb)
+    """
+    Draws board state as heatmap with custom colormap
+    """
+    board = load_data(prb)
+    arr = get_board_arr(board)
+    cmap = [
+        RGB(([255, 255, 255]./255)...), 
+        RGB(([147, 190, 103]./255)...), 
+        RGB(([102, 152, 80]./255)...), 
+        RGB(([80, 173, 202]./255)...), 
+        RGB(([219, 130, 57]./255)...), 
+        RGB(([81, 51, 154]./255)...), 
+        RGB(([185, 156, 105]./255)...), 
+        RGB(([126, 74, 51]./255)...), 
+        RGB(([124, 124, 124]./255)...), 
+        RGB(([202, 76, 60]./255)...)
+        ]
+    heatmap(arr, c = cmap, legend = false, yflip = true, xmirror=true, framestyle = :box, size=(200, 200))
+    vline!(1.5:5.5, c=:black, linewidth=0.2)
+    hline!(1.5:5.5, c=:black, linewidth=0.2)
+end
+
+
+function all_trees_plot(prbs)
+
+    plot(layout=grid(4, 18), size=(2400, 500))
+
+    for i in ProgressBar(eachindex(prbs))
+        board = load_data(prbs[i])
+        arr = get_board_arr(board)
+        tree, seen, stat, dict, parents, children, solutions = bfs_path_counters(board, traverse_full=true);
+        solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);
+        if i < 18+18+18
+            plot_tree(tree, fake_tree, sp=i)
+        else
+            plot_tree(tree, fake_tree, sp=i+1)
+        end
+    end
+    plot!(xticks=[], yticks=[], sp=18+18+18)
+    plot!(xticks=[], yticks=[], sp=18+18+18+18)
 end

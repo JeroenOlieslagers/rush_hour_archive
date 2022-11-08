@@ -347,11 +347,19 @@ function noise()
     return 0.1*randn()
 end
 
-board = load_data("hard_puzzle_1");
-v, graph, all_parents = traverse(board, 0, 0, noise=noise);#, h=multi_mag_size_nodes);
+# board = load_data("hard_puzzle_1");
+# v, graph, all_parents = traverse(board, 0, 0, noise=noise);#, h=multi_mag_size_nodes);
 
-g = draw_directed_tree(graph, value_map=v)#, all_parents=all_parents, all_parents=all_parents)
+# g = draw_directed_tree(graph, value_map=v)#, all_parents=all_parents, all_parents=all_parents)
 
-board = load_data("hard_puzzle_1");
-animate_expand_astar(board, 0, 5, graph);
-animate_expand_backprop(board, 0, 111, graph);
+# board = load_data("hard_puzzle_1");
+# animate_expand_astar(board, 0, 5, graph);
+# animate_expand_backprop(board, 0, 111, graph);
+
+# data = load("analysis/processed_data/filtered_data.jld2")["data"]
+# Ls, dict = get_Ls(data)
+# prbs = collect(keys(Ls))[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in keys(Ls)])]
+
+# for subj in keys(data)
+#     d = data[subj]
+#     puzzle = d[d["instance"] == prbs[10]]

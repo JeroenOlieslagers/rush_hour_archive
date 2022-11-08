@@ -63,27 +63,6 @@ function solution_analysis(jsons)
     return ts, exps
 end
 
-function draw_board(arr)
-    """
-    Draws board state as heatmap with custom colormap
-    """
-    cmap = [
-        RGB(([255, 255, 255]./255)...), 
-        RGB(([147, 190, 103]./255)...), 
-        RGB(([102, 152, 80]./255)...), 
-        RGB(([80, 173, 202]./255)...), 
-        RGB(([219, 130, 57]./255)...), 
-        RGB(([81, 51, 154]./255)...), 
-        RGB(([185, 156, 105]./255)...), 
-        RGB(([126, 74, 51]./255)...), 
-        RGB(([124, 124, 124]./255)...), 
-        RGB(([202, 76, 60]./255)...)
-        ]
-    heatmap(arr, c = cmap, legend = false, yflip = true, xmirror=true, framestyle = :box, size=(200, 200))
-    vline!(1.5:5.5, c=:black, linewidth=0.2)
-    hline!(1.5:5.5, c=:black, linewidth=0.2)
-end
-
 for i in 1:length(arrs)
     anim = @animate for arr ∈ arrs[i]
         draw_board(arr)
@@ -110,5 +89,4 @@ for (n, h) in enumerate(heur)
         end
     end
 end
-
 

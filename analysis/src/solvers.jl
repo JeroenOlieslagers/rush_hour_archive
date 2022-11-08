@@ -150,7 +150,7 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer, all_parent
     available_moves = Array{Array{Int, 1}, 1}()
     while length(q) > 0
         # Exit if too many expansions occured
-        if expansions > 100000
+        if expansions > 1000000
             throw(DomainError("Expansion limit reached"))
         end
         # Get next node
@@ -424,7 +424,7 @@ function mag_size_nodes(board, arr)
     """
     Calculates size (nodes) of MAG
     """
-    mag = get_constrained_mag(board, arr)
+    mag = get_mag(board, arr)
     return sum([length(m) for m in mag]) - 1
 end
 
