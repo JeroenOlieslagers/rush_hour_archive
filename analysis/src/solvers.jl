@@ -27,6 +27,9 @@ function a_star(board; h=(x,y)->0, graph_search=false, solve=true)
     # Fifth list for graph_search keeps track of all visited nodes
     closed_set = Set{T}()
     push!(closed_set, start)
+    # Visited nodes for logging
+    visited = Array{T, 1}()
+    push!(visited, start)
     # count node expansions to prevent infinite loop
     expansions = 0
     available_moves = Array{Array{Int, 1}, 1}()
@@ -47,6 +50,10 @@ function a_star(board; h=(x,y)->0, graph_search=false, solve=true)
         end
         # Get current board int-string
         arr_current = get_board_arr(board)
+        # Add to visited for logging
+        if !(current in visited)
+            push!(visited, current)
+        end
         # Check if solved
         if solve
             if check_solved(arr_current)
@@ -55,7 +62,9 @@ function a_star(board; h=(x,y)->0, graph_search=false, solve=true)
                 # println("Number of node expansions: " * string(expansions))
                 # println("Optimal length: " * string(length(past_moves)))
                 # println("------")
-                return arr_current, past_moves, expansions
+                # Undo rest of moves back to initial board
+                undo_moves!(board, past_moves)
+                return visited, past_moves, expansions
             end
         end
         # Expand current node by getting all available moves
@@ -107,6 +116,93 @@ function a_star(board; h=(x,y)->0, graph_search=false, solve=true)
     # println(Base.summarysize(dict))
     # println("--------------------------")
     # return nothing, nothing
+    return nothing, nothing, expansions
+end
+
+"""
+    dfs(board, solve=true)
+
+Depth first search algorithm that returns visited nodes
+"""
+function dfs(board; solve=true)
+    arr_start = get_board_arr(board)
+    T = get_type(arr_start)
+    start = board_to_int(arr_start, T)
+    # dict is an array with the shortest path in moves to board state
+    dict = Dict{T, Array{Array{Int, 1}}}()
+    dict[start] = []
+    # q is an array that will indicate which node to expand next
+    q = T[]
+    push!(q, start)
+    # visited keeps track of all visited nodes
+    visited = Array{T, 1}()
+    push!(visited, start)
+    # count node expansions to prevent infinite loop
+    expansions = 0
+    available_moves = Array{Array{Int, 1}, 1}()
+    while length(q) > 0
+        # Exit if too many expansions occured
+        if expansions > 100000
+            throw(DomainError("Expansion limit reached"))
+        end
+        # Get depth first node
+        current = pop!(q)
+        past_moves = dict[current]
+        # Move to current node
+        if length(past_moves) > 0
+            for move in past_moves
+                make_move!(board, move)
+            end
+        end
+        # Get current board int-string
+        arr_current = get_board_arr(board)
+        # Add to visited for logging
+        if !(current in visited)
+            push!(visited, current)
+        end
+        # Check if solved
+        if solve
+            if check_solved(arr_current)
+                # Undo rest of moves back to initial board
+                undo_moves!(board, past_moves)
+                return visited, past_moves, expansions
+            end
+        end
+        # Expand current node by getting all available moves
+        get_all_available_moves!(available_moves, board, arr_current)
+        # Increment expansion counter
+        expansions += 1
+        for move in available_moves
+            # Perform available move
+            make_move!(board, move)
+            # Get board int-string
+            arr_new = get_board_arr(board)
+            new = board_to_int(arr_new, T)
+            # Ignore if already visited
+            if new in visited || new in q
+                # Undo move
+                undo_moves!(board, [move])
+                continue
+            # Remove already existing copy in frontier
+            # elseif new in q
+            #     deleteat!(q, findfirst(x->x==new, q))
+            end
+            # Add current node to front of frontier
+            push!(q, new)
+            # Check if current path is fastest so far
+            if haskey(dict, new)
+                if length(past_moves)+1 < length(dict[new])
+                    dict[new] = vcat(past_moves, [move])
+                end
+            else
+                dict[new] = vcat(past_moves, [move])
+            end
+            # Undo move
+            undo_moves!(board, [move])
+        end
+        # Undo rest of moves back to initial board
+        undo_moves!(board, past_moves)
+    end
     return nothing, nothing, expansions
 end
 

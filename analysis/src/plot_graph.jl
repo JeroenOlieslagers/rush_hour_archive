@@ -1,10 +1,12 @@
 using GraphViz, FileIO, ImageIO
 using Plots
 
+"""
+    g = initialise_graph(title="")
+
+Creates initial graph outline with title in dummy node
+"""
 function initialise_graph(title="")
-    """
-    Creates initial graph outline with title in dummy node
-    """
     if title != ""
         return """digraph {layout="dot";splines=false;dummy [label=""" * string(title) * " shape=box]; dummy -> 9 [style=invis];"
     else
@@ -12,10 +14,21 @@ function initialise_graph(title="")
     end
 end
 
+"""
+    add_layer(g, n, nodes, heurs=[], max_heur=0, root=false, invisible_nodes=false)
+
+Adds layer as subgraph cluster with nodes and n as layer number
+
+# Arguments
+- `g::String`:                 graph string to be edited.
+- `n::Integer`:                layer number.
+- `nodes::Vector`:             list of nodes.
+- `heurs::Vector`:             list of heuristic values to be displayed in each node.
+- `max_heur::Integer`:         maximum_heuristic to set scale.
+- `root::Boolean`:             set layer as root for red car. 
+- `invisible_nodes::Boolean`:  set to true to hide node labels.
+"""
 function add_layer(g, n, nodes; heurs=[], max_heur=0, root=false, invisible_nodes=false)
-    """
-    Adds layer as subgraph cluster with nodes and n as layer number
-    """
     g *= "subgraph cluster_" * string(n) * "{peripheries=0;"
     if root
         g *= string(nodes[1]) * """[label=R fillcolor="#ff0000" style=filled];"""
@@ -42,13 +55,23 @@ function add_layer(g, n, nodes; heurs=[], max_heur=0, root=false, invisible_node
             end
         end
     end
-    return g * "}"
+    return g *= "}"
 end
 
+"""
+    g = add_node(g, node, invisible_nodes=false, color="", label="", invis=false)
+
+Adds node to graph
+
+# Arguments
+- `g::String`:                 graph string to be edited.
+- `node::Integer`:             node number.
+- `invisible_nodes::Boolean`:  set to true to hide node label.
+- `color::String`:             color of node.
+- `label::String`:             alternate label for node.
+- `invis::Boolean`:            set to true to hide node. 
+"""
 function add_node(g, node; invisible_nodes=false, color="", label="", invis=false)
-    """
-    Adds node to graph
-    """
     g *= string(node)
     if color != "" || invisible_nodes || label != "" || invis
         g *= "["
@@ -83,10 +106,21 @@ function add_node(g, node; invisible_nodes=false, color="", label="", invis=fals
     # end
 end
 
+"""
+    g = add_edge(g, a, b, constraint=true, color="", bidirectional=false, invis=false)
+
+Draw edge between nodes a and b, if constraint, enforce to keep hierarchy
+
+# Arguments
+- `g::String`:                 graph string to be edited.
+- `a::Integer`:                start node.
+- `b::Integer`:                end node.
+- `constraint::Boolean`:       set to true to exclude from ordering.
+- `color::String`:             color of edge.
+- `bidirectional::Boolean`:    set to true for bidirectional edge.
+- `invis::Boolean`:            set to true to hide edge. 
+"""
 function add_edge(g, a, b; constraint=true, color="", bidirectional=false, invis=false)
-    """
-    Draw edge between nodes a and b, if constraint, enforce to keep hierarchy
-    """
     g *= string(a) * "->" * string(b)
     if color != "" || !constraint || bidirectional || invis
         g *= "["
@@ -122,16 +156,18 @@ function add_edge(g, a, b; constraint=true, color="", bidirectional=false, invis
     # end
 end
 
+"""
+    g = close_graph(g)
+
+Finalises graph
+"""
 function close_graph(g)
-    """
-    Finalises graph
-    """
     return g * "}"
 end
 
 function test_graph()
-    g = initialise_graph("test", "move_0")
-    g = add_layer(g, 0, [9], true)
+    g = initialise_graph()
+    g = add_layer(g, 0, [9], root=true)
 
     g = add_layer(g, 1, [1, 2, 7])
     g = add_layer(g, 2, [3, 8])
@@ -147,28 +183,32 @@ function test_graph()
     
     g = add_edge(g, 3, 6)
     g = add_edge(g, 8, 5)
-    g = add_edge(g, 8, 1, true)
+    g = add_edge(g, 8, 1)
     
-    g = add_edge(g, 6, 9, true)
+    g = add_edge(g, 6, 9, constraint=false)
     g = add_edge(g, 6, 4)
-    g = add_edge(g, 5, 3, true)
+    g = add_edge(g, 5, 3)
 
     g = close_graph(g)
 
     return GraphViz.Graph(g)
 end
 
+"""
+    save_graph(g, file_name)
+
+Save graph as svg
+"""
 function save_graph(g, file_name)
-    """
-    Save graph as png
-    """
     FileIO.save(file_name * ".svg", g)
 end
 
+"""
+    g = plot_mag(mag, title="")
+
+Plot hierarchical graph from MAG
+"""
 function plot_mag(mag; title="")
-    """
-    Plot hierarchical graph from MAG
-    """
     # Start graph
     g = initialise_graph(title)
     # Keep track of visited nodes to retain hierarchy
@@ -191,10 +231,14 @@ function plot_mag(mag; title="")
     return GraphViz.Graph(g)
 end
 
+"""
+    plot_tree(tree, fake_tree, sp=0)
+
+Creates centered horizontal bar graph to display tree shape.
+Fake tree shows optimal paths to solutions
+sp is sup plot counter
+"""
 function plot_tree(tree, fake_tree; sp=0)
-    """
-    Creates centered horizontal bar graph to display tree shape
-    """
     x = collect(keys(tree))
     y = collect(values(tree))./2
     xx = collect(keys(fake_tree))
@@ -326,6 +370,77 @@ function draw_subgraph(parents, graph, value_map, color_map)
 end
 
 
+function draw_visited_nodes(nodes, graph, all_parents, solutions, solution_paths)
+    # Start graph
+    g = initialise_graph()
+    # Get children of full graph
+    full_children = reverse(collect(keys(graph)))
+    # Get children of nodes
+    sub_children = cat([all_parents[node] for node in nodes]..., dims=1)
+    # Get nodes on optimal paths
+    optimal_nodes = Set(reduce(vcat, collect(values(solution_paths))))
+    # Draw invisible full graph
+    for child in full_children
+        if child in nodes
+            # Add coloured nodes
+            if child in solutions
+                g = add_node(g, child, color="lime", invisible_nodes=true)
+            elseif child == last(nodes)
+                g = add_node(g, child, color="red", invisible_nodes=true)
+            elseif child in optimal_nodes
+                g = add_node(g, child, color="magenta", invisible_nodes=true)
+            else
+                g = add_node(g, child, color="orange", invisible_nodes=true)
+            end
+        elseif child in solutions
+            g = add_node(g, child, color="green", invisible_nodes=true)
+        elseif child in optimal_nodes
+            if child in sub_children
+                g = add_node(g, child, color="cyan", invisible_nodes=true)
+            else
+                g = add_node(g, child, color="blue", invisible_nodes=true)
+            end
+        elseif child in sub_children
+            # Add neighbours of nodes
+            g = add_node(g, child, invisible_nodes=true, color="yellow")
+        else
+            # Add invisible nodes from full graph
+            g = add_node(g, child, invisible_nodes=true)#, invis=true)
+        end
+        # Add invisible edges from full graph
+        for parent in all_parents[child]
+            if parent in graph[child]
+                if parent in optimal_nodes && child in optimal_nodes
+                    g = add_edge(g, parent, child, color="blue")
+                else
+                    g = add_edge(g, parent, child, invis=true)
+                end
+            else
+                g = add_edge(g, parent, child, invis=true, constraint=false)
+            end
+        end
+    end
+    # Draw visible subgraph edges
+    for (n, child) in enumerate(nodes)
+        if n > 1
+            if nodes[n-1] in all_parents[child]
+                g = add_edge(g, nodes[n-1], child, constraint=false, color="red")
+            end
+        end
+        # Add visible edges from subgraph
+        # for parent in all_parents[child]
+        #     if n > 1
+        #         if parent == nodes[n-1]
+        #             g = add_edge(g, parent, child, constraint=false, color="red")
+        #         end
+        #     end
+        # end
+    end
+    g = close_graph(g)
+    return GraphViz.Graph(g)
+end
+
+
 function plot_tree(prb)
     board = load_data(prb)
     arr = get_board_arr(board)
@@ -344,12 +459,16 @@ function plot_state_space(prb)
     return g
 end
 
-function draw_board(prb)
+function draw_prb(prb)
+    board = load_data(prb)
+    arr = get_board_arr(board)
+    draw_board(arr)
+end
+
+function draw_board(arr)
     """
     Draws board state as heatmap with custom colormap
     """
-    board = load_data(prb)
-    arr = get_board_arr(board)
     cmap = [
         RGB(([255, 255, 255]./255)...), 
         RGB(([147, 190, 103]./255)...), 

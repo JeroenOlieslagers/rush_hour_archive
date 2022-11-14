@@ -148,13 +148,23 @@ function get_all_available_moves!(available_moves, board::Board, arr)
     Get list of all available moves on board
     """
     # Initalise available move array
-    #available_moves = Array{Array{Int, 1}, 1}()
     empty!(available_moves)
     for car in board.cars
         get_available_moves!(available_moves, arr, car)
     end
     return nothing
-    #return available_moves
+end
+
+function get_all_available_moves(board::Board, arr)
+    """
+    Get list of all available moves on board
+    """
+    # Initalise available move array
+    available_moves = Array{Array{Int, 1}, 1}()
+    for car in board.cars
+        get_available_moves!(available_moves, arr, car)
+    end
+    return available_moves
 end
 
 
