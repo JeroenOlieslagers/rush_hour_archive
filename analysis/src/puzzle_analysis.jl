@@ -259,6 +259,69 @@ function loglik(y::Vector, P::Vector)::Float64
     return -n/2 * (log(2π * dev/n) + 1)
 end
 
+function scatter_corr_plot(prbs, L, X)
+    dff = DataFrame(prb=String[],
+                L=Float64[],
+                opt_L=Float64[], 
+                branch=Float64[], 
+                indegree=Float64[], 
+                outdegree=Float64[],
+                n_sol=Float64[],
+                paths=Float64[],
+                ss_size=Float64[],
+                min_width=Float64[],
+                max_width=Float64[],
+                depth=Float64[])
+    for i in 1:70
+        push!(dff, [prbs[i], L[i], X[i, [1:4...]]..., log10.(X[i, [5:7...]])..., X[i, 9], log10.(X[i, 10]), X[i, 11]])# X[i, [1:7..., 9:11...]]...])
+    end
+    stats = DataFrame(Feature=String[], Pearson=Float64[], Pearson_p=Float64[], Spearman=Float64[], Spearman_p=Float64[], Lesion=Float64[])
+    nms = names(dff)[3:end]
+    ols = lm(fm, dff)
+    r2a = adjr2(ols)
+    corr = zeros(10, 10)
+
+    l = @layout [grid(10, 10) a{0.035w}]
+    plot(layout=l, size=(800, 600), dpi=200)#, plot_title="Scatterplots")
+    for i in 1:10
+        trms = names(dff)[[3:3+i-2..., 3+i:end...]]
+        fm = Term(:L) ~ +([Term(Symbol(trm)) for trm in trms]...)
+        ols = lm(fm, dff)
+        push!(stats, [
+            nms[i], 
+            cor(dff.L, dff[!, nms[i]]), 
+            pvalue(CorrelationTest(dff.L, dff[!, nms[i]])),
+            cor(ordinalrank(dff.L), ordinalrank(dff[!, nms[i]])), 
+            pvalue(CorrelationTest(ordinalrank(dff.L), ordinalrank(dff[!, nms[i]]))),
+            adjr2(ols)-r2a])
+        for j in 1:10
+            corr[i, j] = -log10(pvalue(CorrelationTest(ordinalrank(dff[!, nms[i]]), ordinalrank(dff[!, nms[j]]))))
+            yl = ""
+            xl = ""
+            tm = -2Plots.mm
+            lm = -2Plots.mm
+            rm = 2Plots.mm
+            if j == 1
+                yl = nms[i]*" "^length(nms[i])
+                lm = 25Plots.mm
+            end
+            if i == 1
+                xl = (" "^length(nms[j]))*nms[j]
+                tm = 20Plots.mm
+            end
+            if j == 10
+                rm = 20Plots.mm
+            end
+            c = corr[i, j] > 25 ? 25 : corr[i, j]
+            c = ceil(Int, c)
+            c = palette(cgrad(:Spectral_11, rev=true), 25)[c]
+            scatter!(dff[!, nms[i]], dff[!, nms[j]], sp=10*(i-1) + j, xticks=nothing, yticks=nothing, label=nothing, color=:black, markersize=1.5, yguide=yl, xguide=xl, left_margin = lm, right_margin = rm, top_margin = tm, background_color_subplot=c, xguidefontrotation=60, yguidefontrotation=-90, xmirror=true)
+        end
+    end
+    scatter!([], [], sp=101, xticks=nothing, yticks=nothing, marker_z=[0], label=nothing, clim=(0, 25), c=cgrad(:Spectral_11, rev=true), ticks=false, colorbar_title="log (Pearson correlation p-value)")
+    return stats
+end
+
 data = load("analysis/processed_data/filtered_data.jld2")["data"]
 
 Ls, dict = get_Ls(data)
@@ -306,7 +369,10 @@ df = DataFrame(CSV.File("analysis/processed_data/new_17_features.csv"))
 #df = DataFrame(load("analysis/processed_data/13_features.jld2"))
 #prbs = unique(df[!, "prb"])[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in unique(df[!, "prb"])])]
 
-dff = DataFrame(XXX, names(df)[3:15])
+
+heatmap(corr, yflip=true, clim=(0, 24), size=(600, 500), xmirror=true, xticks=(1:10, nms), yticks=(1:10, nms), right_margin = 5Plots.mm, colorbar_title="log (Pearson correlation p-value)", xrotation=60, c=cgrad(:Spectral_11, rev=true))
+
+
 AICs, BICs, CVs = exhaustive_linear(dff)
 #save("analysis/processed_data/exhaustive_linear_BICs.jld2", "data", AICs)
 #save("analysis/processed_data/exhaustive_linear_AICs.jld2", "data", BICs)
