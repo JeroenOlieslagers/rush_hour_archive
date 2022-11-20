@@ -184,8 +184,8 @@ function dfs(board; solve=true)
                 undo_moves!(board, [move])
                 continue
             # Remove already existing copy in frontier
-            # elseif new in q
-            #     deleteat!(q, findfirst(x->x==new, q))
+            elseif new in q
+                deleteat!(q, findfirst(x->x==new, q))
             end
             # Add current node to front of frontier
             push!(q, new)
@@ -351,11 +351,14 @@ function random_agent(board, max_iters=1000000)
     expansions = 0
     # Stores all moves performed
     #moves = Array{Tuple{Int, Int}, 1}()
+    # Stores all visited states
+    #visited = Array{BigInt, 1}()
     available_moves = Array{Array{Int, 1}, 1}()
     arr = zeros(Int, 6, 6)
     while expansions < max_iters
         #arr_current = get_board_arr(board)
         get_board_arr!(arr, board)
+        #push!(visited, board_to_int(arr, BigInt))
         # Check if complete
         if check_solved(arr)
             return expansions

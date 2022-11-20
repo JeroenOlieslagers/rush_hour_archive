@@ -71,13 +71,16 @@ Adds node to graph
 - `label::String`:             alternate label for node.
 - `invis::Boolean`:            set to true to hide node. 
 """
-function add_node(g, node; invisible_nodes=false, color="", label="", invis=false)
+function add_node(g, node; invisible_nodes=false, color="", border_color="", label="", invis=false, width=0)
     g *= string(node)
-    if color != "" || invisible_nodes || label != "" || invis
+    if color != "" || invisible_nodes || label != "" || invis || border_color != "" || width != 0
         g *= "["
     end
     if color != ""
-        g *= "fillcolor=" * color * ";style=filled;"
+        g *= """fillcolor=""" * color * """;style=filled;"""
+    end
+    if border_color != ""
+        g *= """color=""" * border_color * """;"""
     end
     if invis
         g *= "style=invis;"
@@ -87,7 +90,10 @@ function add_node(g, node; invisible_nodes=false, color="", label="", invis=fals
     elseif label != ""
         g *= "label=" * label * ";"
     end
-    if color != "" || invisible_nodes || label != "" || invis
+    if width != 0
+        g *= "penwidth=" * string(width) * ";"
+    end
+    if color != "" || invisible_nodes || label != "" || invis || border_color != "" || width != 0
         g *= "]"
     end
     return g *= ";"
@@ -120,9 +126,9 @@ Draw edge between nodes a and b, if constraint, enforce to keep hierarchy
 - `bidirectional::Boolean`:    set to true for bidirectional edge.
 - `invis::Boolean`:            set to true to hide edge. 
 """
-function add_edge(g, a, b; constraint=true, color="", bidirectional=false, invis=false)
+function add_edge(g, a, b; constraint=true, color="", bidirectional=false, invis=false, width=0, arrow_size=0)
     g *= string(a) * "->" * string(b)
-    if color != "" || !constraint || bidirectional || invis
+    if color != "" || !constraint || bidirectional || invis || width != 0 || arrow_size != 0
         g *= "["
     end
     if color != ""
@@ -137,7 +143,13 @@ function add_edge(g, a, b; constraint=true, color="", bidirectional=false, invis
     if bidirectional
         g *= "dir=both;"
     end
-    if color != "" || !constraint || bidirectional || invis
+    if arrow_size != 0
+        g *= "arrowsize=" * string(arrow_size) * ";"
+    end
+    if width != 0
+        g *= "penwidth=" * string(width) * ";"
+    end
+    if color != "" || !constraint || bidirectional || invis || width != 0 || arrow_size != 0
         g *= "]"
     end
     return g *= ";"
@@ -435,6 +447,126 @@ function draw_visited_nodes(nodes, graph, all_parents, solutions, solution_paths
         #         end
         #     end
         # end
+    end
+    g = close_graph(g)
+    return GraphViz.Graph(g)
+end
+
+function draw_visited_nodes_simple(nodes, graph, all_parents, solutions, solution_paths)
+    # Start graph
+    g = initialise_graph()
+    # Get children of full graph
+    full_children = reverse(collect(keys(graph)))
+    # Get children of nodes
+    sub_children = cat([all_parents[node] for node in nodes]..., dims=1)
+    # Get nodes on optimal paths
+    optimal_nodes = Set(reduce(vcat, collect(values(solution_paths))))
+    # Draw invisible full graph
+    for child in full_children
+        if child in nodes
+            # Add coloured nodes
+            if child == last(nodes)
+                if child in solutions
+                    g = add_node(g, child, color="red", invisible_nodes=true, border_color="green", width=5)
+                elseif child in optimal_nodes
+                    g = add_node(g, child, color="red", invisible_nodes=true, border_color="blue", width=5)
+                else
+                    g = add_node(g, child, color="red", invisible_nodes=true)
+                end
+            else
+                if child in solutions
+                    g = add_node(g, child, color="orange", invisible_nodes=true, border_color="green", width=5)
+                elseif child in optimal_nodes
+                    g = add_node(g, child, color="orange", invisible_nodes=true, border_color="blue", width=5)
+                else
+                    g = add_node(g, child, color="orange", invisible_nodes=true)
+                end
+            end
+        else
+            # Add invisible nodes from full graph
+            if child in solutions
+                g = add_node(g, child, invisible_nodes=true, border_color="green", width=5)
+            elseif child in optimal_nodes
+                g = add_node(g, child, invisible_nodes=true, border_color="blue", width=5)
+            else
+                g = add_node(g, child, invisible_nodes=true)
+            end
+        end
+        # Add invisible edges from full graph
+        for parent in all_parents[child]
+            if parent in graph[child]
+                if parent in optimal_nodes && child in optimal_nodes
+                    g = add_edge(g, parent, child, color="blue")
+                else
+                    g = add_edge(g, parent, child, invis=true)
+                end
+            else
+                g = add_edge(g, parent, child, invis=true, constraint=false)
+            end
+        end
+    end
+    # Draw visible subgraph edges
+    for (n, child) in enumerate(nodes)
+        if n > 1
+            if nodes[n-1] in all_parents[child]
+                g = add_edge(g, nodes[n-1], child, constraint=false, color="red", width=3, arrow_size=1.5)
+            end
+        end
+    end
+    g = close_graph(g)
+    return GraphViz.Graph(g)
+end
+
+function draw_ss_heatmap(counts, graph, all_parents, solutions, solution_paths)
+    # Start graph
+    g = initialise_graph()
+    # Get children of full graph
+    full_children = reverse(collect(keys(graph)))
+    # Get nodes on optimal paths
+    optimal_nodes = Set(reduce(vcat, collect(values(solution_paths))))
+    # Get maximum visits as baseline
+    max_count = maximum(values(counts))
+    # Draw invisible full graph
+    for child in full_children
+        # c = 0
+        # ct = counts[child]
+        # if ct >= 40
+        #     c = 6
+        # elseif ct >= 20
+        #     c = 5
+        # elseif ct >= 5
+        #     c = 4
+        # elseif ct >= 3
+        #     c = 3
+        # elseif ct >= 2
+        #     c = 2
+        # elseif ct >= 1
+        #     c = 1
+        # end
+        # alpha = c/6
+        offset = 10
+        alpha = counts[child] == 0 ? 0 : (offset+counts[child])/max_count > 1 ? 1 : (offset+counts[child])/max_count
+        color = """ "#ff0000"""*string(round(Int, 255*alpha), base=16)*"""" """
+        if child in solutions
+            g = add_node(g, child, color=color, border_color="green", invisible_nodes=true, width=5)
+        elseif child in optimal_nodes
+            g = add_node(g, child, color=color, border_color="blue", invisible_nodes=true, width=5)
+        else
+            # Add invisible nodes from full graph
+            g = add_node(g, child, color=color, invisible_nodes=true)#, invis=true)
+        end
+        # Add invisible edges from full graph
+        for parent in all_parents[child]
+            if parent in graph[child]
+                if parent in optimal_nodes && child in optimal_nodes
+                    g = add_edge(g, parent, child, color="blue", width=3, arrow_size=1.5)
+                else
+                    g = add_edge(g, parent, child, invis=true)
+                end
+            else
+                g = add_edge(g, parent, child, invis=true, constraint=false)
+            end
+        end
     end
     g = close_graph(g)
     return GraphViz.Graph(g)

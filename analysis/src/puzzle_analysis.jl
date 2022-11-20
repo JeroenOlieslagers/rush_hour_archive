@@ -28,7 +28,7 @@ function get_Ls(data::Dict{String, DataFrame})::Tuple{DefaultDict{String, Array{
     # Loop over all subjects
     for subj in keys(data)
         # Get L for each problem subject attempted
-        _, _, attempts = analyse_subject(data[subj]);
+        _, _, _, attempts = analyse_subject(data[subj]);
         for prb in keys(attempts)
             # Push L to array for each problem
             push!(Ls[prb], attempts[prb])
@@ -53,44 +53,48 @@ returns all necessary features:
 5. number of solutions
 6. number of optimal paths to any solution
 7. size of state space
-8. average width of state space
+#8. average width of state space
 9. minimum width of state space
 10. maximum width of state space
 11. depth of state space
-12. number of nodes in MAG
+#12. number of nodes in MAG
 """
 function get_state_spaces(prbs::Vector{String})::Dict{String, Vector{Float64}}
     state_space_features = Dict{String, Vector{Float64}}()
     for prb in ProgressBar(prbs)
         board = load_data(prb)
-        tree, seen, stat, dict, parents, children, solutions = bfs_path_counters(board, traverse_full=true)
-        optimal_length = minimum([stat[solution][1] for solution in solutions])
-        average_children = mean([length(childs) for childs in values(children)])
-        # Calculate in and out degree for optimal paths to optimal end states
-        optimal_ends = [stat[solution][1] for solution in solutions]
-        optimal_ends = solutions[optimal_ends .== optimal_length]
-        in_n_out = [get_av_branchs(optimal_end, parents, children, optimal_length) for optimal_end in optimal_ends]
-        in_degree = mean([t[1] for t in in_n_out])
-        out_degree = mean([t[2] for t in in_n_out])
-        
-        n_solutions = length(solutions)
-        n_optimal_paths = sum([seen[solution] for solution in solutions])
-        # Make sure everything is working
-        if !(sum(values(tree)) == length(seen) == length(stat) == length(dict) == length(parents) == length(children))
-            println("ERROR, STATE SPACES DO NOT AGREE")
-            break
-        end
-        size_state_space = length(stat)
-        tree_shape = collect(values(tree))[2:end]
-        av_width = mean(tree_shape)
-        min_width = minimum(tree_shape)
-        max_width = maximum(tree_shape)
-        depth = length(tree_shape)
-        arr = get_board_arr(board)
-        mag_size = mag_size_nodes(board, arr)
-        state_space_features[prb] = [optimal_length, average_children, in_degree, out_degree, n_solutions, n_optimal_paths, size_state_space, av_width, min_width, max_width, depth, mag_size]
+        state_space_features[prb] = get_state_space_features(board)
     end
     return state_space_features
+end
+
+function get_state_space_features(board)
+    tree, seen, stat, dict, parents, children, solutions = bfs_path_counters(board, traverse_full=true)
+    optimal_length = minimum([stat[solution][1] for solution in solutions])
+    average_children = mean([length(childs) for childs in values(children)])
+    # Calculate in and out degree for optimal paths to optimal end states
+    optimal_ends = [stat[solution][1] for solution in solutions]
+    optimal_ends = solutions[optimal_ends .== optimal_length]
+    in_n_out = [get_av_branchs(optimal_end, parents, children, optimal_length) for optimal_end in optimal_ends]
+    in_degree = mean([t[1] for t in in_n_out])
+    out_degree = mean([t[2] for t in in_n_out])
+    
+    n_solutions = length(solutions)
+    n_optimal_paths = sum([seen[solution] for solution in solutions])
+    # Make sure everything is working
+    if !(sum(values(tree)) == length(seen) == length(stat) == length(dict) == length(parents) == length(children))
+        println("ERROR, STATE SPACES DO NOT AGREE")
+        return nothing
+    end
+    size_state_space = length(stat)
+    tree_shape = collect(values(tree))[2:end]
+    #av_width = mean(tree_shape)
+    min_width = minimum(tree_shape)
+    max_width = maximum(tree_shape)
+    depth = length(tree_shape)
+    #arr = get_board_arr(board)
+    #mag_size = mag_size_nodes(board, arr)
+    return [optimal_length, average_children, in_degree, out_degree, n_solutions, n_optimal_paths, size_state_space, min_width, max_width, depth]
 end
 
 """
@@ -129,8 +133,8 @@ over N iterations.
 """
 function get_random_agent_stats(prbs::Vector{String}; N=100)::Dict{String, Vector{Float64}}
     dict = Dict{String, Vector{Float64}}()
-    for prb in prbs
-        println(prb)
+    for prb in ProgressBar(prbs)
+        #println(prb)
         exps = zeros(Int, N)
         for i in 1:N
             board = load_data(prb)
@@ -140,10 +144,12 @@ function get_random_agent_stats(prbs::Vector{String}; N=100)::Dict{String, Vecto
         board = load_data(prb)
         _, _, expansions_bfs = a_star(board)
         board = load_data(prb)
+        _, _, expansions_dfs = dfs(board)
+        board = load_data(prb)
         _, _, expansions_red = a_star(board, h=red_distance)
         board = load_data(prb)
         _, _, expansions_forest = a_star(board, h=multi_mag_size_nodes)
-        dict[prb] = [mean(exps), std(exps), expansions_bfs, expansions_red, expansions_forest]
+        dict[prb] = [mean(exps), expansions_bfs, expansions_dfs, expansions_red, expansions_forest]
     end
     return dict
 end
@@ -259,7 +265,7 @@ function loglik(y::Vector, P::Vector)::Float64
     return -n/2 * (log(2π * dev/n) + 1)
 end
 
-function scatter_corr_plot(prbs, L, X)
+function scatter_corr_plot(X; L=[], prbs=[])
     dff = DataFrame(prb=String[],
                 L=Float64[],
                 opt_L=Float64[], 
@@ -272,30 +278,40 @@ function scatter_corr_plot(prbs, L, X)
                 min_width=Float64[],
                 max_width=Float64[],
                 depth=Float64[])
-    for i in 1:70
-        push!(dff, [prbs[i], L[i], X[i, [1:4...]]..., log10.(X[i, [5:7...]])..., X[i, 9], log10.(X[i, 10]), X[i, 11]])# X[i, [1:7..., 9:11...]]...])
-    end
+    
     stats = DataFrame(Feature=String[], Pearson=Float64[], Pearson_p=Float64[], Spearman=Float64[], Spearman_p=Float64[], Lesion=Float64[])
     nms = names(dff)[3:end]
-    ols = lm(fm, dff)
-    r2a = adjr2(ols)
+    if length(L) > 0
+        for i in 1:70
+            push!(dff, [prbs[i], log10.(L[i]), log10.(X[i, 1]), X[i, 2:4]..., log10.(X[i, 5:7])..., log10.(X[i, 9:11])...])#, log10.(X[i, 10]), log10.(X[i, 11])])# X[i, [1:7..., 9:11...]]...])
+        end
+        fm = Term(:L) ~ +([Term(Symbol(trm)) for trm in nms]...)
+        ols = lm(fm, dff)
+        r2a = adjr2(ols)
+    else
+        for i in 1:70
+            push!(dff, ["", 0, X[i, [1:4...]]..., log10.(X[i, [5:7...]])..., X[i, 8], log10.(X[i, 9]), X[i, 10]])# X[i, [1:7..., 9:11...]]...])
+        end
+    end
     corr = zeros(10, 10)
 
     l = @layout [grid(10, 10) a{0.035w}]
     plot(layout=l, size=(800, 600), dpi=200)#, plot_title="Scatterplots")
     for i in 1:10
-        trms = names(dff)[[3:3+i-2..., 3+i:end...]]
-        fm = Term(:L) ~ +([Term(Symbol(trm)) for trm in trms]...)
-        ols = lm(fm, dff)
-        push!(stats, [
-            nms[i], 
-            cor(dff.L, dff[!, nms[i]]), 
-            pvalue(CorrelationTest(dff.L, dff[!, nms[i]])),
-            cor(ordinalrank(dff.L), ordinalrank(dff[!, nms[i]])), 
-            pvalue(CorrelationTest(ordinalrank(dff.L), ordinalrank(dff[!, nms[i]]))),
-            adjr2(ols)-r2a])
+        if length(L) > 0
+            trms = names(dff)[[3:3+i-2..., 3+i:end...]]
+            fm = Term(:L) ~ +([Term(Symbol(trm)) for trm in trms]...)
+            ols = lm(fm, dff)
+            push!(stats, [
+                nms[i], 
+                cor(dff.L, dff[!, nms[i]]), 
+                pvalue(CorrelationTest(dff.L, dff[!, nms[i]])),
+                cor(ordinalrank(dff.L), ordinalrank(dff[!, nms[i]])), 
+                pvalue(CorrelationTest(ordinalrank(dff.L), ordinalrank(dff[!, nms[i]]))),
+                adjr2(ols)-r2a])
+        end
         for j in 1:10
-            corr[i, j] = -log10(pvalue(CorrelationTest(ordinalrank(dff[!, nms[i]]), ordinalrank(dff[!, nms[j]]))))
+            corr[i, j] = -log10(pvalue(CorrelationTest(dff[!, nms[i]], dff[!, nms[j]])))
             yl = ""
             xl = ""
             tm = -2Plots.mm
@@ -318,7 +334,7 @@ function scatter_corr_plot(prbs, L, X)
             scatter!(dff[!, nms[i]], dff[!, nms[j]], sp=10*(i-1) + j, xticks=nothing, yticks=nothing, label=nothing, color=:black, markersize=1.5, yguide=yl, xguide=xl, left_margin = lm, right_margin = rm, top_margin = tm, background_color_subplot=c, xguidefontrotation=60, yguidefontrotation=-90, xmirror=true)
         end
     end
-    scatter!([], [], sp=101, xticks=nothing, yticks=nothing, marker_z=[0], label=nothing, clim=(0, 25), c=cgrad(:Spectral_11, rev=true), ticks=false, colorbar_title="log (Pearson correlation p-value)")
+    display(scatter!([], [], sp=101, xticks=nothing, yticks=nothing, marker_z=[0], label=nothing, clim=(0, 25), c=cgrad(:Spectral_11, rev=true), ticks=false, colorbar_title="log (Pearson correlation p-value)"))
     return stats
 end
 
@@ -399,7 +415,12 @@ p = MLJLinearModels.fit(en, XX, av_L)
 
 board = load_data("example_4")
 
-X = zeros(5082, 12)
+X = zeros(length(), 10)
+for (i, prb) in enumerate(keys(state_space_features))
+    for j in 1:12
+        X[i, j] = state_space_features[prb][j]
+    end
+end
 for (i, prb) in enumerate(prbs)
     for j in 1:12
         if j <= 12
@@ -422,6 +443,19 @@ for i in eachindex(X[1, :])
     println(extrema(X[:, i]))
     println("-----")
 end
+
+agent_stats = DataFrame(Feature=String[], Pearson=Float64[], Pearson_p=Float64[], Spearman=Float64[], Spearman_p=Float64[])
+nms = ["10k_random_mean", "bfs_expansions", "dfs_expansions", "a_star_red_dist", "a_star_forest"]
+for i in eachindex(XXX[1, :])
+    push!(agent_stats, [
+                nms[i], 
+                cor(log10.(L), log10.(XXX[:, i])), 
+                pvalue(CorrelationTest(log10.(L), log10.(XXX[:, i]))),
+                cor(ordinalrank(L), ordinalrank(XXX[:, i])), 
+                pvalue(CorrelationTest(ordinalrank(L), ordinalrank(XXX[:, i])))])
+end
+
+stats = scatter_corr_plot(X, L=L, prbs=prbs)
 
 
 

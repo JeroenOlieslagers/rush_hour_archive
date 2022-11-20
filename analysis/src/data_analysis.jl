@@ -428,7 +428,7 @@ function boxplot_figure(data)
     # Concatenate all subject's data
     y = DefaultDict{String, Array{Int}}([])
     for subj in keys(data)
-        arrs, move_tuples, attempts = analyse_subject(data[subj]);
+        arrs, move_tuples, _, attempts = analyse_subject(data[subj]);
         for prob in keys(attempts)
             push!(y[prob], attempts[prob])
             # for restart in values(attempts[prob])
@@ -452,16 +452,19 @@ function boxplot_figure(data)
     for opt in sort(collect(keys(n)))
         xx = [[k] for k in keys(n[opt])]
         yy = collect(values(n[opt]))
-        p = boxplot(xx, yy, label=nothing, marker=(:black, Plots.stroke(0)), ylim=(0, 150), xticks=[], grid=false)
-        if opt == 15
-            plot!([l[1] for l in xx], [opt for _ in xx], color=:red, label="Optimal move", xlabel="Problem")
+        p = dotplot(xx, yy, label=nothing, marker=(:black, Plots.stroke(0)), ylim=(0, 200), xticks=[], grid=false, markersize=1.5, foreground_color_legend=nothing)
+        if opt == 6
+            scatter!([], [], color=:black, label="One subject", markersize=1)
+            plot!([l[1] for l in xx], [opt for _ in xx], color=:red, label="Optimal solution length")
+        elseif opt == 15
+            plot!([l[1] for l in xx], [opt for _ in xx], color=:red, label=nothing, xlabel="Problem index")
         else
             plot!([l[1] for l in xx], [opt for _ in xx], color=:red, label=nothing)
         end
         push!(ps, p)
     end
 
-    p = plot(ps..., layout=(4, 1), ylabel="Moves", legend=:topright)
+    p = plot(ps..., layout=(4, 1), ylabel="Moves", legend=:topright, size=(400, 400), dpi=200)
     #savefig(p,"boxplot_high_ylim.png")
 end
 
@@ -508,6 +511,6 @@ end
 # time_plot(data)
 # problem_plot(data)
 
-# boxplot_figure(data)
+#boxplot_figure(data)
 
 #subj = "A3CTXNQ2GXIQSP:34HJIJKLP64Z5YMIU6IKNXSH7PDV4I"

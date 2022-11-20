@@ -1,5 +1,7 @@
 include("plot_graph.jl")
 include("rushhour.jl")
+include("solvers.jl")
+include("data_analysis.jl")
 
 subjs = collect(keys(data));
 prb = "prb55384_14";
@@ -47,12 +49,19 @@ for j in eachindex(heurs)
     end
 end
 
+counts = DefaultDict{BigInt, Int}(0)
+max_nodes = 0
 for subj in subjs
     tot_arrs, tot_move_tuples, tot_states_visited, attempts = analyse_subject(data[subj]);
     if !(prb in keys(tot_states_visited))
         continue
     end
+    max_nodes += 1
     nodes = tot_states_visited[prb];
+    for node in nodes
+        counts[node] += 1
+    end
+    #push!(counts, nodes...)
     println(split(subj, ":")[1])
     println(length(nodes))
     println("---------")
@@ -67,3 +76,14 @@ for subj in subjs
         end
     end
 end
+
+counts_random = DefaultDict{BigInt, Int}(0)
+for i in 1:1000
+    board = load_data(prb);
+    _, nodes = random_agent(board)
+    for node in nodes
+        counts_random[node] += 1
+    end
+end
+
+g = draw_ss_heatmap(counts, parents, all_parents, solutions, solution_paths)
