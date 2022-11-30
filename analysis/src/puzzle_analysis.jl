@@ -109,7 +109,7 @@ function get_av_branchs(leaf, parents, children, depth; N=1)::Tuple{Float64, Flo
     total_out = 0.0
     for n in 1:N
         outdegree = 0
-        indegree = 0
+        indegree = length(parents[leaf])
         parent = sample(parents[leaf])
         for i in 1:depth
             outdegree += length(children[parent])
@@ -119,7 +119,7 @@ function get_av_branchs(leaf, parents, children, depth; N=1)::Tuple{Float64, Flo
                 parent = sample(parents[parent])
             end
         end
-        total_in += indegree / (depth-1)
+        total_in += indegree / depth
         total_out += outdegree / depth
     end
     return total_in / N, total_out / N
@@ -265,33 +265,55 @@ function loglik(y::Vector, P::Vector)::Float64
     return -n/2 * (log(2π * dev/n) + 1)
 end
 
-function scatter_corr_plot(X; L=[], prbs=[])
+function scatter_corr_plot(X; L=[], prbs=[], full=false)
     dff = DataFrame(prb=String[],
                 L=Float64[],
-                opt_L=Float64[], 
+                opt_L=Float64[],
+                depth=Float64[],
+                indegree=Float64[],
+                min_width=Float64[],
                 branch=Float64[], 
-                indegree=Float64[], 
                 outdegree=Float64[],
                 n_sol=Float64[],
                 paths=Float64[],
                 ss_size=Float64[],
-                min_width=Float64[],
-                max_width=Float64[],
-                depth=Float64[])
+                max_width=Float64[])
     
     stats = DataFrame(Feature=String[], Pearson=Float64[], Pearson_p=Float64[], Spearman=Float64[], Spearman_p=Float64[], Lesion=Float64[])
     nms = names(dff)[3:end]
-    if length(L) > 0
-        for i in 1:70
-            push!(dff, [prbs[i], log10.(L[i]), log10.(X[i, 1]), X[i, 2:4]..., log10.(X[i, 5:7])..., log10.(X[i, 9:11])...])#, log10.(X[i, 10]), log10.(X[i, 11])])# X[i, [1:7..., 9:11...]]...])
+    XX = zeros(size(X))
+    if !full
+        if length(L) > 0
+            for i in 1:70
+                push!(dff, [prbs[i], log10.(L[i]), log10.(X[i, 1]), X[i, 2:4]..., log10.(X[i, 5:7])..., log10.(X[i, 9:11])...])#, log10.(X[i, 10]), log10.(X[i, 11])])# X[i, [1:7..., 9:11...]]...])
+            end
+            fm = Term(:L) ~ +([Term(Symbol(trm)) for trm in nms]...)
+            ols = lm(fm, dff)
+            r2a = adjr2(ols)
+        else
+            for i in 1:70
+                push!(dff, ["", 0, 
+                log10.(X[i, 1]), 
+                log10.(X[i, 11]),
+                X[i, 3],
+                log10.(X[i, 9]),
+                X[i, 2], 
+                X[i, 4],
+                log10.(X[i, 5:7])..., 
+                log10.(X[i, 10])])# X[i, [1:7..., 9:11...]]...])
+            end
         end
-        fm = Term(:L) ~ +([Term(Symbol(trm)) for trm in nms]...)
-        ols = lm(fm, dff)
-        r2a = adjr2(ols)
     else
-        for i in 1:70
-            push!(dff, ["", 0, X[i, [1:4...]]..., log10.(X[i, [5:7...]])..., X[i, 8], log10.(X[i, 9]), X[i, 10]])# X[i, [1:7..., 9:11...]]...])
-        end
+        XX[:, 1] = log10.(X[:, 1])
+        XX[:, 2] = log10.(X[:, 10])
+        XX[:, 3] = X[:, 3]
+        XX[:, 4] = log10.(X[:, 8])
+        XX[:, 5] = X[:, 2]
+        XX[:, 6] = X[:, 4]
+        XX[:, 7] = log10.(X[:, 5])
+        XX[:, 8] = log10.(X[:, 6])
+        XX[:, 9] = log10.(X[:, 7])
+        XX[:, 10] = log10.(X[:, 9])
     end
     corr = zeros(10, 10)
 
@@ -311,7 +333,11 @@ function scatter_corr_plot(X; L=[], prbs=[])
                 adjr2(ols)-r2a])
         end
         for j in 1:10
-            corr[i, j] = -log10(pvalue(CorrelationTest(dff[!, nms[i]], dff[!, nms[j]])))
+            if full
+                corr[i, j] = abs(cor(XX[:, i], XX[:, j]))
+            else
+                corr[i, j] = -log10(pvalue(CorrelationTest(dff[!, nms[i]], dff[!, nms[j]])))
+            end
             yl = ""
             xl = ""
             tm = -2Plots.mm
@@ -328,13 +354,22 @@ function scatter_corr_plot(X; L=[], prbs=[])
             if j == 10
                 rm = 20Plots.mm
             end
-            c = corr[i, j] > 25 ? 25 : corr[i, j]
-            c = ceil(Int, c)
-            c = palette(cgrad(:Spectral_11, rev=true), 25)[c]
-            scatter!(dff[!, nms[i]], dff[!, nms[j]], sp=10*(i-1) + j, xticks=nothing, yticks=nothing, label=nothing, color=:black, markersize=1.5, yguide=yl, xguide=xl, left_margin = lm, right_margin = rm, top_margin = tm, background_color_subplot=c, xguidefontrotation=60, yguidefontrotation=-90, xmirror=true)
+            if full
+                c = ceil(Int, corr[i, j]*100)
+                c = palette(cgrad(:Spectral_11, rev=true), 100)[c]
+            else
+                c = corr[i, j] > 25 ? 25 : corr[i, j]
+                c = ceil(Int, c)
+                c = palette(cgrad(:Spectral_11, rev=true), 25)[c]
+            end            
+            if full
+                scatter!([], [], sp=10*(i-1) + j, xticks=nothing, yticks=nothing, label=nothing, color=:black, markersize=1.5, yguide=yl, xguide=xl, left_margin = lm, right_margin = rm, top_margin = tm, background_color_subplot=c, xguidefontrotation=60, yguidefontrotation=-90, xmirror=true)
+            else
+                scatter!(dff[!, nms[i]], dff[!, nms[j]], sp=10*(i-1) + j, xticks=nothing, yticks=nothing, label=nothing, color=:black, markersize=1.5, yguide=yl, xguide=xl, left_margin = lm, right_margin = rm, top_margin = tm, background_color_subplot=c, xguidefontrotation=60, yguidefontrotation=-90, xmirror=true)
+            end
         end
     end
-    display(scatter!([], [], sp=101, xticks=nothing, yticks=nothing, marker_z=[0], label=nothing, clim=(0, 25), c=cgrad(:Spectral_11, rev=true), ticks=false, colorbar_title="log (Pearson correlation p-value)"))
+    display(scatter!([], [], sp=101, xticks=nothing, yticks=nothing, marker_z=[0], label=nothing, clim=(0, 25), c=cgrad(:Spectral_11, rev=true), ticks=false, colorbar_title="-log(Pearson correlation p-value)", colorbar_titlefontsize=18, right_margin=2Plots.mm))
     return stats
 end
 
@@ -352,7 +387,7 @@ df = get_dataframe(prbs, dict, state_space_features, random_agent_stats)
 #save("analysis/processed_data/all_prbs_stat_space_features.jld2", state_space_features)
 #save("analysis/processed_data/new_norm_features.jld2", "data", XX)
 X = load("analysis/processed_data/new_features.jld2")["data"]
-state_space_features_all = load("analysis/processed_data/all_prbs_stat_space_features.jld2")
+state_space_features_all = load("analysis/processed_data/full_all_prbs_stat_space_features.jld2")
 XX = load("analysis/processed_data/new_norm_features.jld2")["data"]
 
 L = [mean(Ls[prb]) for prb in prbs]
@@ -415,10 +450,10 @@ p = MLJLinearModels.fit(en, XX, av_L)
 
 board = load_data("example_4")
 
-X = zeros(length(), 10)
-for (i, prb) in enumerate(keys(state_space_features))
-    for j in 1:12
-        X[i, j] = state_space_features[prb][j]
+X = zeros(length(state_space_features_all), 10)
+for (i, prb) in enumerate(keys(state_space_features_all))
+    for j in 1:10
+        X[i, j] = state_space_features_all[prb][j]
     end
 end
 for (i, prb) in enumerate(prbs)
@@ -455,7 +490,39 @@ for i in eachindex(XXX[1, :])
                 pvalue(CorrelationTest(ordinalrank(L), ordinalrank(XXX[:, i])))])
 end
 
-stats = scatter_corr_plot(X, L=L, prbs=prbs)
+for row in findall(isnan, X)
+    X[row[1], 3] = 1
+end
+
+stats = scatter_corr_plot(X)#, full=true)#, L=L, prbs=prbs)
 
 
+l = @layout [grid(3, 3) a{0.07w}]
+plot(layout=l, size=(550, 500), dpi=200)
+for i in 2:10
+    yl = ""
+    if (i-2) % 3 == 0
+        yl = latexstring("L")
+    end
+    if i < 5
+        c = ceil(Int, -log10(pvalue(CorrelationTest(X[:, i], L))))
+        c = palette(cgrad(:Spectral_11, rev=true), 10)[c]
+        scatter!(X[:, i], L, sp=i-1, label=nothing, xlabel=names(df)[3+i], xticks=[], yticks=[], color=:black, background_color_subplot=c, ylabel=yl)
+    else
+        c = ceil(Int, -log10(pvalue(CorrelationTest(log10.(X[:, i]), L))))
+        c = palette(cgrad(:Spectral_11, rev=true), 10)[c]
+        if i < 8
+            scatter!(log10.(X[:, i]), L, sp=i-1, label=nothing, xlabel="log("*names(df)[3+i]*")", xticks=[], yticks=[], color=:black, background_color_subplot=c, ylabel=yl)
+        else
+            scatter!(log10.(X[:, i]), L, sp=i-1, label=nothing, xlabel="log("*names(df)[4+i]*")", xticks=[], yticks=[], color=:black, background_color_subplot=c, ylabel=yl)
+        end
+    end
+end
+display(scatter!([], [], sp=10, xticks=nothing, yticks=nothing, marker_z=[0], label=nothing, clim=(0, 10), c=cgrad(:Spectral_11, rev=true), ticks=false, colorbar_title="-log(Pearson correlation p-value)", colorbar_titlefontsize=18, right_margin=2Plots.mm))
 
+
+scatter(X[:, 1], L, size=(350, 350), c=:black, label="Data", ylabel="Average human solution length ("*latexstring("L")*")", xlabel="Optimal solution length", dpi=200, grid=false)
+bhat = [X[:, 1] ones(70)]\L
+Plots.abline!(bhat..., label="Linear fit", linewidth=3)
+annotate!(7, 65, latexstring("R^2=")*"0.651")
+annotate!(8, 58, latexstring("\\rho=")*"0.807(3e-17)")
