@@ -4,6 +4,7 @@ include("solvers.jl")
 include("data_analysis.jl")
 
 subjs = collect(keys(data));
+#prb = "2vanassema";
 prb = "prb55384_14";
 #prb = "prb29414_11";
 #prb = "prb29027_16";
@@ -11,6 +12,8 @@ board = load_data(prb);
 tree, seen, stat, dict, parents, children, solutions = bfs_path_counters(board, traverse_full=true);
 tree, seen, stat, dict, all_parents, children, solutions = bfs_path_counters(board, traverse_full=true, all_parents=true);
 solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);
+
+g = draw_directed_tree(parents, solution_paths=solution_paths, solutions=solutions, all_parents=all_parents)
 
 heurs = [(x,y)->0, red_distance, multi_mag_size_nodes]
 heurs_names = ["bfs", "a_star_red_distance", "a_star_multi_mag_size_nodes"]

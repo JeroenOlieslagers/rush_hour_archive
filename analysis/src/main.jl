@@ -90,3 +90,12 @@ for (n, h) in enumerate(heur)
     end
 end
 
+arrs = []
+for move in pm
+    make_move!(board, move)
+    push!(arrs, get_board_arr(board))
+end
+anim = @animate for arr ∈ arrs
+    draw_board(arr)
+end
+gif(anim, "hard_puzzle_40_optimal.gif", fps = 5)

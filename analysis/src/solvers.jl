@@ -5,14 +5,15 @@ using BenchmarkTools
 using Distributions
 using Random
 
+"""
+    a_star(board, h=(x,y)->0, graph_search=false, solve=true)
 
+A* algorithm returning (visited states, optimal moves, expansions) with zero heuristic as default heuristic function.
+The search is a tree-search, not a graph-search, which means visited nodes can be
+revisited but the required heuristic function to ensure optimality only needs to be
+admissible, and not monotonic (as would be required for graph search).
+"""
 function a_star(board; h=(x,y)->0, graph_search=false, solve=true)
-    """
-    Implementation of A* algorithm with zero heuristic as default heuristic function.
-    The search is a tree-search, not a graph-search, which means visited nodes can be
-    revisited but the required heuristic function to ensure optimality only needs to be
-    admissible, and not monotonic (as would be required for graph search).
-    """
     arr_start = get_board_arr(board)
     T = get_type(arr_start)
     start = board_to_int(arr_start, T)
@@ -55,16 +56,19 @@ function a_star(board; h=(x,y)->0, graph_search=false, solve=true)
             push!(visited, current)
         end
         # Check if solved
-        if solve
-            if check_solved(arr_current)
+        if check_solved(arr_current)
+            undo_moves!(board, past_moves)
+            if solve
                 # println("------")
                 # println("Size of dict: " * string(Base.summarysize(dict)) * " bytes")
                 # println("Number of node expansions: " * string(expansions))
                 # println("Optimal length: " * string(length(past_moves)))
                 # println("------")
                 # Undo rest of moves back to initial board
-                undo_moves!(board, past_moves)
+                
                 return visited, past_moves, expansions
+            else
+                continue
             end
         end
         # Expand current node by getting all available moves
@@ -116,13 +120,13 @@ function a_star(board; h=(x,y)->0, graph_search=false, solve=true)
     # println(Base.summarysize(dict))
     # println("--------------------------")
     # return nothing, nothing
-    return nothing, nothing, expansions
+    return visited, nothing, expansions
 end
 
 """
     dfs(board, solve=true)
 
-Depth first search algorithm that returns visited nodes
+Depth first search algorithm that returns (visited states, optimal moves, expansions)
 """
 function dfs(board; solve=true)
     arr_start = get_board_arr(board)
@@ -206,11 +210,13 @@ function dfs(board; solve=true)
     return nothing, nothing, expansions
 end
 
+"""
+    bfs_path_counters(board, traverse_full=false, heuristic=zer, all_parents=false)
+
+Breadth first search algorithm that counts how many paths there are to
+all nodes in same layer as optimal solution
+"""
 function bfs_path_counters(board; traverse_full=false, heuristic=zer, all_parents=false)
-    """
-    Breadth first search algorithm that counts how many paths there are to
-    all nodes in same layer as optimal solution
-    """
     arr_start = get_board_arr(board)
     T = get_type(arr_start)
     start = board_to_int(arr_start, T)
@@ -483,10 +489,13 @@ function random_agent_no_undo(board, max_iters=1000000)
     return Inf
 end
 
+
+"""
+    red_distance(board, arr)
+
+Calculate how many vehicles block the red car
+"""
 function red_distance(board, arr)
-    """
-    Heuristic function that calculates how many vehicles block the red car
-    """
     # Get row with red car on it
     row = arr[3, :]
     # Split row/col
@@ -500,10 +509,12 @@ function red_distance(board, arr)
     return length(u)
 end
 
+"""
+    red_pos(board, arr)
+
+Calculate how close the red car is to the exit
+"""
 function red_pos(board, arr)
-    """
-    Heuristic function that calculates how close the red car is to the exit
-    """
     # Get row with red car on it
     row = arr[3, :]
     # Find position of red car
@@ -511,27 +522,35 @@ function red_pos(board, arr)
     return 6 - idx
 end
 
+"""
+    mag_size_layers(board, arr)
+
+Calculates size (layers) of MAG
+"""
 function mag_size_layers(board, arr)
-    """
-    Calculates size (layers) of MAG
-    """
     mag = get_constrained_mag(board, arr)
     return length(mag) - 1
 end
 
+"""
+    mag_size_nodes(board, arr)
+
+Calculates size (nodes) of MAG
+"""
 function mag_size_nodes(board, arr)
-    """
-    Calculates size (nodes) of MAG
-    """
-    mag = get_mag(board, arr)
+    mag = get_constrained_mag(board, arr)
     return sum([length(m) for m in mag]) - 1
 end
 
+"""
+    multi_mag_size_nodes(board, arr)    
+
+Calculate minimum node size from forest
+"""
 function multi_mag_size_nodes(board, arr)
-    """
-    Calculated minimum node size from all possible MAGs
-    """
+    # Get forest
     mags = get_multiple_mags(board, arr)
+    # Find minimum number of layers
     min = 100000
     for mag in mags
         size = sum([length(m) for m in mag]) - 1#length(unique(reduce(vcat, (reduce(vcat, [collect(values(m)) for m in mag])))))
@@ -542,11 +561,15 @@ function multi_mag_size_nodes(board, arr)
     return min
 end
 
+"""
+    multi_mag_size_layers(board, arr)    
+
+Calculate minimum layer size from forest
+"""
 function multi_mag_size_layers(board, arr)
-    """
-    Calculated minimum layer size from all possible MAGs
-    """
+    # Get forest
     mags = get_multiple_mags(board, arr)
+    # Find minimum number of layers
     min = 100000
     for mag in mags
         size = length(mag) - 1
@@ -557,14 +580,47 @@ function multi_mag_size_layers(board, arr)
     return min
 end
 
+"""
+    leave_one_out(board, arr)
+
+Calculate (mean, rand, min) optimal length when removing each car
+"""
+function leave_one_out(board, arr)
+    # Get number of unique cars
+    car_n = length(unique(arr)) - 2
+    # Optimal length for removing each car
+    opts = zeros(car_n)
+    # Remove each car
+    for i in 1:car_n
+        # Remove car and save it to be added back later
+        deleted_car = popat!(board.cars, i)
+        # Change car IDs
+        for j in i:car_n
+            board.cars[j].id -= 1
+        end
+        # Find optimal length
+        _, pm, _ = a_star(board, h=red_distance)
+        opts[i] = length(pm)
+        # Change back car IDs
+        for j in i:car_n
+            board.cars[j].id += 1
+        end
+        # Add deleted car back
+        insert!(board.cars, i, deleted_car)
+    end
+    return opts
+end
+
 function zer(board, arr)
     return 0
 end
 
+"""
+    calculate_blocked_moves(board, arr)
+
+Calculate whether the cars blocking the red car can be moved
+"""
 function calculate_blocked_moves(board, arr)
-    """
-    Calculates whether the cars blocking the red car can be moved
-    """
     # Get cars blocking exit
     blocking_cars = blocked_by(arr, board.cars[end])
     # Loop over blocking cars
@@ -603,10 +659,12 @@ function calculate_blocked_moves(board, arr)
     return (length(car_blocked) + sum(car_blocked))
 end
 
+"""
+    calculate_heur(board, moves, h)
+
+Calculate h at each of the moves, returns list with values
+"""
 function calculate_heur(board, moves, h)
-    """
-    Calculates h at each of the moves, returns list with values
-    """
     # Undo moves
     undo_moves!(board, moves)
     # Initialise list
