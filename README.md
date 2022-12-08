@@ -4,8 +4,9 @@ Analysis code for analyzing data from previous rush hour experiment data as well
 ```
 rush_hour
 ├── README.md
-├── analysis
-│   ├── demos
+├── demos
+├── docs
+├── resources
 │   ├── figures
 │   │   ├── animations
 │   │   │   ├── move_analysis
@@ -17,39 +18,26 @@ rush_hour
 │   │       ├── heuristic_analysis
 │   │       ├── raw_data_figures
 │   │       └── state_space_graphs
+│   ├── Finalized plots
+│   └── Presentations
+├── data
 │   ├── processed_data
-│   ├── src
-│   │   ├── best_first_model.jl
-│   │   ├── data_analysis.jl
-│   │   ├── main.jl
-│   │   ├── move_analysis.jl
-│   │   ├── plot_graph.jl
-│   │   ├── rushhour.jl
-│   │   ├── solvers.jl
-│   │   └── testt.jl
-│   └── src_python
-│       ├── Weird_subjects
-│       ├── Weird_subjects_2
-│       ├── __pycache__
-│       ├── plotting.py
-│       ├── problem_opt_boards.npy
-│       ├── problem_tree_sizes.npy
-│       ├── rushhour.py
-│       ├── solvers.py
-│       ├── subject_analysis.py
-│       ├── test.py
-│       └── testt.py
-├── experiment
-│   ├── raw_data
-│   │   ├── problems : directory containing all puzzles for experiment in .json format
-│   │   ├── trialdata.csv
-│   │   └── trialdata_headers.csv : all move data from experiment
-│   └── src
-└── resources
-    └── Presentations
-        ├── expansion_method_example.key
-        ├── heuristic_animation.key
-        └── why_julia.key
+│   └── raw_data
+│       ├── problems : directory containing all puzzles for experiment in .json format
+│       ├── trialdata.csv
+│       └── trialdata_headers.csv : all move data from 
+└── src
+    ├── best_first_model.jl
+    ├── data_analysis.jl
+    ├── main.jl
+    ├── move_analysis.jl
+    ├── plot_graph.jl
+    ├── rushhour.jl
+    ├── solvers.jl
+    ├── testt.jl
+    └── legacy_python_src
+
+
 
 ```
 
