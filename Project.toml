@@ -1,0 +1,7 @@
+name = "RushHour"
+uuid = "ab4d6a7e-3342-4f70-99d7-d1c2b2aab356"
+authors = ["JeroenOlieslagers <jo2229@nyu.edu>"]
+version = "0.1.0"
+
+[deps]
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
