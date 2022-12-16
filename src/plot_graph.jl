@@ -1,5 +1,5 @@
 using GraphViz, FileIO, ImageIO
-using Plots
+using Plots, ProgressBars
 
 """
     g = initialise_graph(title="")
