@@ -16,7 +16,9 @@ function line_to_board(line)
     return Board(cars, "")
 end
 
-
+#board = line_to_board("FoHBBBFoHIoKGAAIoKGCCJoLoooJoLDDEEEL") # SHORTEST
+#board = line_to_board("ooJBBMCCJoLMoIAALMHIoKDDHEEKoooFFGGo") # LONGEST
+board = line_to_board("GooJBBGoIJCCHoIAALHoooKLHDDDKMEEEFFM") # MEDIUM 800
 
 
 

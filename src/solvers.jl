@@ -315,7 +315,12 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer, all_parent
                     push!(children[current], new)
                 end  
                 if all_parents
-                    push!(parents[new], current)
+                    if !(current in parents[new])
+                        push!(parents[new], current)
+                    end
+                    if !(new in parents[current])
+                        push!(parents[current], new)
+                    end
                 end
                 # Undo move
                 undo_moves!(board, [move])
@@ -730,6 +735,47 @@ function get_solution_paths(solutions, parents, stat)
     end
 
     return solution_paths, fake_tree, max_heur
+end
+
+function invert_tree(all_parents, solutions, max_dist=1000)
+    idvs = Dict{BigInt, Array{Int, 1}}()
+    frontier = solutions
+    distance = 0
+
+    for i in 1:max_dist
+        new_frontier = []
+        for state in frontier
+            idvs[state] = [distance, length(all_parents[state])]
+            for parent in all_parents[state]
+                if !(parent in keys(idvs)) && !(parent in new_frontier) && !(parent in frontier)
+                    push!(new_frontier, parent)
+                end
+            end
+        end
+        if isempty(new_frontier)
+            break
+        end
+        frontier = new_frontier
+        distance += 1
+    end
+    return idvs
+end
+
+function get_optimal_actions(distance_from_sol, all_parents)
+    optimal_a = DefaultDict{BigInt, Array{BigInt, 1}}([])
+    for state in keys(all_parents)
+        dist = distance_from_sol[state][1]
+        if dist == 0
+            optimal_a[state] = []
+            continue
+        end
+        for parent in all_parents[state]
+            if distance_from_sol[parent][1] < dist
+                push!(optimal_a[state], parent)
+            end
+        end
+    end
+    return optimal_a
 end
 
 #solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);

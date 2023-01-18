@@ -1,2 +1,5 @@
 resources/figures/animations/move_analysis/human_moves/prb29414_11/a_star_red_distance/prb29414_11_a_star_red_distance.gif
 resources/figures/animations/move_analysis/human_moves/prb29414_11/bfs/prb29414_11_bfs.gif
+resources/Presentations/JO_first_year_talk.key
+data/processed_data/optimal_a.jld2
+data/processed_data/IDV.jld2

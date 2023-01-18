@@ -6,7 +6,7 @@ using DataFrames
 using DataStructures
 using ProgressBars
 
-data = load("analysis/processed_data/filtered_data.jld2")["data"];
+data = load("data/processed_data/filtered_data.jld2")["data"];
 
 Ls, dict = get_Ls(data);
 prbs = collect(keys(Ls))[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in keys(Ls)])]
