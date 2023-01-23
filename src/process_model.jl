@@ -1,51 +1,102 @@
 include("engine.jl")
 include("solvers.jl")
 include("data_analysis.jl")
+include("generate_fake_data.jl")
 using StatsBase
 using LaTeXStrings
+using BlackBoxOptim
 
 
 """
-    softmin(β, a, A)
+    softmin(β, q, Q)
 
-``\\frac{e^{-βa}}{\\sum_{a_i∈A}e^{-βa_i}}``
+``\\frac{e^{-βq}}{\\sum_{q_i∈Q}e^{-βq_i}}``
 """
-function softmin(β::Float64, a::Float64, A::Vector{Float64})::Float64
-    return exp(-β*a)/sum(exp.(-β*A))
+function softmin(β::Float64, q::Float64, Q::Vector{Float64})::Float64
+    return exp(-β*q)/sum(exp.(-β*Q))
 end
 
-function softmin(β::Float64, A::Vector{Float64})::Vector{Float64}
-    return exp.(-β*A) ./ sum(exp.(-β*A))
+"""
+    softmin(β, Q)
+
+``\\{\\frac{e^{-βq_j}}{\\sum_{q_i∈Q}e^{-βq_i}}\\}_{q_j∈Q}``
+"""
+function softmin(β::Float64, Q::Vector{Float64})::Vector{Float64}
+    return exp.(-β*Q) ./ sum(exp.(-β*Q))
 end
 
-function lapsed_softmin(λ::Float64, β::Float64, a::Float64, A::Vector{Float64})::Float64
-    return λ/length(A) + (1 - λ)*softmin(β, a, A)
+"""
+    lapsed_softmin(λ, β, q, Q)
+
+``\\frac{λ}{|Q|} + (1-λ)softmin(β, q, Q)``
+"""
+function lapsed_softmin(λ::Float64, β::Float64, q::Float64, Q::Vector{Float64})::Float64
+    return λ/length(Q) + (1 - λ)*softmin(β, q, Q)
 end
 
-function lapsed_softmin(λ::Float64, β::Float64, A::Vector{Float64})::Vector{Float64}
-    return λ/length(A) .+ (1 - λ)*softmin(β, A)
+"""
+    lapsed_softmin(λ, β, Q)
+
+``\\frac{λ}{|Q|} + (1-λ)softmin(β, Q)``
+"""
+function lapsed_softmin(λ::Float64, β::Float64, Q::Vector{Float64})::Vector{Float64}
+    return λ/length(Q) .+ (1 - λ)*softmin(β, Q)
 end
 
+function softmin(β, q, Q)
+    return exp(-β*q)/sum(exp.(-β*Q))
+end
+
+function lapsed_softmin(λ, β, q, Q)
+    return λ/length(Q) + (1 - λ)*softmin(β, q, Q)
+end
+
+
+"""
+    get_state_data(data, full_heur_dict; heur=4)
+
+Return four dictionaries with structure 
+{subj:
+  {prb: 
+    [
+      [values for first attempt]
+      [values for second attempt]
+    ]
+  }
+}
+where values = 
+- Q value of every visited state (Float64)
+- Q value of each neighbour of every visited state (Float64[])
+- every visited state (BigInt)
+- each neighbour of every visited state (BigInt[])
+
+Q values are determined by full_heur dictionary input, where
+heur specifies which heuristic is being used.
+"""
 function get_state_data(data, full_heur_dict; heur=4)
     subjs = collect(keys(data));
-
+    # Initialise output dicts
     qqs = Dict{String, DefaultDict{String, Array{Array{Float64, 1}, 1}}}()
     QQs = Dict{String, DefaultDict{String, Array{Array{Array{Float64, 1}, 1}, 1}}}()
     visited_states = Dict{String, DefaultDict{String, Array{Array{BigInt, 1}, 1}}}()
     neighbour_states = Dict{String, DefaultDict{String, Array{Array{Array{BigInt, 1}, 1}, 1}}}()
-
+    # Loop over subjects
     for subj in ProgressBar(subjs)
+        # Get subject-specific data in dicts
         tot_arrs, tot_move_tuples, tot_states_visited, attempts = analyse_subject(data[subj]);
-
+        # Initialise subject-specific output dicts
         subj_dict_qs = DefaultDict{String, Array{Array{Float64, 1}, 1}}([])
         subj_dict_Qs = DefaultDict{String, Array{Array{Array{Float64, 1}, 1}, 1}}([])
         subj_dict_visited = DefaultDict{String, Array{Array{BigInt, 1}, 1}}([])
         subj_dict_neigh = DefaultDict{String, Array{Array{Array{BigInt, 1}, 1}, 1}}([])
-
+        # Loop over puzzles
         for prb in keys(tot_move_tuples)
+            # Keep track of which attempt is being indexed
             restart_count = 0
+            # Initialise board
             board = load_data(prb)
             arr = get_board_arr(board)
+            # Loop over all moves in puzzle
             for (j, move) in enumerate(tot_move_tuples[prb])
                 # Reset board
                 if move == (-1, 0)
@@ -57,6 +108,7 @@ function get_state_data(data, full_heur_dict; heur=4)
                     push!(subj_dict_neigh[prb], [])
                     board = load_data(prb)
                     arr = get_board_arr(board)
+                    # Initialise visited states at root
                     s_init = board_to_int(arr, BigInt)
                     push!(subj_dict_visited[prb][restart_count], s_init)
                     continue
@@ -80,7 +132,7 @@ function get_state_data(data, full_heur_dict; heur=4)
                     neighs[n] = s
                     undo_moves!(board, [a])
                 end
-                # Calculate Q value for move made
+                # Make move
                 make_move!(board, move)
                 arr = get_board_arr(board)
                 s = board_to_int(arr, BigInt)
@@ -145,8 +197,9 @@ end
 
 ### FIT WITH BLACKBOXOPTIM
 
-function subject_fit(x::Vector{Float64}, qs, Qs)::Float64
-    λ, β = x
+function subject_fit(x, qs, Qs)
+    λ, logb = x
+    β = exp(logb)
     r = 0
     for prb in keys(qs)
         qs_prb = qs[prb]
@@ -157,17 +210,12 @@ function subject_fit(x::Vector{Float64}, qs, Qs)::Float64
             for j in eachindex(qs_prb_restart)
                 q = qs_prb_restart[j]
                 Q = Qs_prb_restart[j]
-                if isnan(lapsed_softmin(λ, β, q, Q))
-                    println(lapsed_softmin(λ, β, Q))
-                end
                 r -= log(lapsed_softmin(λ, β, q, Q))
             end
         end
     end
     return r
 end
-
-subject_fit(params[end, :], qqs[subjs[end]], QQs[subjs[end]])
 
 function fit_all_subjs(qqs, QQs; max_time=30)
     M = length(qqs)
@@ -176,20 +224,20 @@ function fit_all_subjs(qqs, QQs; max_time=30)
     iter = ProgressBar(enumerate(keys(qqs)))
     for (m, subj) in iter
         # Initial guess
-        x0 = [0.2, 2.0]
+        x0 = [0.1, 1.0]
         # Optimization
-        res = bboptimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; SearchRange = [(0.0, 1.0), (0.0, 50.0)], NumDimensions = 2, TraceMode=:silent, MaxTime=max_time/M);
-        params[m, :] = best_candidate(res)
-        fitness += best_fitness(res)
+        # res = bboptimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; SearchRange = [(0.0, 1.0), (-10.0, 4.0)], NumDimensions = 2, TraceMode=:silent, MaxTime=max_time/M);
+        # params[m, :] = best_candidate(res)
+        # fitness += best_fitness(res)
+        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 4.0], x0, Fminbox(); autodiff=:forward)
+        # df = TwiceDifferentiable((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; autodiff=:forward)
+        # dfc = TwiceDifferentiableConstraints([0.0, -10.0], [1.0, 4.0])
+        # res = optimize(df, dfc, x0, IPNewton())
+        params[m, :] = Optim.minimizer(res)
+        fitness += Optim.minimum(res)
         set_description(iter, "Fitting subject $(m)/$(M)")
     end
     return params, fitness
-end
-
-function sample_action(x::Vector{Float64}, A::Vector)::Int
-    λ, β = x
-    p = lapsed_softmin(λ, β, A)
-    return wsample(p)
 end
 
 ##### CALCULATE CONFIDENCE AND ACCURACY
@@ -205,7 +253,8 @@ function get_accuracy_and_confidence(qqs, QQs, params)
         ii = 0 
         qs = qqs[subj]
         Qs = QQs[subj]
-        λ, β = params[m, :]
+        λ, logb = params[m, :]
+        β = exp(logb)
         for prb in keys(Qs)
             for k in eachindex(Qs[prb])
                 for j in eachindex(Qs[prb][k])
@@ -309,7 +358,7 @@ function calculate_p_error(QQs, visited_states, neighbour_states, params)
             end
         end
     end
-    return error_l_data, error_a_data, error_l_model, error_a_model, cnt_l, cnt_a
+    return error_l_data, error_a_data, error_l_model, error_a_model, cnt
 end
 
 ### FANCY ERROR BARS
@@ -371,7 +420,7 @@ confidences, accuracies, chances = get_accuracy_and_confidence(qqs, QQs, params)
 dotplot([["Confidence"], ["Accuracy"]], [confidences, accuracies], color=:black, label=["Subjects" ""], ylim=(0, 1), size=(200, 300), markersize=3)
 plot!([0, 2.2], [mean(chances), mean(chances)], color=:red, label="Chance")
 
-error_l_data, error_a_data, error_l_model, error_a_model, cnt_l, cnt_a = calculate_p_error(QQs, visited_states, neighbour_states, params);
+error_l_data, error_a_data, error_l_model, error_a_model, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params);
 
 
 mu_hat_bar_l_data, error_bar_l_data = get_errorbar(error_l_data);
@@ -380,12 +429,45 @@ mu_hat_bar_l_model, error_bar_l_model = get_errorbar(error_l_model);
 mu_hat_bar_a_model, error_bar_a_model = get_errorbar(error_a_model);
 
 plot(layout=grid(2, 1), size=(600, 500))
-plot!(1:35, mu_hat_bar_l_data, ribbon=error_bar_l_data, sp=1, label="Data", xlabel="opt_L", ylabel="p(error)")
-plot!(1:35, mu_hat_bar_l_model, ribbon=error_bar_l_model, sp=1, label="Model")
-plot!(1:35, mu_hat_bar_a_data, ribbon=error_bar_a_data, sp=2, label="Data", xlabel="|A|", ylabel="p(error)")
-plot!(1:35, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label="Model")
+for i in 0:10
+    #params[:, 1] .= 0.0
+    params[:, 2] .= (i*3 - 10)/10
+    error_l_data, error_a_data, error_l_model, error_a_model, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params);
+
+    mu_hat_bar_l_model, error_bar_l_model = get_errorbar(error_l_model);
+    mu_hat_bar_a_model, error_bar_a_model = get_errorbar(error_a_model);
+
+    plot!(1:35, mu_hat_bar_l_model, ribbon=error_bar_l_model, sp=1, label=nothing, palette=:RdYlGn, lw=0.0)
+    plot!(1:35, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label=nothing, palette=:RdYlGn, lw=0.0)
+end
+
+
+plot!(1:35, mu_hat_bar_l_model, ribbon=error_bar_l_model, sp=1, label="Model", lw=0.0)
+plot!(1:35, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label="Model", lw=0.0)
+
+scatter!(1:35, mu_hat_bar_a_data, yerr=error_bar_a_data, sp=2, markersize=3, c=:black, label="Data", xlabel=latexstring("|A|"), ylabel="p(error)")
+scatter!(1:35, mu_hat_bar_l_data, yerr=error_bar_l_data, sp=1, markersize=3, c=:black, label="Data", xlabel="opt_L", ylabel="p(error)")
+
 
 plot(layout=grid(2, 1), size=(600, 500))
-histogram!(params[:, 1], bins=30, sp=1, xlabel=latexstring("\\lambda"), label=nothing)
-histogram!(params[:, 2], bins=30, sp=2, xlabel=latexstring("\\beta"), label=nothing)
+histogram!(params[:, 1], bins=30, sp=1, xlabel=latexstring("\\lambda"), label=nothing, xlim=(0.0, 1.0))
+histogram!(params[:, 2], bins=30, sp=2, xlabel=latexstring("log(\\beta)"), label=nothing, xlim=(-10.0, 4.0))
 
+Rs = [1, 10, 100]
+ppppparams = []
+for R in Rs
+    println("R=$(R)")
+    x = [0.1, 0.0];
+    qqs, QQs, cnt = generate_fake_data(40, prbs, x, R);
+    params, fitness = fit_all_subjs(qqs, QQs, max_time=600);
+    push!(ppppparams, params)
+end
+
+plot(layout=grid(6, 2), size=(600, 1000))
+for i in 1:6
+    histogram!(ppparams[i][:, 1], bins=30, sp=2*i - 1, xlabel=latexstring("\\lambda"), label=nothing, link=:x, yticks=nothing)
+    #plot!([0.1, 0.1], [0.0, 10.0], sp=2*i - 1, c=:red, label="True parameter", linewidth=2.0)
+    #plot!([mean(pppparams[i][:, 1]), mean(pppparams[i][:, 1])], [0.0, 10.0], sp=2*i - 1, c=:green, label="Estimated parameter", linewidth=2.0)
+    histogram!(ppparams[i][:, 2], bins=30, sp=2*i, xlabel=latexstring("log(\\beta)"), label=nothing, link=:x, yticks=nothing)
+end
+plot!()
