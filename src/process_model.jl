@@ -5,6 +5,7 @@ include("generate_fake_data.jl")
 using StatsBase
 using LaTeXStrings
 using BlackBoxOptim
+using Optim
 
 
 """
@@ -229,7 +230,7 @@ function fit_all_subjs(qqs, QQs; max_time=30)
         # res = bboptimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; SearchRange = [(0.0, 1.0), (-10.0, 4.0)], NumDimensions = 2, TraceMode=:silent, MaxTime=max_time/M);
         # params[m, :] = best_candidate(res)
         # fitness += best_fitness(res)
-        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 4.0], x0, Fminbox(); autodiff=:forward)
+        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 3.0], x0, Fminbox(); autodiff=:forward)
         # df = TwiceDifferentiable((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; autodiff=:forward)
         # dfc = TwiceDifferentiableConstraints([0.0, -10.0], [1.0, 4.0])
         # res = optimize(df, dfc, x0, IPNewton())
@@ -294,24 +295,36 @@ end
 # end
 
 # save("data/processed_data/IDV.jld2", IDV)
-function calculate_p_error(QQs, visited_states, neighbour_states, params)
+function calculate_p_error(QQs, visited_states, neighbour_states, params; heur=4)
     # Load optimal actions in every state
     optimal_a = load("data/processed_data/optimal_a.jld2")
     # Load independent variables in every state
-    IDV = load("data/processed_data/IDV.jld2")
+    IDV = load("data/processed_data/IDV_OLD.jld2")
     # Initialise
-    error_l_data = Dict{String, Array{Any, 1}}()
-    error_a_data = Dict{String, Array{Any, 1}}()
-    error_l_model = Dict{String, Array{Any, 1}}()
-    error_a_model = Dict{String, Array{Any, 1}}()
-    cnt = 0    
+    error_l_data = Dict{String, Array{Array{Int, 1}, 1}}()
+    error_a_data = Dict{String, Array{Array{Int, 1}, 1}}()
+    error_l_fake = Dict{String, Array{Array{Int, 1}, 1}}()
+    error_a_fake = Dict{String, Array{Array{Int, 1}, 1}}()
+    error_l_model = Dict{String, Array{Array{Int, 1}, 1}}()
+    error_a_model = Dict{String, Array{Array{Int, 1}, 1}}()
+    chance_l = Dict{String, Array{Array{Float64, 1}, 1}}()
+    chance_a = Dict{String, Array{Array{Float64, 1}, 1}}()
+    cnt = 0
+    # Fake data
+    fake_qqs = Dict{String, DefaultDict{String, Array{Array{Float64, 1}, 1}}}()
     # Loop over subjects
     for (m, subj) in ProgressBar(enumerate(keys(visited_states)))
         # Initialise arrays
         error_l_data[subj] = [[] for _ in 1:35]
         error_a_data[subj] = [[] for _ in 1:35]
+        error_l_fake[subj] = [[] for _ in 1:35]
+        error_a_fake[subj] = [[] for _ in 1:35]
         error_l_model[subj] = [[] for _ in 1:35]
         error_a_model[subj] = [[] for _ in 1:35]
+        chance_l[subj] = [[] for _ in 1:35]
+        chance_a[subj] = [[] for _ in 1:35]
+        # Fake data
+        fake_subj_dict_qs = DefaultDict{String, Array{Array{Float64, 1}, 1}}([])
         # Model parameters
         x_subj = params[m, :]
         # Loop over puzzles
@@ -322,6 +335,8 @@ function calculate_p_error(QQs, visited_states, neighbour_states, params)
             for r in eachindex(visited_states[subj][prb])
                 states = visited_states[subj][prb][r]
                 neighs = neighbour_states[subj][prb][r]
+                # Fake data
+                push!(fake_subj_dict_qs[prb], [])
                 # Loop over states (ignore last state as it has no action)
                 for i in 1:length(states)-1
                     s = states[i]
@@ -352,31 +367,59 @@ function calculate_p_error(QQs, visited_states, neighbour_states, params)
                             push!(error_l_model[subj][IDV[prb][s][1]], 0)
                             push!(error_a_model[subj][IDV[prb][s][2]], 0)
                         end
+                        # # RANDOM MODEL
+                        # s_rand = sample(ns)
+                        # # Add error count to independent variable category
+                        # if s_rand ∉ opt[s]
+                        #     push!(chance_l[subj][IDV[prb][s][1]], 1)
+                        #     push!(chance_a[subj][IDV[prb][s][2]], 1)
+                        # else
+                        #     push!(chance_l[subj][IDV[prb][s][1]], 0)
+                        #     push!(chance_a[subj][IDV[prb][s][2]], 0)
+                        # end
                     end
+
+                    ## FAKE DATA
+                    # Fake data
+                    a_fake = sample_action(x_subj, QQs[subj][prb][r][i])
+                    s_fake = ns[a_fake]
+                    push!(fake_subj_dict_qs[prb][r], full_heur_dict[string(s_fake)][heur])
+                    if s_fake ∉ opt[s]
+                        push!(error_l_fake[subj][IDV[prb][s][1]], 1)
+                        push!(error_a_fake[subj][IDV[prb][s][2]], 1)
+                    else
+                        push!(error_l_fake[subj][IDV[prb][s][1]], 0)
+                        push!(error_a_fake[subj][IDV[prb][s][2]], 0)
+                    end
+
+                    ## Chance calculations
+                    push!(chance_l[subj][IDV[prb][s][1]], 1 - (length(opt[s])/IDV[prb][s][2]))
+                    push!(chance_a[subj][IDV[prb][s][2]], 1 - (length(opt[s])/IDV[prb][s][2]))
                     cnt += 1
                 end
             end
         end
+        fake_qqs[subj] = fake_subj_dict_qs
     end
-    return error_l_data, error_a_data, error_l_model, error_a_model, cnt
+    return error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs
 end
 
 ### FANCY ERROR BARS
 
 
 function get_errorbar(error_dict)
-    error_bar_1 = zeros(35);
-    error_bar_2 = zeros(35);
-    mu_hat_bar = zeros(35);
-    mu_hat_bar_w = zeros(35);
-    error_bar_w = zeros(35);
+    bins = length(error_dict[first(keys(error_dict))])
+    error_bar_1 = zeros(bins);
+    error_bar_2 = zeros(bins);
+    mu_hat_bar = zeros(bins);
+    mu_hat_bar_w = zeros(bins);
+    error_bar_w = zeros(bins);
 
-    for j in 1:35
+    for j in 1:bins
         mu_hat = []
         sigma = []
         N_i = []
-        for i in eachindex(subjs)
-            subj = subjs[i]
+        for subj in keys(error_dict)
             if length(error_dict[subj][j]) > 1
                 push!(mu_hat, mean(error_dict[subj][j]))
                 push!(sigma, std(error_dict[subj][j]))
@@ -410,55 +453,130 @@ end
 data = load("data/processed_data/filtered_data.jld2")["data"];
 subjs = collect(keys(data));
 
-full_heur_dict = load("data/processed_data/full_heur_dict.jld2")
+#full_heur_dict = load("data/processed_data/full_heur_dict.jld2");
+full_heur_dict_opt = load("data/processed_data/full_heur_dict_opt.jld2");
 
-qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict, heur=4);
 
-params, fitness = fit_all_subjs(qqs, QQs, max_time=30);
+qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=4);
+
+params, fitness = fit_all_subjs(qqs, QQs, max_time=600);
+
+X = zeros(420, 2)
+Y = zeros(420, 2)
+fitnesses = zeros(10)
+
+for i in 0:9
+    error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, params);
+    fparams, ffitness = fit_all_subjs(fake_qqs, QQs, max_time=600);
+    X[1 + i*42:(i+1)*42, :] = params
+    Y[1 + i*42:(i+1)*42, :] = fparams
+    fitnesses[i+1] = ffitness
+end
+
 
 confidences, accuracies, chances = get_accuracy_and_confidence(qqs, QQs, params);
 dotplot([["Confidence"], ["Accuracy"]], [confidences, accuracies], color=:black, label=["Subjects" ""], ylim=(0, 1), size=(200, 300), markersize=3)
 plot!([0, 2.2], [mean(chances), mean(chances)], color=:red, label="Chance")
 
-error_l_data, error_a_data, error_l_model, error_a_model, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params);
 
+fake_params = zeros(42, 2)
+fake_params[:, 2] .= 1.1
+fake_params[:, 1] .= 1.0
 
-mu_hat_bar_l_data, error_bar_l_data = get_errorbar(error_l_data);
-mu_hat_bar_a_data, error_bar_a_data = get_errorbar(error_a_data);
-mu_hat_bar_l_model, error_bar_l_model = get_errorbar(error_l_model);
-mu_hat_bar_a_model, error_bar_a_model = get_errorbar(error_a_model);
-
-plot(layout=grid(2, 1), size=(600, 500))
-for i in 0:10
-    #params[:, 1] .= 0.0
-    params[:, 2] .= (i*3 - 10)/10
-    error_l_data, error_a_data, error_l_model, error_a_model, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params);
-
-    mu_hat_bar_l_model, error_bar_l_model = get_errorbar(error_l_model);
-    mu_hat_bar_a_model, error_bar_a_model = get_errorbar(error_a_model);
-
-    plot!(1:35, mu_hat_bar_l_model, ribbon=error_bar_l_model, sp=1, label=nothing, palette=:RdYlGn, lw=0.0)
-    plot!(1:35, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label=nothing, palette=:RdYlGn, lw=0.0)
+fit1 = 0
+fit2 = 0
+for i in 1:42
+    fit1 += subject_fit(fake_params[i, :], qqs[subjs[i]], QQs[subjs[i]])
+    fit2 += subject_fit(params[i, :], qqs[subjs[i]], QQs[subjs[i]])
 end
 
+error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, fparams);
 
-plot!(1:35, mu_hat_bar_l_model, ribbon=error_bar_l_model, sp=1, label="Model", lw=0.0)
-plot!(1:35, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label="Model", lw=0.0)
+error_l_data_qb = quantile_binning(error_l_data);
+error_a_data_qb = quantile_binning(error_a_data);
+error_l_model_qb = quantile_binning(error_l_model);
+error_a_model_qb = quantile_binning(error_a_model);
+chance_l_qb = quantile_binning(chance_l);
+chance_a_qb = quantile_binning(chance_a);
 
-scatter!(1:35, mu_hat_bar_a_data, yerr=error_bar_a_data, sp=2, markersize=3, c=:black, label="Data", xlabel=latexstring("|A|"), ylabel="p(error)")
-scatter!(1:35, mu_hat_bar_l_data, yerr=error_bar_l_data, sp=1, markersize=3, c=:black, label="Data", xlabel="opt_L", ylabel="p(error)")
+error_l_fake_qb = quantile_binning(error_l_fake);
+error_a_fake_qb = quantile_binning(error_a_fake);
 
 
+
+mu_hat_bar_l_data, error_bar_l_data = get_errorbar(error_l_data_qb);
+mu_hat_bar_a_data, error_bar_a_data = get_errorbar(error_a_data_qb);
+mu_hat_bar_l_model, error_bar_l_model = get_errorbar(error_l_model_qb);
+mu_hat_bar_a_model, error_bar_a_model = get_errorbar(error_a_model_qb);
+mu_hat_bar_chance_l, error_bar_chance_l = get_errorbar(chance_l_qb);
+mu_hat_bar_chance_a, error_bar_chance_a = get_errorbar(chance_a_qb);
+
+mu_hat_bar_l_fake, error_bar_l_fake = get_errorbar(error_l_fake_qb);
+mu_hat_bar_a_fake, error_bar_a_fake = get_errorbar(error_a_fake_qb);
+
+plot(layout=grid(2, 1), size=(600, 500), legend=:bottom)
+for i in 0:10
+    #params[:, 1] .= i/10
+    #params[:, 1] .= 0.0
+    #params[:, 2] .= (i*3 - 10)/10
+    #params[:, 2] .= 2.0
+    error_l_data, error_a_data, error_l_model, error_a_model, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params);
+
+    error_l_model_qb = quantile_binning(error_l_model);
+    error_a_model_qb = quantile_binning(error_a_model);
+
+    mu_hat_bar_l_model, error_bar_l_model = get_errorbar(error_l_model_qb);
+    mu_hat_bar_a_model, error_bar_a_model = get_errorbar(error_a_model_qb);
+
+    if i == 0 || i == 10
+        plot!(1:7, mu_hat_bar_l_model, ribbon=error_bar_l_model, sp=1, label=latexstring("\\lambda=")*string(params[1, 1]), palette=:RdYlGn, lw=0.0)
+        plot!(1:7, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label=latexstring("\\lambda=")*string(params[1, 1]), palette=:RdYlGn, lw=0.0)
+    else
+        plot!(1:7, mu_hat_bar_l_model, ribbon=error_bar_l_model, sp=1, label=nothing, palette=:RdYlGn, lw=0.0)
+        plot!(1:7, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label=nothing, palette=:RdYlGn, lw=0.0)
+    end
+end
+scatter!(1:7, mu_hat_bar_a_fake, yerr=2*error_bar_a_fake, sp=2, markersize=3, c=:gray, label="Fake data", xlabel=latexstring("|A|"), ylabel="p(error)")
+scatter!(1:7, mu_hat_bar_l_fake, yerr=2*error_bar_l_fake, sp=1, markersize=3, c=:gray, label="Fake data", xlabel="opt_L", ylabel="p(error)")
+
+plot!(1:7, mu_hat_bar_l_model, ribbon=2*error_bar_l_model, sp=1, label="Model fit to fake data", lw=0.0)
+plot!(1:7, mu_hat_bar_a_model, ribbon=2*error_bar_a_model, sp=2, label="Model fit to fake data", lw=0.0)
+
+plot!(1:7, mu_hat_bar_chance_l, ribbon=2*error_bar_chance_l, sp=1, label="Chance", lw=0.0)
+plot!(1:7, mu_hat_bar_chance_a, ribbon=2*error_bar_chance_a, sp=2, label="Chance", lw=0.0)
+
+
+true_x = [0.0, 1.0];
+qqs, QQs, visited_states, neighbour_states, cnt = generate_fake_data(40, prbs, true_x, 1, full_heur_dict_opt; heur=4);
+params, fitness = fit_all_subjs(qqs, QQs, max_time=600);
+error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params);
+error_l_data_qb = quantile_binning(error_l_data);
+error_a_data_qb = quantile_binning(error_a_data);
+error_l_model_qb = quantile_binning(error_l_model);
+error_a_model_qb = quantile_binning(error_a_model);
+chance_l_qb = quantile_binning(chance_l);
+chance_a_qb = quantile_binning(chance_a);
+mu_hat_bar_l_data, error_bar_l_data = get_errorbar(error_l_data_qb);
+mu_hat_bar_a_data, error_bar_a_data = get_errorbar(error_a_data_qb);
+mu_hat_bar_l_model, error_bar_l_model = get_errorbar(error_l_model_qb);
+mu_hat_bar_a_model, error_bar_a_model = get_errorbar(error_a_model_qb);
+mu_hat_bar_chance_l, error_bar_chance_l = get_errorbar(chance_l_qb);
+mu_hat_bar_chance_a, error_bar_chance_a = get_errorbar(chance_a_qb);
 plot(layout=grid(2, 1), size=(600, 500))
-histogram!(params[:, 1], bins=30, sp=1, xlabel=latexstring("\\lambda"), label=nothing, xlim=(0.0, 1.0))
-histogram!(params[:, 2], bins=30, sp=2, xlabel=latexstring("log(\\beta)"), label=nothing, xlim=(-10.0, 4.0))
+plot!(1:7, mu_hat_bar_l_model, ribbon=error_bar_l_model, sp=1, label="Model", lw=0.0)
+plot!(1:7, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label="Model", lw=0.0)
+plot!(1:7, mu_hat_bar_chance_l, ribbon=2*error_bar_chance_l, sp=1, label="Chance", lw=0.0)
+plot!(1:7, mu_hat_bar_chance_a, ribbon=2*error_bar_chance_a, sp=2, label="Chance", lw=0.0)
+scatter!(1:7, mu_hat_bar_a_data, yerr=error_bar_a_data, sp=2, markersize=3, c=:black, label="Fake data", xlabel=latexstring("|A|"), ylabel="p(error)")
+scatter!(1:7, mu_hat_bar_l_data, yerr=error_bar_l_data, sp=1, markersize=3, c=:black, label="Fake data", xlabel="opt_L", ylabel="p(error)")
+
 
 Rs = [1, 10, 100]
 ppppparams = []
 for R in Rs
     println("R=$(R)")
     x = [0.1, 0.0];
-    qqs, QQs, cnt = generate_fake_data(40, prbs, x, R);
+    qqs, QQs, cnt = generate_fake_data(40, prbs, x, R, full_heur_dict_opt);
     params, fitness = fit_all_subjs(qqs, QQs, max_time=600);
     push!(ppppparams, params)
 end
@@ -471,3 +589,114 @@ for i in 1:6
     histogram!(ppparams[i][:, 2], bins=30, sp=2*i, xlabel=latexstring("log(\\beta)"), label=nothing, link=:x, yticks=nothing)
 end
 plot!()
+
+
+function quantile_binning(error_dict; bins=7)
+    new_error_dict = Dict{String, Array{Any, 1}}()
+
+    for subj in keys(error_dict)
+        ls = []
+        for i in 1:35
+            push!(ls, [i for j in 1:length(error_dict[subj][i])]...)
+        end
+        new_error_dict[subj] = [[] for _ in 1:bins]
+        for bin in 1:bins
+            l = Int(ceil(quantile(ls, (bin-1)/bins)))
+            u = Int(floor(quantile(ls, bin/bins))) - 1
+            if bin == bins
+                u += 1
+            end
+            for i in l:u
+                push!(new_error_dict[subj][bin], error_dict[subj][i]...)
+            end
+        end
+    end
+    return new_error_dict
+end
+
+xs = [[] for _ in 1:42];
+ys = [[] for _ in 1:42];
+IDV = load("data/processed_data/IDV_OLD.jld2")
+for (n, subj) in enumerate(keys(visited_states))
+    for prb in keys(visited_states[subj])
+        for r in eachindex(visited_states[subj][prb])
+            for state in visited_states[subj][prb][r]
+                push!(xs[n], IDV[prb][state][1])
+                push!(ys[n], IDV[prb][state][2])
+            end
+        end
+    end
+end
+
+bins = 7;
+x = reduce(vcat, xs);
+y = reduce(vcat, ys);
+h1 = zeros(bins);
+h2 = zeros(bins);
+plot(layout=grid(4, 1, heights=[0.5, 0.17, 0.16, 0.16]), size=(400, 700))
+histogram2d!(x, y, sp=1, bins=(maximum(x), maximum(y)), color=cgrad(:grays, rev=true), xlabel="opt_L", ylabel=latexstring("|A|"), colorbar_title="Counts", left_margin = 3Plots.mm)
+for i in 1:bins
+    l = Int(ceil(quantile(x, (i-1)/bins)))
+    u = Int(floor(quantile(x, i/bins)))
+    if i == bins
+        plot!([u, u], [0, 25], sp=1, c=:red, label="opt_L bin bounds")
+    end
+    plot!([l, l], [0, 25], sp=1, c=:red, label=nothing)
+    if i == bins
+        h1[i] = length(findall(xx -> l<=xx<=u, x))
+    else
+        h1[i] = length(findall(xx -> l<=xx<u, x))
+    end
+
+    l = Int(ceil(quantile(y, (i-1)/bins)))
+    u = Int(floor(quantile(y, i/bins)))
+    if i == bins
+        plot!([0, 34], [u, u], sp=1, c=:blue, label=latexstring("\$|A|\$bin bounds"))
+    end
+    plot!([0, 34], [l, l], sp=1, c=:blue, label=nothing)
+    if i == bins
+        h2[i] = length(findall(yy -> l<=yy<=u, y))
+    else
+        h2[i] = length(findall(yy -> l<=yy<u, y))
+    end
+end
+plot!(h1, sp=2, ylabel="Total bin counts", ylim=(0, maximum(reduce(vcat, [h1, h2]))*1.1), label="opt_L", left_margin = 10Plots.mm, yguidefontsize=8)
+plot!(h2, sp=2, label=latexstring("|A|"))
+
+for j in 1:42
+    h1 = zeros(bins);
+    h2 = zeros(bins);
+    for i in 1:bins
+        l = Int(ceil(quantile(xs[j], (i-1)/bins)))
+        u = Int(floor(quantile(xs[j], i/bins)))
+        if i == bins
+            h1[i] = length(findall(xx -> l<=xx<=u, xs[j]))
+        else
+            h1[i] = length(findall(xx -> l<=xx<u, xs[j]))
+        end
+
+        l = Int(ceil(quantile(ys[j], (i-1)/bins)))
+        u = Int(floor(quantile(ys[j], i/bins)))
+        if i == bins
+            h2[i] = length(findall(yy -> l<=yy<=u, ys[j]))
+        else
+            h2[i] = length(findall(yy -> l<=yy<u, ys[j]))
+        end
+    end
+    plot!(h1 ./ sum(h1), sp=3, c=:black, alpha=0.2, label=nothing)
+    plot!(h2 ./ sum(h2), sp=4, c=:black, alpha=0.2, label=nothing)
+end
+plot!(sp=3, ylabel="Norm. opt_L bin cnts", yguidefontsize=6)
+plot!(sp=4, xlabel="Bin index", ylabel="Norm. |A| bin cnts", yguidefontsize=6)
+
+
+
+
+plot(layout=grid(2, 1, heights=[0.8, 0.2]), size=(500, 700))
+scatter!(X[:, 1], Y[:, 1], sp=1, label=latexstring("\\log(\\beta)"), xlim=(0, 2.0), ylim=(0, 2.0), ylabel="Fit on fake data", xlabel="Fit on real data", legend=:bottomright)
+scatter!(X[:, 2], Y[:, 2], sp=1, label=latexstring("\\beta"))
+plot!([0, 2.0], [0, 2.0], sp=1, label="Diagonal", c=:red)
+histogram!(fitnesses, sp=2, bins=20, label="NLL of fit on fake data")
+plot!([fitness, fitness], [0, 2.0], sp=2, c=:red, label="NLL of fit on true data")
+
+
