@@ -52,6 +52,49 @@ function lapsed_softmin(λ, β, q, Q)
     return λ/length(Q) + (1 - λ)*softmin(β, q, Q)
 end
 
+function depth_limited_random(d::Int, q::Float64, Q::Vector{Float64})::Float64
+    minQ = minimum(Q)
+    if minQ+1 <= d
+        return q == minQ ? 1/length(findall(x->x==minQ, Q)) : 0
+    else
+        return 1/length(Q) # softmin(β, q, Q)
+    end
+end
+
+function depth_limited_random(d::Int, Q::Vector{Float64})::Vector{Float64}
+    minQ = minimum(Q)
+    if minQ+1 <= d
+        mins = findall(x->x==minQ, Q)
+        r = zeros(length(Q))
+        r[mins] .= 1/length(mins)
+        return r
+    else
+        return ones(length(Q)) ./ length(Q) # softmin(β, Q)
+    end
+end
+
+function lapsed_depth_limited_random(λ::Float64, d::Int, q::Float64, Q::Vector{Float64})::Float64
+    return λ/length(Q) + (1 - λ)*depth_limited_random(d, q, Q)
+end
+
+function lapsed_depth_limited_random(λ::Float64, d::Int, Q::Vector{Float64})::Vector{Float64}
+    return λ/length(Q) .+ (1 - λ)*depth_limited_random(d, Q)
+end
+
+function depth_limited_random(d, q, Q)
+    minQ = minimum(Q)
+    if minQ+1 <= d
+        return q == minQ ? 1/length(findall(x->x==minQ, Q)) : 0
+    else
+        return 1/length(Q) # softmin(β, q, Q)
+    end
+end
+
+function lapsed_depth_limited_random(λ, d, q, Q)
+    return λ/length(Q) + (1 - λ)*depth_limited_random(d, q, Q)
+end
+
+
 
 """
     get_state_data(data, full_heur_dict; heur=4)
@@ -199,8 +242,10 @@ end
 ### FIT WITH BLACKBOXOPTIM
 
 function subject_fit(x, qs, Qs)
-    λ, logb = x
-    β = exp(logb)
+    # λ, logb = x
+    # β = exp(logb)
+    λ, d_fl = x
+    d = Int(round(d_fl))
     r = 0
     for prb in keys(qs)
         qs_prb = qs[prb]
@@ -211,7 +256,8 @@ function subject_fit(x, qs, Qs)
             for j in eachindex(qs_prb_restart)
                 q = qs_prb_restart[j]
                 Q = Qs_prb_restart[j]
-                r -= log(lapsed_softmin(λ, β, q, Q))
+                #r -= log(lapsed_softmin(λ, β, q, Q))
+                r -= log(lapsed_depth_limited_random(λ, d, q, Q))
             end
         end
     end
@@ -225,14 +271,16 @@ function fit_all_subjs(qqs, QQs; max_time=30)
     iter = ProgressBar(enumerate(keys(qqs)))
     for (m, subj) in iter
         # Initial guess
-        x0 = [0.1, 1.0]
+        #x0 = [0.1, 1.0]
+        x0 = [0.1, 4]
         # Optimization
         # res = bboptimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; SearchRange = [(0.0, 1.0), (-10.0, 4.0)], NumDimensions = 2, TraceMode=:silent, MaxTime=max_time/M);
         # params[m, :] = best_candidate(res)
         # fitness += best_fitness(res)
-        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 3.0], x0, Fminbox(); autodiff=:forward)
+        #res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 3.0], x0, Fminbox(); autodiff=:forward)
+        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, 0.0], [1.0, 20.0], x0, Fminbox(); autodiff=:forward)
         # df = TwiceDifferentiable((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; autodiff=:forward)
-        # dfc = TwiceDifferentiableConstraints([0.0, -10.0], [1.0, 4.0])
+        # dfc = TwiceDifferentiableConstraints([0.0, -10.0], [1.0, 3.0])
         # res = optimize(df, dfc, x0, IPNewton())
         params[m, :] = Optim.minimizer(res)
         fitness += Optim.minimum(res)
@@ -254,16 +302,20 @@ function get_accuracy_and_confidence(qqs, QQs, params)
         ii = 0 
         qs = qqs[subj]
         Qs = QQs[subj]
-        λ, logb = params[m, :]
-        β = exp(logb)
+        # λ, logb = params[m, :]
+        # β = exp(logb)
+        λ, d_fl = params[m, :]
+        d = Int(round(d_fl))
         for prb in keys(Qs)
             for k in eachindex(Qs[prb])
                 for j in eachindex(Qs[prb][k])
                     q = qs[prb][k][j]
                     Q = Qs[prb][k][j]
-                    p = lapsed_softmin(λ, β, q, Q)
+                    #p = lapsed_softmin(λ, β, q, Q)
+                    p = lapsed_depth_limited_random(λ, d, q, Q)
                     confidence += p
-                    ps = lapsed_softmin(λ, β, Q)
+                    #ps = lapsed_softmin(λ, β, Q)
+                    ps = lapsed_depth_limited_random(λ, d, Q)
                     accuracy += p == maximum(ps) ? 1 : 0
                     chance += 1/length(Q)
                     ii += 1
@@ -457,7 +509,7 @@ subjs = collect(keys(data));
 full_heur_dict_opt = load("data/processed_data/full_heur_dict_opt.jld2");
 
 
-qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=4);
+qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=7);
 
 params, fitness = fit_all_subjs(qqs, QQs, max_time=600);
 
@@ -490,7 +542,7 @@ for i in 1:42
     fit2 += subject_fit(params[i, :], qqs[subjs[i]], QQs[subjs[i]])
 end
 
-error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, fparams);
+error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, paramso);
 
 error_l_data_qb = quantile_binning(error_l_data);
 error_a_data_qb = quantile_binning(error_a_data);
@@ -514,7 +566,7 @@ mu_hat_bar_chance_a, error_bar_chance_a = get_errorbar(chance_a_qb);
 mu_hat_bar_l_fake, error_bar_l_fake = get_errorbar(error_l_fake_qb);
 mu_hat_bar_a_fake, error_bar_a_fake = get_errorbar(error_a_fake_qb);
 
-plot(layout=grid(2, 1), size=(600, 500), legend=:bottom)
+plot(layout=grid(2, 1), size=(600, 500), legend=:bottom, ylim=(0, 1))
 for i in 0:10
     #params[:, 1] .= i/10
     #params[:, 1] .= 0.0
@@ -536,11 +588,11 @@ for i in 0:10
         plot!(1:7, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label=nothing, palette=:RdYlGn, lw=0.0)
     end
 end
-scatter!(1:7, mu_hat_bar_a_fake, yerr=2*error_bar_a_fake, sp=2, markersize=3, c=:gray, label="Fake data", xlabel=latexstring("|A|"), ylabel="p(error)")
-scatter!(1:7, mu_hat_bar_l_fake, yerr=2*error_bar_l_fake, sp=1, markersize=3, c=:gray, label="Fake data", xlabel="opt_L", ylabel="p(error)")
+scatter!(1:7, mu_hat_bar_a_data, yerr=2*error_bar_a_data, sp=2, markersize=3, c=:black, label="Data", xlabel=latexstring("|A|"), ylabel="p(error)")
+scatter!(1:7, mu_hat_bar_l_data, yerr=2*error_bar_l_data, sp=1, markersize=3, c=:black, label="Data", xlabel="opt_L", ylabel="p(error)")
 
-plot!(1:7, mu_hat_bar_l_model, ribbon=2*error_bar_l_model, sp=1, label="Model fit to fake data", lw=0.0)
-plot!(1:7, mu_hat_bar_a_model, ribbon=2*error_bar_a_model, sp=2, label="Model fit to fake data", lw=0.0)
+plot!(1:7, mu_hat_bar_l_model, ribbon=2*error_bar_l_model, sp=1, label="Old model", lw=0.0)
+plot!(1:7, mu_hat_bar_a_model, ribbon=2*error_bar_a_model, sp=2, label="Old model", lw=0.0)
 
 plot!(1:7, mu_hat_bar_chance_l, ribbon=2*error_bar_chance_l, sp=1, label="Chance", lw=0.0)
 plot!(1:7, mu_hat_bar_chance_a, ribbon=2*error_bar_chance_a, sp=2, label="Chance", lw=0.0)
@@ -570,6 +622,9 @@ plot!(1:7, mu_hat_bar_chance_a, ribbon=2*error_bar_chance_a, sp=2, label="Chance
 scatter!(1:7, mu_hat_bar_a_data, yerr=error_bar_a_data, sp=2, markersize=3, c=:black, label="Fake data", xlabel=latexstring("|A|"), ylabel="p(error)")
 scatter!(1:7, mu_hat_bar_l_data, yerr=error_bar_l_data, sp=1, markersize=3, c=:black, label="Fake data", xlabel="opt_L", ylabel="p(error)")
 
+plot(layout=grid(2, 1), size=(600, 500), legend=:bottom)
+histogram!(params[:, 1], bins=30, sp=1, xlabel=latexstring("\\lambda"), label=nothing, link=:x, yticks=nothing)
+histogram!(params[:, 2], bins=30, sp=2, xlabel=latexstring("d"), label=nothing, link=:x, yticks=nothing)
 
 Rs = [1, 10, 100]
 ppppparams = []
@@ -591,15 +646,16 @@ end
 plot!()
 
 
-function quantile_binning(error_dict; bins=7)
+function quantile_binning(error_dict; bins=7, bounds=false, lim=35)
     new_error_dict = Dict{String, Array{Any, 1}}()
-
+    bin_bounds = Dict{String, Array{Any, 1}}()
     for subj in keys(error_dict)
         ls = []
-        for i in 1:35
+        for i in 1:lim
             push!(ls, [i for j in 1:length(error_dict[subj][i])]...)
         end
         new_error_dict[subj] = [[] for _ in 1:bins]
+        bin_bounds[subj] = [[] for _ in 1:bins]
         for bin in 1:bins
             l = Int(ceil(quantile(ls, (bin-1)/bins)))
             u = Int(floor(quantile(ls, bin/bins))) - 1
@@ -608,10 +664,33 @@ function quantile_binning(error_dict; bins=7)
             end
             for i in l:u
                 push!(new_error_dict[subj][bin], error_dict[subj][i]...)
+                push!(bin_bounds[subj][bin], (ones(length(error_dict[subj][i]))*i)...)
+                if subj == "ARWF605I7RWM7:3AZHRG4CU5SYU12YRVPCSZALW5003R"
+                    println(mean(new_error_dict[subj][bin]))
+                end
             end
         end
     end
-    return new_error_dict
+    if bounds
+        av_subj = zeros(bins)
+        av_bin = zeros(bins)
+        for i in 1:bins
+            Z = 0
+            for (n, subj) in enumerate(keys(new_error_dict))
+                mu_hat = mean(new_error_dict[subj][i])
+                N_i = sqrt(length(new_error_dict[subj][i]))
+                av_subj[i] += mu_hat * N_i
+                mean_bin = mean(bin_bounds[subj][i])
+                av_bin[i] += mean_bin * N_i
+                Z += N_i
+            end
+            av_subj[i] /= Z
+            av_bin[i] /= Z
+        end
+        return av_subj, av_bin
+    else
+        return new_error_dict
+    end
 end
 
 xs = [[] for _ in 1:42];

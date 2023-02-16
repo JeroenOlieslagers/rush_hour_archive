@@ -3,7 +3,7 @@ include("solvers.jl")
 # using FileIO
 # using Distributions
 # using StatsPlots
-# using MixedModels
+using MixedModels
 using StatsModels
 using StatsBase
 using GLM
@@ -432,8 +432,20 @@ BICs = load("data/processed_data/exhaustive_linear_BICs.jld2")["data"]
 AICs = load("data/processed_data/exhaustive_linear_AICs.jld2")["data"]
 CVs = load("data/processed_data/exhaustive_linear_CVs.jld2")["data"]
 
-fm = @formula(L ~ opt_L)
-fm = Term(:L) ~ (term(1) | Term(:subj)) +([Term(Symbol(name)) for name in names(df) if name ∉ ["subj", "prb", "L"]]...)
+
+features = sum(term(t) for t in [
+    :opt_L, 
+    :branch, 
+    :indegree, 
+    :outdegree, 
+    :n_sol, 
+    :paths, 
+    :ss_size, 
+    :min_width, 
+    :max_width, 
+    :depth])
+#fm = @formula(L ~ opt_L)
+fm = term(:L) ~ (term(1) | term(:subj)) + (term(1) | term(:prb)) + features
 M = fit(MixedModel, fm, df)
 
 M = fit(LinearModel, fm, df)

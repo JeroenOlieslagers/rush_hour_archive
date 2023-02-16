@@ -505,6 +505,100 @@ function random_agent_boxplot(data)
     #savefig(p,"random_agent_no_undo_high_ylim.png")
 end
 
+"""
+    A, opt = plot_optimal_action_fraction(IDV, optimal_a)
+
+Returns the size of action space as well as size of optimal action space
+in each state.
+"""
+function plot_optimal_action_fraction(IDV, optimal_a; visited_states=nothing)
+    A = Int[]
+    opt = Int[]
+    opt_dict = Dict{String, Array{Array{Int, 1}, 1}}()
+    if visited_states === nothing
+        opt_av = [[] for _ in 1:25]
+        opt_dict["1"] = [[] for _ in 1:25]
+        for prb in keys(IDV)
+            prb_ss = IDV[prb]
+            opt_a = optimal_a[prb]
+            for state in keys(prb_ss)
+                # Don't calculate on solved positions
+                if prb_ss[state][1] == 0
+                    continue
+                end
+                push!(A, prb_ss[state][2])
+                push!(opt, length(opt_a[state]))
+                push!(opt_av[prb_ss[state][2]], length(opt_a[state]))
+                push!(opt_dict["1"][prb_ss[state][2]], length(opt_a[state]))
+            end
+        end
+    else
+        opt_av = [[] for _ in 1:24]
+        # Only calculate visited states if provided
+        for subj in keys(visited_states)
+            opt_dict[subj] = [[] for _ in 1:24]
+            for prb in keys(visited_states[subj])
+                for r in eachindex(visited_states[subj][prb])
+                    states = visited_states[subj][prb][r]
+                    # Loop over states (ignore last state as it has no action)
+                    for i in 1:length(states)-1
+                        s = states[i]
+                        # Don't calculate on solved positions
+                        if IDV[prb][s][1] == 0
+                            continue
+                        end
+                        push!(A, IDV[prb][s][2])
+                        push!(opt, length(optimal_a[prb][s]))
+                        push!(opt_av[IDV[prb][s][2]], length(optimal_a[prb][s]))
+                        push!(opt_dict[subj][IDV[prb][s][2]], length(optimal_a[prb][s]))
+                    end
+                end
+            end
+        end
+    end
+    return A, opt, [mean(item) for item in opt_av], opt_dict
+end
+
+# A, opt, opt_av, opt_dict = plot_optimal_action_fraction(IDV, optimal_a; visited_states=visited_states);
+
+# lim = maximum(A)+1
+# histogram2d(A, opt, bins=(lim, maximum(opt)), xlim=(1, lim), ylim=(1, lim), grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("|A_\\texttt{opt}|"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
+# plot!([1, lim], [1, lim], c=:red, label="Diagonal")
+# plot!(1:lim-1, opt_av, label="Average "*latexstring("|A_\\texttt{opt}|"), c=:blue)
+
+# histogram2d(A, opt ./ A, grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("\\frac{|A_\\texttt{opt}|}{|A|}"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
+# plot!(1:lim-1, 1 ./ collect(1:lim-1), c=:red, label=latexstring("1/|A|"))
+# plot!(2:lim-1, 2 ./ collect(2:lim-1), c=:red, label=latexstring("2/|A|"))
+# plot!(3:lim-1, 3 ./ collect(3:lim-1), c=:red, label=latexstring("3/|A|"))
+# plot!(4:lim-1, 4 ./ collect(4:lim-1), c=:red, label=latexstring("4/|A|"))
+# plot!(1:lim-1, opt_av ./ collect(1:lim-1), label=latexstring("\\mathbb{E}[|A_\\texttt{opt}|/|A|]"), c=:blue)
+
+# av_subj, av_bins = quantile_binning(opt_dict; bins=6, bounds=true, lim=lim-1);
+# a_dict = quantile_binning(opt_dict; bins=6, lim=lim-1);
+
+# plot(ylim=(0.5, 1), grid=false, xlabel=latexstring("\\mathbb{E}[|A_\\texttt{bin}|]"), xticks=round.(av_bins, digits=1), legend=:bottomright)
+# plot!(av_bins, 1 .- (av_subj ./ av_bins), label=latexstring("1 - \\mathbb{E}[|A_\\texttt{opt}|/|A_\\texttt{bin}|]"))
+# scatter!(av_bins, 1 .- (1 ./ av_bins), label=latexstring("1 - \\mathbb{E}[1/|A_\\texttt{bin}|]"))
+# for i in 1:42
+#     if i == 42
+#         plot!(av_bins_a[i, :], 1 .- (av_subj_a[i, :] ./ av_bins_a[i, :]), label=latexstring("1 - |A_\\texttt{opt}|_i/|A_\\texttt{bin}|_i"), c=:gray, alpha=0.1)
+#         scatter!(av_bins_a[i, :], 1 .- (1 ./ av_bins_a[i, :]), label=latexstring("1 - 1/|A_\\texttt{bin}|_i"), c=:gray, alpha=0.1)
+#     else
+#         plot!(av_bins_a[i, :], 1 .- (av_subj_a[i, :] ./ av_bins_a[i, :]), label=nothing, c=:gray, alpha=0.1)
+#         scatter!(av_bins_a[i, :], 1 .- (1 ./ av_bins_a[i, :]), label=nothing, c=:gray, alpha=0.1)
+#     end
+# end
+
+
+# plot(ylim=(0.5, 1), grid=false, xlabel=latexstring("\\mathbb{E}[|A_\\texttt{bin}|]")* " visited states")
+# plot!(av_bins, 1 .- (av_subj ./ av_bins), xlim=(5, 18), label=nothing, xticks=round.(av_bins, digits=1), xtickfontcolor=:red, color=:red, legend=:bottomright)
+# scatter!(av_bins, 1 .- (1 ./ av_bins), xlim=(5, 18), label=nothing, color=:red)
+
+# p = twiny()
+# plot!(p, av_bins_all, 1 .- (av_subj_all ./ av_bins_all), xlim=(5, 18), ylim=(0.5, 1), label=nothing, xticks=round.(av_bins_all, digits=1), xtickfontcolor=:blue, color=:blue, legend=:topleft, xlabel=latexstring("\\mathbb{E}[|A_\\texttt{bin}|]")* " all states")
+# scatter!(p, av_bins_all, 1 .- (1 ./ av_bins_all), xlim=(5, 18), label=nothing, color=:blue)
+
+
 # total_data = load_raw_data();
 # data = filter_subjects(total_data);
 

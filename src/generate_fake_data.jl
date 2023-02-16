@@ -4,6 +4,9 @@ function sample_action(x::Vector{Float64}, Q::Vector{Float64})::Int
     λ, logb = x
     β = exp(logb)
     p = lapsed_softmin(λ, β, Q)
+    # λ, d_fl = x
+    # d = Int(round(d_fl))
+    # p = lapsed_depth_limited_random(λ, d, Q)
     return wsample(p)
 end
 
