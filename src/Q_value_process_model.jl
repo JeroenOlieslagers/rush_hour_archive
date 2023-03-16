@@ -6,7 +6,7 @@ using StatsBase
 using LaTeXStrings
 using BlackBoxOptim
 using Optim
-
+using JLD2
 
 """
     softmin(β, q, Q)
@@ -242,10 +242,10 @@ end
 ### FIT WITH BLACKBOXOPTIM
 
 function subject_fit(x, qs, Qs)
-    # λ, logb = x
-    # β = exp(logb)
-    λ, d_fl = x
-    d = Int(round(d_fl))
+    λ, logb = x
+    β = exp(logb)
+    # λ, d_fl = x
+    # d = Int(round(d_fl))
     r = 0
     for prb in keys(qs)
         qs_prb = qs[prb]
@@ -256,8 +256,8 @@ function subject_fit(x, qs, Qs)
             for j in eachindex(qs_prb_restart)
                 q = qs_prb_restart[j]
                 Q = Qs_prb_restart[j]
-                #r -= log(lapsed_softmin(λ, β, q, Q))
-                r -= log(lapsed_depth_limited_random(λ, d, q, Q))
+                r -= log(lapsed_softmin(λ, β, q, Q))
+                #r -= log(lapsed_depth_limited_random(λ, d, q, Q))
             end
         end
     end
@@ -271,14 +271,14 @@ function fit_all_subjs(qqs, QQs; max_time=30)
     iter = ProgressBar(enumerate(keys(qqs)))
     for (m, subj) in iter
         # Initial guess
-        #x0 = [0.1, 1.0]
-        x0 = [0.1, 4]
+        x0 = [0.1, 1.0]
+        #x0 = [0.1, 4]
         # Optimization
         # res = bboptimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; SearchRange = [(0.0, 1.0), (-10.0, 4.0)], NumDimensions = 2, TraceMode=:silent, MaxTime=max_time/M);
         # params[m, :] = best_candidate(res)
         # fitness += best_fitness(res)
-        #res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 3.0], x0, Fminbox(); autodiff=:forward)
-        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, 0.0], [1.0, 20.0], x0, Fminbox(); autodiff=:forward)
+        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 3.0], x0, Fminbox(); autodiff=:forward)
+        #res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, 0.0], [1.0, 20.0], x0, Fminbox(); autodiff=:forward)
         # df = TwiceDifferentiable((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; autodiff=:forward)
         # dfc = TwiceDifferentiableConstraints([0.0, -10.0], [1.0, 3.0])
         # res = optimize(df, dfc, x0, IPNewton())
@@ -347,11 +347,12 @@ end
 # end
 
 # save("data/processed_data/IDV.jld2", IDV)
-function calculate_p_error(QQs, visited_states, neighbour_states, params; heur=4)
+function calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict; heur=4)
     # Load optimal actions in every state
     optimal_a = load("data/processed_data/optimal_a.jld2")
     # Load independent variables in every state
     IDV = load("data/processed_data/IDV_OLD.jld2")
+    #IDV = load("data/processed_data/IDV.jld2")
     # Initialise
     error_l_data = Dict{String, Array{Array{Int, 1}, 1}}()
     error_a_data = Dict{String, Array{Array{Int, 1}, 1}}()
@@ -542,7 +543,7 @@ for i in 1:42
     fit2 += subject_fit(params[i, :], qqs[subjs[i]], QQs[subjs[i]])
 end
 
-error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, paramso);
+error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict_opt);
 
 error_l_data_qb = quantile_binning(error_l_data);
 error_a_data_qb = quantile_binning(error_a_data);
@@ -566,13 +567,13 @@ mu_hat_bar_chance_a, error_bar_chance_a = get_errorbar(chance_a_qb);
 mu_hat_bar_l_fake, error_bar_l_fake = get_errorbar(error_l_fake_qb);
 mu_hat_bar_a_fake, error_bar_a_fake = get_errorbar(error_a_fake_qb);
 
-plot(layout=grid(2, 1), size=(600, 500), legend=:bottom, ylim=(0, 1))
+plot(layout=grid(2, 1), size=(600, 500), legend=:bottom, ylim=(0, 1), grid=false, foreground_color_legend = nothing)
 for i in 0:10
     #params[:, 1] .= i/10
     #params[:, 1] .= 0.0
     #params[:, 2] .= (i*3 - 10)/10
     #params[:, 2] .= 2.0
-    error_l_data, error_a_data, error_l_model, error_a_model, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params);
+    error_l_data, error_a_data, error_l_model, error_a_model, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict_opt);
 
     error_l_model_qb = quantile_binning(error_l_model);
     error_a_model_qb = quantile_binning(error_a_model);
@@ -591,17 +592,21 @@ end
 scatter!(1:7, mu_hat_bar_a_data, yerr=2*error_bar_a_data, sp=2, markersize=3, c=:black, label="Data", xlabel=latexstring("|A|"), ylabel="p(error)")
 scatter!(1:7, mu_hat_bar_l_data, yerr=2*error_bar_l_data, sp=1, markersize=3, c=:black, label="Data", xlabel="opt_L", ylabel="p(error)")
 
-plot!(1:7, mu_hat_bar_l_model, ribbon=2*error_bar_l_model, sp=1, label="Old model", lw=0.0)
-plot!(1:7, mu_hat_bar_a_model, ribbon=2*error_bar_a_model, sp=2, label="Old model", lw=0.0)
+plot!(1:7, mu_hat_bar_l_model, ribbon=2*error_bar_l_model, sp=1, c=palette(:default)[2], lw=0.0, label=nothing)
+plot!([], [], sp=1, c=palette(:default)[2], label="Heuristic model")
+plot!(1:7, mu_hat_bar_a_model, ribbon=2*error_bar_a_model, sp=2, c=palette(:default)[2], lw=0.0, label=nothing)
+plot!([], [], sp=2, c=palette(:default)[2], label="Heuristic model")
 
-plot!(1:7, mu_hat_bar_chance_l, ribbon=2*error_bar_chance_l, sp=1, label="Chance", lw=0.0)
-plot!(1:7, mu_hat_bar_chance_a, ribbon=2*error_bar_chance_a, sp=2, label="Chance", lw=0.0)
+plot!(1:7, mu_hat_bar_chance_l, ribbon=2*error_bar_chance_l, sp=1, c=palette(:default)[3], lw=0.0, label=nothing)
+plot!([], [], sp=1, c=palette(:default)[3], label="Chance")
+plot!(1:7, mu_hat_bar_chance_a, ribbon=2*error_bar_chance_a, sp=2, c=palette(:default)[3], lw=0.0, label=nothing)
+plot!([], [], sp=2, c=palette(:default)[3], label="Chance")
 
 
 true_x = [0.0, 1.0];
 qqs, QQs, visited_states, neighbour_states, cnt = generate_fake_data(40, prbs, true_x, 1, full_heur_dict_opt; heur=4);
 params, fitness = fit_all_subjs(qqs, QQs, max_time=600);
-error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params);
+error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt = calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict);
 error_l_data_qb = quantile_binning(error_l_data);
 error_a_data_qb = quantile_binning(error_a_data);
 error_l_model_qb = quantile_binning(error_l_model);
@@ -665,9 +670,6 @@ function quantile_binning(error_dict; bins=7, bounds=false, lim=35)
             for i in l:u
                 push!(new_error_dict[subj][bin], error_dict[subj][i]...)
                 push!(bin_bounds[subj][bin], (ones(length(error_dict[subj][i]))*i)...)
-                if subj == "ARWF605I7RWM7:3AZHRG4CU5SYU12YRVPCSZALW5003R"
-                    println(mean(new_error_dict[subj][bin]))
-                end
             end
         end
     end
@@ -695,7 +697,7 @@ end
 
 xs = [[] for _ in 1:42];
 ys = [[] for _ in 1:42];
-IDV = load("data/processed_data/IDV_OLD.jld2")
+IDV = jldopen("data/processed_data/IDV_OLD.jld2")
 for (n, subj) in enumerate(keys(visited_states))
     for prb in keys(visited_states[subj])
         for r in eachindex(visited_states[subj][prb])

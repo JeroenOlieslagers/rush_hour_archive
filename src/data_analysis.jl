@@ -513,10 +513,15 @@ in each state.
 """
 function plot_optimal_action_fraction(IDV, optimal_a; visited_states=nothing)
     A = Int[]
+    opt_L = Int[]
     opt = Int[]
     opt_dict = Dict{String, Array{Array{Int, 1}, 1}}()
     if visited_states === nothing
         opt_av = [[] for _ in 1:25]
+        opt_L_av = [[] for _ in 1:25]
+        joint = zeros(25, 34)
+        cnt = zeros(25, 34)
+        visits = zeros(25, 34)
         opt_dict["1"] = [[] for _ in 1:25]
         for prb in keys(IDV)
             prb_ss = IDV[prb]
@@ -526,7 +531,12 @@ function plot_optimal_action_fraction(IDV, optimal_a; visited_states=nothing)
                 if prb_ss[state][1] == 0
                     continue
                 end
+                joint[prb_ss[state][2], prb_ss[state][1]] += length(opt_a[state])
+                cnt[prb_ss[state][2], prb_ss[state][1]] += prb_ss[state][2]
+                visits[prb_ss[state][2], prb_ss[state][1]] += 1
                 push!(A, prb_ss[state][2])
+                push!(opt_L, prb_ss[state][1])
+                push!(opt_L_av[prb_ss[state][2]], prb_ss[state][1])
                 push!(opt, length(opt_a[state]))
                 push!(opt_av[prb_ss[state][2]], length(opt_a[state]))
                 push!(opt_dict["1"][prb_ss[state][2]], length(opt_a[state]))
@@ -534,6 +544,10 @@ function plot_optimal_action_fraction(IDV, optimal_a; visited_states=nothing)
         end
     else
         opt_av = [[] for _ in 1:24]
+        opt_L_av = [[] for _ in 1:24]
+        joint = zeros(24, 33)
+        cnt = zeros(24, 33)
+        visits = zeros(24, 33)
         # Only calculate visited states if provided
         for subj in keys(visited_states)
             opt_dict[subj] = [[] for _ in 1:24]
@@ -547,7 +561,12 @@ function plot_optimal_action_fraction(IDV, optimal_a; visited_states=nothing)
                         if IDV[prb][s][1] == 0
                             continue
                         end
+                        joint[IDV[prb][s][2], IDV[prb][s][1]] += length(optimal_a[prb][s])
+                        cnt[IDV[prb][s][2], IDV[prb][s][1]] += IDV[prb][s][2]
+                        visits[IDV[prb][s][2], IDV[prb][s][1]] += 1
                         push!(A, IDV[prb][s][2])
+                        push!(opt_L, IDV[prb][s][1])
+                        push!(opt_L_av[IDV[prb][s][2]], IDV[prb][s][1])
                         push!(opt, length(optimal_a[prb][s]))
                         push!(opt_av[IDV[prb][s][2]], length(optimal_a[prb][s]))
                         push!(opt_dict[subj][IDV[prb][s][2]], length(optimal_a[prb][s]))
@@ -556,22 +575,258 @@ function plot_optimal_action_fraction(IDV, optimal_a; visited_states=nothing)
             end
         end
     end
-    return A, opt, [mean(item) for item in opt_av], opt_dict
+    joint ./= cnt
+    joint .*= 0.999
+    joint += visits
+    replace!(joint, NaN=>0)
+    return A, opt_L, opt, [mean(item) for item in opt_L_av], [mean(item) for item in opt_av], opt_dict, joint
 end
 
-# A, opt, opt_av, opt_dict = plot_optimal_action_fraction(IDV, optimal_a; visited_states=visited_states);
+function trajectory(states, IDV)
+    x = []
+    y = []
+    for prb in keys(states)
+        for r in eachindex(states[prb])
+            push!(x, [])
+            push!(y, [])
+            for state in states[prb][r]
+                push!(x[end], IDV[prb][state][2])
+                push!(y[end], IDV[prb][state][1])
+            end
+        end
+    end
+    return x, y
+end
 
-# lim = maximum(A)+1
-# histogram2d(A, opt, bins=(lim, maximum(opt)), xlim=(1, lim), ylim=(1, lim), grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("|A_\\texttt{opt}|"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
-# plot!([1, lim], [1, lim], c=:red, label="Diagonal")
-# plot!(1:lim-1, opt_av, label="Average "*latexstring("|A_\\texttt{opt}|"), c=:blue)
+function trajectory_rand(states, IDV, prb)
+    x = []
+    y = []
+    for s in states
+        push!(x, IDV[prb][s][2])
+        push!(y, IDV[prb][s][1])
+    end
+    return x, y
+end
 
-# histogram2d(A, opt ./ A, grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("\\frac{|A_\\texttt{opt}|}{|A|}"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
-# plot!(1:lim-1, 1 ./ collect(1:lim-1), c=:red, label=latexstring("1/|A|"))
-# plot!(2:lim-1, 2 ./ collect(2:lim-1), c=:red, label=latexstring("2/|A|"))
-# plot!(3:lim-1, 3 ./ collect(3:lim-1), c=:red, label=latexstring("3/|A|"))
-# plot!(4:lim-1, 4 ./ collect(4:lim-1), c=:red, label=latexstring("4/|A|"))
-# plot!(1:lim-1, opt_av ./ collect(1:lim-1), label=latexstring("\\mathbb{E}[|A_\\texttt{opt}|/|A|]"), c=:blue)
+function plot_puzzle_timeline(puzzle, visited_states, IDV; sp=nothing)
+    for subj in keys(visited_states)
+        for prb in keys(visited_states[subj])
+            if prb == puzzle
+                for r in eachindex(visited_states[subj][prb])
+                    x = 1:length(visited_states[subj][prb][r])
+                    y = []
+                    for state in visited_states[subj][prb][r]
+                        push!(y, IDV[prb][state][1])
+                    end
+                    if sp === nothing
+                        plot!(x, y, label=nothing, c=:black, alpha=0.2)
+                    else
+                        if sp % 2 == 1
+                            if sp == 3
+                                plot!(x, y, sp=sp, label=nothing, c=:black, alpha=0.2, ylim=(0, 22), xlim=(0, 140), yticks=[0, 10, 20], xticks=[0, 50, 100], xlabel="Move number")
+                            else
+                                plot!(x, y, sp=sp, label=nothing, c=:black, alpha=0.2, ylim=(0, 22), xlim=(0, 140), yticks=[0, 10, 20], xticks=([0, 50, 100], ["", "", ""]))
+                            end
+                        else
+                            if sp == 4
+                                plot!(x, y, sp=sp, xticks=[0, 50, 100], xlabel="Move number", label=nothing, c=:black, alpha=0.2, ylim=(0, 22), xlim=(0, 140), yticks=[0, 10, 20, 30])
+                            else
+                                plot!(x, y, sp=sp, label=nothing, c=:black, alpha=0.2, ylim=(0, 22), xlim=(0, 140), yticks=[0, 10, 20, 30], xticks=([0, 50, 100], ["", "", ""]))
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+states = BigInt[]
+push!(states, visited_states[subj][prb][1][1])
+for i in 1:10000
+    push!(states, sample(graphs_prb[prb][states[end]]))
+    if states[end] in solutions_prb[prb]
+        break
+    end
+end
+
+
+x, y = trajectory(visited_states[subj], IDV);
+x_rand, y_rand = trajectory_rand(states, IDV, prb);
+
+plot!(x_rand, y_rand, c=:red, alpha=0.5, label=nothing)
+plot!(x[1], y[1], c=:blue, alpha=0.5,label=nothing)
+
+for i in eachindex(x)
+    plot!(x[i] .+ 0.5, y[i] .+ 0.5, c=:blue, alpha=0.2, label=nothing)
+end
+plot!()
+
+
+graphs_prb = load("data/processed_data/graphs_prb.jld2")["data"];
+solutions_prb = load("data/processed_data/solutions_prb.jld2")["data"];
+
+
+optimal_a = load("data/processed_data/optimal_a.jld2");
+IDV = load("data/processed_data/IDV.jld2");
+A, opt_L, opt, opt_L_av, opt_av, opt_dict, joint = plot_optimal_action_fraction(IDV, optimal_a; visited_states=visited_states);
+
+
+lim_A = maximum(A)+1
+lim_opt = maximum(opt)+1
+lim_opt_L = maximum(opt_L)+1
+lim = maximum([lim_A, lim_opt])
+histogram2d(A, opt, bins=(lim_A, lim_opt), xlim=(1, lim), ylim=(1, lim), grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("|A_\\texttt{opt}|"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
+
+plot!([1, lim], [1, lim], c=:red, label="Diagonal")
+
+plot!((1:lim_A-1) .+ 0.5, opt_av, label="Average "*latexstring("|A_\\texttt{opt}|"), c=:blue)
+
+histogram2d(A, opt_L, bins=(lim_A, lim_opt_L), xlim=(1, lim_A), ylim=(1, lim_opt_L), grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(400, 400))
+plot!((1:lim_A-1) .+ 0.5, opt_L_av, label="Average "*latexstring("L_\\texttt{opt}"), c=:blue)
+
+prb_states = Dict{String, Array}()
+for prbb in prbbs
+    prb_states[prbb] = [visited_states[subjs[9]][prbb][end]]
+end
+
+xx = []
+yy = []
+for prb in prbs
+    for subj in subjs
+        if prb in keys(visited_states[subj])
+            push!(xx, IDV[prb][visited_states[subj][prb][1][1]][2])
+            push!(yy, IDV[prb][visited_states[subj][prb][1][1]][1])
+            break
+        end
+    end
+end
+
+x, y = trajectory(prb_states, IDV)
+
+marginal_histogram(A, opt_L, bins=(lim_A, lim_opt_L), xlim=(1, lim_A), ylim=(1, lim_opt_L), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), size=(400, 400))
+scatter!(xx, yy, sp=2, c=:gray, markersize=1, label=nothing)
+plot!(x[1], y[1], label="Puzzle 1", sp=2, c=palette(:default)[1],foreground_color_legend = nothing)
+scatter!([x[1][1]], [y[1][1]], sp=2, c=palette(:default)[1], label=nothing)
+plot!(x[4], y[4], label="Puzzle 2", sp=2, c=palette(:default)[2])
+scatter!([x[4][1]], [y[4][1]], sp=2, c=palette(:default)[2], label=nothing)
+plot!(x[2], y[2], label="Puzzle 3", sp=2, c=palette(:default)[3])
+scatter!([x[2][1]], [y[2][1]], sp=2, c=palette(:default)[3], label=nothing)
+plot!(x[3], y[3], label="Puzzle 4", sp=2, c=palette(:default)[4])
+scatter!([x[3][1]], [y[3][1]], sp=2, c=palette(:default)[4], label=nothing)
+scatter!([],[],sp=2,c=:gray,label="Initial states",mc=:white, msc=:black)
+
+
+heatmap((joint .% 1.0)', color=cgrad(:grays, rev=true), xlim=(0, lim_A), ylim=(0, lim_opt_L), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), size=(400, 400))
+
+function twod_colormap(X)
+    flat = vcat(X...)
+    flat_sorted_unique = sort(unique(flat))
+    all_visits_ = flat .÷ 1.0
+    all_visits = all_visits_[all_visits_ .> 0]
+    all_proportion_ = (flat .% 1.0) ./ 0.999
+    all_proportion = all_proportion_[all_visits_ .> 0]
+    unique_visits = sort(unique(flat .÷ 1.0))
+    unique_proportion = sort(unique((flat .% 1.0) ./ 0.999))
+    cs = LCHab{Float64}[]
+    for x in flat_sorted_unique
+        visits = x ÷ 1.0
+        proportion = (x % 1.0) / 0.999
+        visits_idx = findfirst(item->item==visits, unique_visits)
+        proportion_idx = findfirst(item->item==proportion, unique_proportion)
+        if isnan(x) || x == 0.0
+            push!(cs, LCHab{Float64}(100.0, 0.0, 0.0))
+        else
+            # transformed_visits = visits_idx / length(unique_visits_joint)
+            transformed_visits = mean(all_visits .< visits)
+            # transformed_proportion = 120*(proportion_idx / length(unique_proportion)) - 80
+            transformed_proportion = 120*mean(all_proportion .< proportion) - 80
+            push!(cs, LCHab{Float64}(98 - transformed_visits*47,transformed_visits*72, transformed_proportion))
+        end
+    end
+    cbar = zeros(length(unique_visits), length(unique_proportion))
+    cbar_cs = Luv{Float64}[]
+    for i in eachindex(unique_visits)
+        for j in eachindex(unique_proportion)
+            # transformed_visits = i / length(unique_visits_joint)
+            # transformed_proportion = 120*(j / length(unique_proportion)) - 80
+            transformed_visits = mean(all_visits .< unique_visits[i])
+            transformed_proportion = 120*mean(all_proportion .< unique_proportion[j]) - 80
+            push!(cbar_cs, LCHab{Float64}(98 - transformed_visits*47,transformed_visits*72, transformed_proportion))
+            cbar[i, j] = length(unique_proportion)*(i-1) + (j-1)
+        end
+    end
+    return cs, cbar_cs, cbar, unique_visits, unique_proportion
+end
+
+cs, cbar_cs, cbar, unique_visits, unique_proportion = twod_colormap(joint);
+
+# xt = round.(Int, collect(range(1, length(unique_proportion), length=5)));
+# yt = round.(Int, collect(range(1, length(unique_visits), length=5)));
+xs = [0.0, 0.15, 0.2, 0.25, 0.4, 1.0];
+xt = [findfirst(x->x==item, round.(unique_proportion, digits=4)) for item in xs];
+ys = [0, 10, 20, 50, 100, 200, 500];
+yt = [findfirst(x->x==item, floor.(unique_visits, sigdigits=1)) for item in ys];
+
+
+plot(layout=(1, 2), size=(600, 300))
+heatmap!(joint', sp=1, color=cs, colorbar=false, xlabel=latexstring("|A|"), ylabel="opt_L", framestyle = :box)
+
+heatmap!(cbar, sp=2, color=cbar_cs, colorbar=false, xlabel=latexstring("f_\\texttt{opt}"), ylabel="Visits", xticks=(xt, string.(round.(unique_proportion[xt], digits=2))), yticks=(yt, string.(Int.(floor.(unique_visits[yt], sigdigits=1)))), framestyle = :box)
+plot!([10], [10], sp=2, label=nothing, tick_direction=:out, xlim=(0, length(unique_proportion)), ylim=(0, length(unique_visits)))
+
+
+prbbs = ["prb21272_7","prb20059_7","prb45893_16","prb24227_16"];
+plot(layout=(2, 2), size=(600, 400), left_margin = 5Plots.mm, yguidefontsize=18, ytickfontsize=12, xguidefontsize=12, xtickfontsize=12, grid=false, ylabel=latexstring("d_\\texttt{goal}"))
+for i in eachindex(prbbs)
+    plot_puzzle_timeline(prbs[i+42], visited_states, IDV, sp=aa[i])
+end
+plot!()
+# flat_joint = vcat(joint...);
+# flat_joint_sorted_unique = sort(unique(flat_joint));
+# cs = twod_colormap.(flat_joint_sorted_unique);
+# new_joint = zeros(24, 33);
+# for i in 1:24
+#     for j in 1:33
+#         new_joint[i, j] = findfirst(x->x==joint[i, j], flat_joint_sorted_unique)
+#     end
+# end
+# plot(layout=(1, 2), size=(600, 300))
+# heatmap!(new_joint', sp=1, color=cs, colorbar=false, xlabel=latexstring("|A|"), ylabel="opt_L")
+
+# NN = 100
+# limm = 1#floor(Int, -log(exp(log(700)/NN)-1)/(log(700)/NN));
+# show_c = zeros(NN, NN-limm+1);
+# x = zeros(NN);
+# y = zeros(NN-limm+1);
+# for i in 1:NN
+#     for j in limm:NN
+#         #show_c[i, j-limm+1] = floor(Int, exp(j*log(700)/NN)) + ((i-1)/(NN-1))*0.999
+#         show_c[i, j-limm+1] = floor(Int, 700/NN)*j + ((i-1)/(NN-1))*0.999
+#         x[i] = (i-1)/(NN-1)
+#         #y[j-limm+1] = floor(Int, exp(j*log(700)/NN))
+#         y[j-limm+1] = floor(Int, 700/NN)*j
+#     end
+# end
+# flat_show_c = vcat(show_c...);
+# flat_show_c_sorted_unique = sort(unique(flat_show_c));
+# cs = twod_colormap.(flat_show_c_sorted_unique);
+# new_joint_show_c = zeros(NN, NN-limm+1);
+# for i in 1:NN
+#     for j in 1:NN-limm+1
+#         new_joint_show_c[i, j] = findfirst(x->x==show_c[i, j], flat_show_c_sorted_unique)
+#     end
+# end
+# heatmap!(x, y, new_joint_show_c', sp=2, color=cs, colorbar=false, xlabel=latexstring("f_\\texttt{opt}"), ylabel="Visits")
+
+#scatter(A, opt_L, markershape=:rect, color=:black, markersize=5, xlim=(0, lim_A), ylim=(0, lim_opt_L), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), size=(350, 500))
+
+histogram2d(A, opt ./ A, grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("\\frac{|A_\\texttt{opt}|}{|A|}"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
+plot!(1:lim-1, 1 ./ collect(1:lim-1), c=:red, label=latexstring("1/|A|"))
+plot!(2:lim-1, 2 ./ collect(2:lim-1), c=:red, label=latexstring("2/|A|"))
+plot!(3:lim-1, 3 ./ collect(3:lim-1), c=:red, label=latexstring("3/|A|"))
+plot!(4:lim-1, 4 ./ collect(4:lim-1), c=:red, label=latexstring("4/|A|"))
+plot!(1:lim-1, opt_av ./ collect(1:lim-1), label=latexstring("\\mathbb{E}[|A_\\texttt{opt}|/|A|]"), c=:blue)
 
 # av_subj, av_bins = quantile_binning(opt_dict; bins=6, bounds=true, lim=lim-1);
 # a_dict = quantile_binning(opt_dict; bins=6, lim=lim-1);

@@ -3,3 +3,5 @@ resources/figures/animations/move_analysis/human_moves/prb29414_11/bfs/prb29414_
 resources/Presentations/
 data/processed_data/optimal_a.jld2
 data/processed_data/IDV.jld2
+data/processed_data/graphs_prb.jld2
+data/processed_data/solutions_prb.jld2
