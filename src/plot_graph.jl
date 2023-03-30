@@ -74,7 +74,9 @@ Adds node to graph
 function add_node(g, node; invisible_nodes=false, color="", border_color="", label="", invis=false, width=0)
     g *= string(node)
     if color != "" || invisible_nodes || label != "" || invis || border_color != "" || width != 0
-        g *= "["
+        g *= "[shape = circle;"
+    else
+        g *= "[shape = circle]"
     end
     if color != ""
         g *= """fillcolor=""" * color * """;style=filled;"""
@@ -141,7 +143,7 @@ function add_edge(g, a, b; constraint=true, color="", bidirectional=false, invis
         g *= "constraint=false;"
     end
     if bidirectional
-        g *= "dir=both;"
+        g *= "arrowhead=none;"#"dir=both;"
     end
     if arrow_size != 0
         g *= "arrowsize=" * string(arrow_size) * ";"
@@ -287,7 +289,7 @@ function draw_solution_paths(solution_paths, parents, stat, max_heur)
     return GraphViz.Graph(g)
 end
 
-function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], value_map=[], solutions=[])
+function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], value_map=[], solutions=[], start=nothing)
     """
     Draws full tree of parents
     """
@@ -304,9 +306,13 @@ function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], valu
     end
     for child in ProgressBar(x)
         node_color = ""
+        edge_color = """ "#00000050" """
+        edge_width = 1
         if length(solution_paths) > 0
             if child in optimal_nodes
                 node_color = """ "#0000ff" """
+                edge_color = """ "#0000ff" """
+                edge_width = 5
             end
         end
         if length(solutions) > 0
@@ -314,13 +320,24 @@ function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], valu
                 node_color = """ "#00ff00" """
             end
         end
+        if child == start
+            node_color = """ "#ff0000" """
+        end
         if length(value_map) > 0
             g = add_node(g, child, color=node_color, label=string(round(value_map[child], digits=2)))
         else
             g = add_node(g, child, invisible_nodes=true, color=node_color)
         end
         for parent in parents[child]
-            g = add_edge(g, parent, child, color=node_color, bidirectional=length(all_parents) > 0)
+            if node_color == """ "#00ff00" """
+                if parent in optimal_nodes
+                    edge_color = """ "#0000ff" """
+                    edge_width = 5
+                else
+                    edge_width = 1
+                end
+            end
+            g = add_edge(g, parent, child, color=edge_color, bidirectional=length(all_parents) > 0, width=edge_width)
             push!(all_edges[parent], child)
             push!(all_edges[child], parent)
         end
@@ -329,7 +346,7 @@ function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], valu
         for child in x
             for parent in all_parents[child]
                 if !(parent in all_edges[child])
-                    g = add_edge(g, parent, child, constraint=false, bidirectional=true)
+                    g = add_edge(g, parent, child, constraint=false, bidirectional=true, color=""" "#00000050" """, width=1)
                     push!(all_edges[parent], child)
                     push!(all_edges[child], parent)
                 end

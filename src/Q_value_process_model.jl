@@ -242,10 +242,10 @@ end
 ### FIT WITH BLACKBOXOPTIM
 
 function subject_fit(x, qs, Qs)
-    λ, logb = x
-    β = exp(logb)
-    # λ, d_fl = x
-    # d = Int(round(d_fl))
+    # λ, logb = x
+    # β = exp(logb)
+    λ, d_fl = x
+    d = Int(round(d_fl))
     r = 0
     for prb in keys(qs)
         qs_prb = qs[prb]
@@ -256,8 +256,8 @@ function subject_fit(x, qs, Qs)
             for j in eachindex(qs_prb_restart)
                 q = qs_prb_restart[j]
                 Q = Qs_prb_restart[j]
-                r -= log(lapsed_softmin(λ, β, q, Q))
-                #r -= log(lapsed_depth_limited_random(λ, d, q, Q))
+                #r -= log(lapsed_softmin(λ, β, q, Q))
+                r -= log(lapsed_depth_limited_random(λ, d, q, Q))
             end
         end
     end
@@ -271,14 +271,14 @@ function fit_all_subjs(qqs, QQs; max_time=30)
     iter = ProgressBar(enumerate(keys(qqs)))
     for (m, subj) in iter
         # Initial guess
-        x0 = [0.1, 1.0]
-        #x0 = [0.1, 4]
+        #x0 = [0.1, 1.0]
+        x0 = [0.1, 4]
         # Optimization
         # res = bboptimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; SearchRange = [(0.0, 1.0), (-10.0, 4.0)], NumDimensions = 2, TraceMode=:silent, MaxTime=max_time/M);
         # params[m, :] = best_candidate(res)
         # fitness += best_fitness(res)
-        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 3.0], x0, Fminbox(); autodiff=:forward)
-        #res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, 0.0], [1.0, 20.0], x0, Fminbox(); autodiff=:forward)
+        #res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 3.0], x0, Fminbox(); autodiff=:forward)
+        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, 0.0], [1.0, 20.0], x0, Fminbox(); autodiff=:forward)
         # df = TwiceDifferentiable((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; autodiff=:forward)
         # dfc = TwiceDifferentiableConstraints([0.0, -10.0], [1.0, 3.0])
         # res = optimize(df, dfc, x0, IPNewton())
@@ -512,6 +512,11 @@ full_heur_dict_opt = load("data/processed_data/full_heur_dict_opt.jld2");
 
 qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=7);
 
+nnn = 0
+for subj in subjs
+    nnn += subject_fit([0.464, 11.55], qqs[subj], QQs[subj])
+end
+
 params, fitness = fit_all_subjs(qqs, QQs, max_time=600);
 
 X = zeros(420, 2)
@@ -543,12 +548,17 @@ for i in 1:42
     fit2 += subject_fit(params[i, :], qqs[subjs[i]], QQs[subjs[i]])
 end
 
-error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict_opt);
+error_l_data, error_a_data, error_l_model2, error_a_model2, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict_opt);
+error_l_data, error_a_data, error_l_model3, error_a_model3, chance_l, chance_a = simulate_rollouts([-2.0, 10000.0], visited_states, graphs_prb, solutions_prb);
 
-error_l_data_qb = quantile_binning(error_l_data);
-error_a_data_qb = quantile_binning(error_a_data);
-error_l_model_qb = quantile_binning(error_l_model);
-error_a_model_qb = quantile_binning(error_a_model);
+error_l_data_qb, av_subj, av_bin_l = quantile_binning(error_l_data, bounds=true);
+error_a_data_qb, av_subj, av_bin_a = quantile_binning(error_a_data, bounds=true);
+error_l_model_qb1 = quantile_binning(error_l_model1);
+error_a_model_qb1 = quantile_binning(error_a_model1);
+error_l_model_qb2 = quantile_binning(error_l_model2);
+error_a_model_qb2 = quantile_binning(error_a_model2);
+error_l_model_qb3 = quantile_binning(error_l_model3);
+error_a_model_qb3 = quantile_binning(error_a_model3);
 chance_l_qb = quantile_binning(chance_l);
 chance_a_qb = quantile_binning(chance_a);
 
@@ -559,15 +569,18 @@ error_a_fake_qb = quantile_binning(error_a_fake);
 
 mu_hat_bar_l_data, error_bar_l_data = get_errorbar(error_l_data_qb);
 mu_hat_bar_a_data, error_bar_a_data = get_errorbar(error_a_data_qb);
-mu_hat_bar_l_model, error_bar_l_model = get_errorbar(error_l_model_qb);
-mu_hat_bar_a_model, error_bar_a_model = get_errorbar(error_a_model_qb);
+mu_hat_bar_l_model1, error_bar_l_model1 = get_errorbar(error_l_model_qb1);
+mu_hat_bar_a_model1, error_bar_a_model1 = get_errorbar(error_a_model_qb1);
+mu_hat_bar_l_model2, error_bar_l_model2 = get_errorbar(error_l_model_qb2);
+mu_hat_bar_a_model2, error_bar_a_model2 = get_errorbar(error_a_model_qb2);
+mu_hat_bar_l_model3, error_bar_l_model3 = get_errorbar(error_l_model_qb3);
+mu_hat_bar_a_model3, error_bar_a_model3 = get_errorbar(error_a_model_qb3);
 mu_hat_bar_chance_l, error_bar_chance_l = get_errorbar(chance_l_qb);
 mu_hat_bar_chance_a, error_bar_chance_a = get_errorbar(chance_a_qb);
 
 mu_hat_bar_l_fake, error_bar_l_fake = get_errorbar(error_l_fake_qb);
 mu_hat_bar_a_fake, error_bar_a_fake = get_errorbar(error_a_fake_qb);
 
-plot(layout=grid(2, 1), size=(600, 500), legend=:bottom, ylim=(0, 1), grid=false, foreground_color_legend = nothing)
 for i in 0:10
     #params[:, 1] .= i/10
     #params[:, 1] .= 0.0
@@ -589,19 +602,48 @@ for i in 0:10
         plot!(1:7, mu_hat_bar_a_model, ribbon=error_bar_a_model, sp=2, label=nothing, palette=:RdYlGn, lw=0.0)
     end
 end
-scatter!(1:7, mu_hat_bar_a_data, yerr=2*error_bar_a_data, sp=2, markersize=3, c=:black, label="Data", xlabel=latexstring("|A|"), ylabel="p(error)")
-scatter!(1:7, mu_hat_bar_l_data, yerr=2*error_bar_l_data, sp=1, markersize=3, c=:black, label="Data", xlabel="opt_L", ylabel="p(error)")
 
-plot!(1:7, mu_hat_bar_l_model, ribbon=2*error_bar_l_model, sp=1, c=palette(:default)[2], lw=0.0, label=nothing)
-plot!([], [], sp=1, c=palette(:default)[2], label="Heuristic model")
-plot!(1:7, mu_hat_bar_a_model, ribbon=2*error_bar_a_model, sp=2, c=palette(:default)[2], lw=0.0, label=nothing)
-plot!([], [], sp=2, c=palette(:default)[2], label="Heuristic model")
+plot(layout=grid(2, 1, heights=[0.55, 0.45]), size=(900, 900), legend=:outertop, ylim=(0, 1), grid=false, background_color_legend = nothing, foreground_color_legend = nothing, dpi=300, legend_columns=3, 
+legendfont=font(18), 
+xtickfont=font(16), 
+ytickfont=font(16), 
+guidefont=font(32))
 
-plot!(1:7, mu_hat_bar_chance_l, ribbon=2*error_bar_chance_l, sp=1, c=palette(:default)[3], lw=0.0, label=nothing)
-plot!([], [], sp=1, c=palette(:default)[3], label="Chance")
-plot!(1:7, mu_hat_bar_chance_a, ribbon=2*error_bar_chance_a, sp=2, c=palette(:default)[3], lw=0.0, label=nothing)
-plot!([], [], sp=2, c=palette(:default)[3], label="Chance")
+begin
+plot!(av_bin_l, mu_hat_bar_l_model1, alpha=1.0, ribbon=2*error_bar_l_model1, sp=1, c=palette(:default)[2], lw=0.0, label=nothing)
+plot!(av_bin_l, mu_hat_bar_l_model1, alpha=1.0, ribbon=2*error_bar_l_model1, sp=1, c=palette(:default)[2], lw=0.0, label=nothing)
+plot!([], [], sp=1, c=palette(:default)[2], label="Heuristic model", lw=10)
+plot!(av_bin_a, mu_hat_bar_a_model1, ribbon=2*error_bar_a_model1, sp=2, c=palette(:default)[2], lw=0.0, label=nothing)
+plot!(av_bin_a, mu_hat_bar_a_model1, ribbon=2*error_bar_a_model1, sp=2, c=palette(:default)[2], lw=0.0, label=nothing)
+plot!([], [], sp=2, c=palette(:default)[2], label=nothing, lw=10)
 
+plot!(av_bin_l, mu_hat_bar_l_model2, ribbon=2*error_bar_l_model2, sp=1, c=palette(:default)[4], lw=0.0, label=nothing)
+plot!(av_bin_l, mu_hat_bar_l_model2, ribbon=2*error_bar_l_model2, sp=1, c=palette(:default)[4], lw=0.0, label=nothing)
+plot!([], [], sp=1, c=palette(:default)[4], label="Eureka model", lw=10)
+plot!(av_bin_a, mu_hat_bar_a_model2, ribbon=2*error_bar_a_model2, sp=2, c=palette(:default)[4], lw=0.0, label=nothing)
+plot!(av_bin_a, mu_hat_bar_a_model2, ribbon=2*error_bar_a_model2, sp=2, c=palette(:default)[4], lw=0.0, label=nothing)
+plot!([], [], sp=2, c=palette(:default)[4], label=nothing, lw=10)
+
+plot!(av_bin_l, mu_hat_bar_l_model3, ribbon=2*error_bar_l_model3, sp=1, c=palette(:default)[5], lw=0.0, label=nothing)
+plot!(av_bin_l, mu_hat_bar_l_model3, ribbon=2*error_bar_l_model3, sp=1, c=palette(:default)[5], lw=0.0, label=nothing)
+plot!([], [], sp=1, c=palette(:default)[5], label="Rollout model", lw=10)
+plot!(av_bin_a, mu_hat_bar_a_model3, ribbon=2*error_bar_a_model3, sp=2, c=palette(:default)[5], lw=0.0, label=nothing)
+plot!(av_bin_a, mu_hat_bar_a_model3, ribbon=2*error_bar_a_model3, sp=2, c=palette(:default)[5], lw=0.0, label=nothing)
+plot!([], [], sp=2, c=palette(:default)[5], label=nothing, lw=10)
+
+plot!([], [], yerr=[], sp=1, c=:black, label="Data")
+plot!(av_bin_l, mu_hat_bar_l_data, bottom_margin=-4Plots.mm, yerr=2*error_bar_l_data, sp=1, ms=10, l=nothing, c=:black, markershape=:none, label=nothing, xlabel=latexstring("d_\\textrm{goal}"), ylabel=latexstring("p(\\textrm{error})"), xticks=round.(av_bin_l, digits=1))
+plot!(av_bin_l, mu_hat_bar_l_data, yerr=2*error_bar_l_data, sp=1, c=:transparent, msw=1, label=nothing)
+plot!(av_bin_a, mu_hat_bar_a_data, yerr=2*error_bar_a_data, sp=2, ms=10, l=nothing, c=:black, label=nothing, xlabel=latexstring("n_A"), ylabel=latexstring("p(\\textrm{error})"), xticks=round.(av_bin_a, digits=1))
+plot!(av_bin_a, mu_hat_bar_a_data, yerr=2*error_bar_a_data, sp=2, c=:transparent, msw=1, label=nothing)
+
+plot!(av_bin_l, mu_hat_bar_chance_l, ribbon=2*error_bar_chance_l, sp=1, c=palette(:default)[3], lw=0.0, label=nothing)
+plot!(av_bin_l, mu_hat_bar_chance_l, ribbon=2*error_bar_chance_l, sp=1, c=palette(:default)[3], lw=0.0, label=nothing)
+plot!([], [], sp=1, c=palette(:default)[3], label="Chance", lw=10)
+plot!(av_bin_a, mu_hat_bar_chance_a, ribbon=2*error_bar_chance_a, sp=2, c=palette(:default)[3], lw=0.0, label=nothing)
+plot!(av_bin_a, mu_hat_bar_chance_a, ribbon=2*error_bar_chance_a, sp=2, c=palette(:default)[3], lw=0.0, label=nothing)
+plot!([], [], sp=2, c=palette(:default)[3], label=nothing, lw=10)
+end
 
 true_x = [0.0, 1.0];
 qqs, QQs, visited_states, neighbour_states, cnt = generate_fake_data(40, prbs, true_x, 1, full_heur_dict_opt; heur=4);
@@ -679,17 +721,19 @@ function quantile_binning(error_dict; bins=7, bounds=false, lim=35)
         for i in 1:bins
             Z = 0
             for (n, subj) in enumerate(keys(new_error_dict))
-                mu_hat = mean(new_error_dict[subj][i])
-                N_i = sqrt(length(new_error_dict[subj][i]))
-                av_subj[i] += mu_hat * N_i
-                mean_bin = mean(bin_bounds[subj][i])
-                av_bin[i] += mean_bin * N_i
-                Z += N_i
+                if length(new_error_dict[subj][i]) > 0
+                    mu_hat = mean(new_error_dict[subj][i])
+                    N_i = sqrt(length(new_error_dict[subj][i]))
+                    av_subj[i] += mu_hat * N_i
+                    mean_bin = mean(bin_bounds[subj][i])
+                    av_bin[i] += mean_bin * N_i
+                    Z += N_i
+                end
             end
             av_subj[i] /= Z
             av_bin[i] /= Z
         end
-        return av_subj, av_bin
+        return new_error_dict, av_subj, av_bin
     else
         return new_error_dict
     end
@@ -697,7 +741,7 @@ end
 
 xs = [[] for _ in 1:42];
 ys = [[] for _ in 1:42];
-IDV = jldopen("data/processed_data/IDV_OLD.jld2")
+IDV = load("data/processed_data/IDV_OLD.jld2");
 for (n, subj) in enumerate(keys(visited_states))
     for prb in keys(visited_states[subj])
         for r in eachindex(visited_states[subj][prb])
@@ -710,37 +754,42 @@ for (n, subj) in enumerate(keys(visited_states))
 end
 
 bins = 7;
-x = reduce(vcat, xs);
-y = reduce(vcat, ys);
+x = reduce(vcat, ys);
+y = reduce(vcat, xs);
 h1 = zeros(bins);
 h2 = zeros(bins);
-plot(layout=grid(4, 1, heights=[0.5, 0.17, 0.16, 0.16]), size=(400, 700))
-histogram2d!(x, y, sp=1, bins=(maximum(x), maximum(y)), color=cgrad(:grays, rev=true), xlabel="opt_L", ylabel=latexstring("|A|"), colorbar_title="Counts", left_margin = 3Plots.mm)
+#plot(layout=grid(4, 1, heights=[0.5, 0.17, 0.16, 0.16]), size=(400, 700))
+x = A
+y = opt_L
+plot(size=(300, 300), dpi=300, grid=false)
+histogram2d!(x, y, sp=1, xlim=(0.9, 24.6), ylim=(0.9, 33.6), bins=((1:maximum(x)) .+ 0.5, (1:maximum(y)) .+ 0.5), color=cgrad(:grays, rev=true), ylabel=latexstring("d_\\textrm{goal}"), xlabel=latexstring("n_A"), left_margin = -2Plots.mm, bottom_margin = -3Plots.mm)
 for i in 1:bins
-    l = Int(ceil(quantile(x, (i-1)/bins)))
-    u = Int(floor(quantile(x, i/bins)))
+    l = Int(ceil(quantile(x, (i-1)/bins))) + 0.5
+    u = Int(ceil(quantile(x, i/bins))) + 0.5
     if i == bins
-        plot!([u, u], [0, 25], sp=1, c=:red, label="opt_L bin bounds")
+        plot!([u, u], [1, 34] .+ 0.5, sp=1, c=:red, label=nothing, alpha=0.5)#, label="opt_L bin bounds")
     end
-    plot!([l, l], [0, 25], sp=1, c=:red, label=nothing)
+    plot!([l, l], [1, 34] .+ 0.5, sp=1, c=:red, label=nothing, alpha=0.5)
     if i == bins
         h1[i] = length(findall(xx -> l<=xx<=u, x))
     else
         h1[i] = length(findall(xx -> l<=xx<u, x))
     end
 
-    l = Int(ceil(quantile(y, (i-1)/bins)))
-    u = Int(floor(quantile(y, i/bins)))
+    l = Int(ceil(quantile(y, (i-1)/bins))) + 0.5
+    u = Int(ceil(quantile(y, i/bins))) + 0.5
     if i == bins
-        plot!([0, 34], [u, u], sp=1, c=:blue, label=latexstring("\$|A|\$bin bounds"))
+        plot!([1, 25] .+ 0.5, [u, u], sp=1, c=:blue, label=nothing, alpha=0.5)#, label=latexstring("\$|A|\$bin bounds"))
     end
-    plot!([0, 34], [l, l], sp=1, c=:blue, label=nothing)
+    plot!([1, 25] .+ 0.5, [l, l], sp=1, c=:blue, label=nothing, alpha=0.5)
     if i == bins
         h2[i] = length(findall(yy -> l<=yy<=u, y))
     else
         h2[i] = length(findall(yy -> l<=yy<u, y))
     end
 end
+plot!()
+
 plot!(h1, sp=2, ylabel="Total bin counts", ylim=(0, maximum(reduce(vcat, [h1, h2]))*1.1), label="opt_L", left_margin = 10Plots.mm, yguidefontsize=8)
 plot!(h2, sp=2, label=latexstring("|A|"))
 
