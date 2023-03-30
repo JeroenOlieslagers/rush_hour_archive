@@ -240,7 +240,8 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer, all_parent
     tree[0] = 1
     # parents keeps track of the parent nodes for each node in tree
     parents = DefaultDict{T, Array{T, 1}}([])
-    parents[start] = []
+    # parent_cars also keep track of which car is moved
+    parent_cars = DefaultDict{T, Array{Int, 1}}([])
     # children keeps track of the children nodes for each node in tree
     children = DefaultDict{T, Array{T, 1}}([])
     # solutions is a list of the nodes that are solved
@@ -311,15 +312,18 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer, all_parent
                     # Add to parents and children
                     if !all_parents
                         push!(parents[new], current)
+                        push!(parent_cars[new], move[1])
                     end
                     push!(children[current], new)
                 end  
                 if all_parents
                     if !(current in parents[new])
                         push!(parents[new], current)
+                        push!(parent_cars[new], move[1])
                     end
                     if !(new in parents[current])
                         push!(parents[current], new)
+                        push!(parent_cars[current], move[1])
                     end
                 end
                 # Undo move
@@ -337,6 +341,7 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer, all_parent
                 delete!(seen, key)
                 delete!(stat, key)
                 delete!(parents, key)
+                delete!(parent_cars, key)
                 delete!(children, key)
             end
         end
@@ -347,7 +352,7 @@ function bfs_path_counters(board; traverse_full=false, heuristic=zer, all_parent
             children[child] = []
         end
     end
-    return tree, seen, stat, dict, parents, children, solutions
+    return tree, seen, stat, dict, parents, children, solutions, parent_cars
 end
 
 """
@@ -780,9 +785,11 @@ end
 
 #solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);
 
-# board = load_data("hard_puzzle_40")
+# board = load_data("hard_puzzle_1")
 
 # arr = get_board_arr(board)
+
+# draw_board(arr)
 
 # mag = get_mag(board, arr)
 # g = plot_mag(mag, "two_choice_problem_00", "Move_0")
@@ -825,17 +832,18 @@ end
 # board = load_data("hard_puzzle_1")
 # arr = get_board_arr(board)
 # T = get_type(arr)
-# tree, seen, stat, dict, parents = bfs_path_counters(board, heuristic=multi_mag_size_nodes, traverse_full=true);
+# start = board_to_int(arr, T)
+# tree, seen, stat, dict, all_parents, children, solutions, parent_actions = bfs_path_counters(board, traverse_full=true, all_parents=true);
 
-# solution_paths, fake_tree, max_heur = get_solution_paths(tree, seen, stat);
+# solution_paths, fake_tree, max_heur = get_solution_paths(solutions[1:3], parents, stat);
 
-# plot_tree(fake_tree)
+# # plot_tree(fake_tree)
 
-# g = draw_solution_paths(solution_paths, parents, stat, max_heur)
+# #g = draw_solution_paths(solution_paths, parents, stat, max_heur)
 
-# g = draw_directed_tree(parents, solution_paths=solution_paths)
+# g = draw_directed_tree(parents, solution_paths=solution_paths, solutions=solutions, all_parents=all_parents, start=start)
 
-# save_graph(g, "optimal_moves_heuristic_prb77267")
+# save_graph(g, "bidirectional_hard_1_start_optimal_only_v3")
 # save_graph(g, "solution_hard_puzzle_39_complete")
 
  
