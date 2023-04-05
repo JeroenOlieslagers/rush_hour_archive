@@ -353,7 +353,7 @@ function move_blocked_by(car, m, arr)
     pos = car.is_horizontal ? car.x : car.y
     # Get blocked arr elements
     if m > 0
-        blockages = row[pos:pos+m+car.len-1]
+        blockages = reverse(row[pos:pos+m+car.len-1])
     else
         blockages = row[pos+m:pos+car.len-1]
     end
@@ -401,7 +401,7 @@ function moves_that_unblock(car1, car2, arr)
         end
     end
     # Sort blockages and returns only move keys
-    constrained_moves = keys(sort(possible_moves, byvalue=true))
+    constrained_moves = collect(keys(sort(possible_moves, byvalue=true)))
     # Return sorted blockages
     return constrained_moves, [blockages[i] for i in constrained_moves]
 end
