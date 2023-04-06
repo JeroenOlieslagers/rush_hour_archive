@@ -9,7 +9,7 @@
 
 function create_move_icon(move, board)
     car, m = move
-    s = ""
+    s = string(car)
     if board.cars[car].is_horizontal
         for i in 1:abs(m)
             if sign(m) == 1
@@ -30,8 +30,16 @@ function create_move_icon(move, board)
     return s
 end
 
-function create_node_string(node)
-    return string(node.value) *"-"* join([join(car) for car in node.children], "-")
+function create_node_string(node; rev=false, visited=false)
+    s = ""
+    if visited
+        s *= "v"
+    end
+    if rev
+        return s*string(node.value) *"_"* join([join(reverse(car)) for car in reverse(node.children)], "_")
+    else
+        return s*string(node.value) *"_"* join([join(car) for car in node.children], "_")
+    end
 end
 
 struct Node
@@ -49,6 +57,8 @@ arr = get_board_arr(board)
 draw_board(arr)
 ROOT = 9
 
+DFS = false
+
 #make_move!(board, actions[1])
 
 begin
@@ -58,13 +68,21 @@ begin
     actions = Vector{Tuple{Int, Int}}()
     draw_tree_nodes = DefaultOrderedDict{String, Vector{String}}([])
     # GET FIRST BLOCKED CARS
-    red_car_block_init = reverse(blocked_by(arr, board.cars[ROOT]))
+    if DFS
+        red_car_block_init = reverse(blocked_by(arr, board.cars[ROOT]))
+    else
+        red_car_block_init = blocked_by(arr, board.cars[ROOT])
+    end
     # CREATE ROOT NODE
     start_node = Node(ROOT, [red_car_block_init])
     push!(visited, start_node)
     # INITIALIZE FRONTIER
     for i in eachindex(red_car_block_init)
-        push!(frontier, (start_node, 1, i))
+        if DFS
+            push!(frontier, (start_node, 1, i))
+        else
+            pushfirst!(frontier, (start_node, 1, i))
+        end
     end
 end
 
@@ -84,33 +102,85 @@ for iter in 1:max_iter
     # GET UNBLOCKING MOVES
     moves, next_cars = moves_that_unblock(board.cars[prev_car], board.cars[current_car], arr)
     # SORT
-    #move_dict = SortedDict(next_cars .=> moves, Base.Order.Reverse)
-    sorted_cars = reverse(unique(next_cars))
-    new_node = Node(current_car, sorted_cars)
+    if !DFS
+        reverse!.(next_cars)
+    end
+    if DFS
+        sorted_cars = reverse(unique(next_cars))
+    else
+        sorted_cars = unique(next_cars)
+    end
+    # POSSIBLE MOVE SPECIAL CASE
+    if any(isempty.(sorted_cars))
+        if DFS
+            new_node = Node(current_car, vcat(sorted_cars[.!(isempty.(sorted_cars))], [[aa] for aa in moves[isempty.(next_cars)]*1000]))
+        else
+            new_node = Node(current_car, vcat([[aa] for aa in reverse(moves[isempty.(next_cars)]*1000)], sorted_cars[.!(isempty.(sorted_cars))]))
+        end
+    else
+        new_node = Node(current_car, sorted_cars)
+    end
     # RED CAR SPECIAL CASE
     if current_car == ROOT
-        if Node(current_car, [union(sorted_cars...)]) in visited
+        check_car = Node(current_car, [union(sorted_cars...)])
+        if check_car in visited
+            if DFS
+                push!(draw_tree_nodes[create_node_string(current_node, rev=true)], create_node_string(new_node, rev=true, visited=true))
+            else
+                draw_tree_list = draw_tree_nodes[create_node_string(current_node)]
+                idx = findlast(x->x[1]=='m', draw_tree_list)
+                if idx !== nothing
+                    insert!(draw_tree_list, idx+1, create_node_string(new_node, visited=true))
+                else
+                    push!(draw_tree_nodes[create_node_string(current_node)], create_node_string(new_node, visited=true))
+                end
+            end
             continue
         end
     end
     # DO NOT EXPAND IF ALREADY VISITED
     if new_node in visited
+        if DFS
+            push!(draw_tree_nodes[create_node_string(current_node, rev=true)], create_node_string(new_node, rev=true, visited=true))
+        else
+            draw_tree_list = draw_tree_nodes[create_node_string(current_node)]
+            idx = findlast(x->x[1]=='m', draw_tree_list)
+            if idx !== nothing
+                insert!(draw_tree_list, idx+1, create_node_string(new_node, visited=true))
+            else
+                push!(draw_tree_nodes[create_node_string(current_node)], create_node_string(new_node, visited=true))
+            end
+        end
         continue
     else
-        push!(draw_tree_nodes[create_node_string(current_node)], create_node_string(new_node))
+        if DFS
+            push!(draw_tree_nodes[create_node_string(current_node, rev=true)], create_node_string(new_node, rev=true))
+        else
+            draw_tree_list = draw_tree_nodes[create_node_string(current_node)]
+            idx = findlast(x->x[1]=='m', draw_tree_list)
+            if idx !== nothing
+                insert!(draw_tree_list, idx+1, create_node_string(new_node))
+            else
+                push!(draw_tree_nodes[create_node_string(current_node)], create_node_string(new_node))
+            end
+        end
         push!(visited, new_node)
     end
     # EXTEND FRONTIER
     for i in eachindex(sorted_cars)
         if length(sorted_cars[i]) > 0
             for j in eachindex(sorted_cars[i])
-                push!(frontier, (new_node, i, j))
+                if DFS
+                    push!(frontier, (new_node, i, j))
+                else
+                    pushfirst!(frontier, (new_node, i, j))
+                end
             end
         else
             # IF UNBLOCKING MOVE IS VIABLE, ADD IT TO THE LIST
             for m in moves[isempty.(next_cars)]
                 push!(actions, (current_car, m))
-                push!(draw_tree_nodes[create_node_string(new_node)], "m"*create_move_icon((current_car, m), board))
+                pushfirst!(draw_tree_nodes[create_node_string(new_node, rev=DFS)], "m"*create_move_icon((current_car, m), board))
             end
         end
     end

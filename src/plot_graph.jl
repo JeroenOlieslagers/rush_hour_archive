@@ -633,6 +633,13 @@ function draw_board(arr)
     heatmap(arr, c = cmap, legend = false, yflip = true, xmirror=true, framestyle = :box, size=(200, 200))
     vline!(1.5:5.5, c=:black, linewidth=0.2)
     hline!(1.5:5.5, c=:black, linewidth=0.2)
+    for c in sort(unique(arr))[2:end]
+        idxs = findall(x->x==c, arr)
+        l = length(idxs)
+        s = sum(idxs)
+        annotate!(s[2]/l, s[1]/l, text(c, :white, 20))
+    end
+    display(plot!())
 end
 
 
