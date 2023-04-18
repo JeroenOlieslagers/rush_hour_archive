@@ -622,16 +622,16 @@ function plot_puzzle_timeline(puzzle, visited_states, IDV; sp=nothing)
                         plot!(x, y, label=nothing, c=:black, alpha=0.2)
                     else
                         if sp % 2 == 1
-                            if sp == 3
-                                plot!(x, y, sp=sp, label=nothing, c=:black, alpha=0.2, ylim=(0, 22), xlim=(0, 140), yticks=[0, 10, 20], xticks=[0, 50, 100], xlabel="Move number")
+                            if sp == 1
+                                plot!(x, y, sp=sp, label=nothing, c=:black, alpha=0.2, ylim=(0, 16), xlim=(0, 140), yticks=[0, 5, 10, 15], xticks=[0, 50, 100], xlabel="Move number")
                             else
-                                plot!(x, y, sp=sp, label=nothing, c=:black, alpha=0.2, ylim=(0, 22), xlim=(0, 140), yticks=[0, 10, 20], xticks=([0, 50, 100], ["", "", ""]))
+                                plot!(x, y, sp=sp, label=nothing, c=:black, alpha=0.2, ylim=(0, 16), xlim=(0, 140), yticks=[0, 5, 10, 15], xticks=([0, 50, 100], ["", "", ""]))
                             end
                         else
-                            if sp == 4
-                                plot!(x, y, sp=sp, xticks=[0, 50, 100], xlabel="Move number", label=nothing, c=:black, alpha=0.2, ylim=(0, 22), xlim=(0, 140), yticks=[0, 10, 20, 30])
+                            if sp == 2
+                                plot!(x, y, sp=sp, xticks=[0, 50, 100], xlabel="Move number", label=nothing, c=:black, alpha=0.2, ylim=(0, 16), xlim=(0, 140), yticks=[0, 5, 10, 15])
                             else
-                                plot!(x, y, sp=sp, label=nothing, c=:black, alpha=0.2, ylim=(0, 22), xlim=(0, 140), yticks=[0, 10, 20, 30], xticks=([0, 50, 100], ["", "", ""]))
+                                plot!(x, y, sp=sp, label=nothing, c=:black, alpha=0.2, ylim=(0, 16), xlim=(0, 140), yticks=[0, 5, 10, 15], xticks=([0, 50, 100], ["", "", ""]))
                             end
                         end
                     end
@@ -777,9 +777,13 @@ plot!([10], [10], sp=2, label=nothing, tick_direction=:out, xlim=(0, length(uniq
 
 
 prbbs = ["prb21272_7","prb20059_7","prb45893_16","prb24227_16"];
-plot(layout=(2, 2), size=(600, 400), left_margin = 5Plots.mm, yguidefontsize=18, ytickfontsize=12, xguidefontsize=12, xtickfontsize=12, grid=false, ylabel=latexstring("d_\\texttt{goal}"))
-for i in eachindex(prbbs)
-    plot_puzzle_timeline(prbs[i+42], visited_states, IDV, sp=aa[i])
+prbbbs = [prbs[46], prbs[44]];
+plot(layout=(1, 2), size=(900, 360), bottom_margin = 8Plots.mm, left_margin = 8Plots.mm, legendfont=font(18), 
+xtickfont=font(16), 
+ytickfont=font(16), 
+guidefont=font(32), grid=false, ylabel=latexstring("d_\\texttt{goal}"))
+for i in eachindex(prbbbs)
+    plot_puzzle_timeline(prbbbs[i], visited_states, IDV, sp=i)
 end
 plot!()
 # flat_joint = vcat(joint...);

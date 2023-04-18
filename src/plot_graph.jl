@@ -1,5 +1,6 @@
 using GraphViz, FileIO, ImageIO
 using Plots, ProgressBars
+using Accessors
 
 """
     g = initialise_graph(title="")
@@ -614,23 +615,26 @@ function draw_prb(prb)
     draw_board(arr)
 end
 
-function draw_board(arr)
+function draw_board(arr; alpha_map=[])
     """
     Draws board state as heatmap with custom colormap
     """
     cmap = [
-        RGB(([255, 255, 255]./255)...), 
-        RGB(([147, 190, 103]./255)...), 
-        RGB(([102, 152, 80]./255)...), 
-        RGB(([80, 173, 202]./255)...), 
-        RGB(([219, 130, 57]./255)...), 
-        RGB(([81, 51, 154]./255)...), 
-        RGB(([185, 156, 105]./255)...), 
-        RGB(([126, 74, 51]./255)...), 
-        RGB(([124, 124, 124]./255)...), 
-        RGB(([202, 76, 60]./255)...)
+        RGBA(([255, 255, 255]./255)...), 
+        RGBA(([147, 190, 103]./255)...), 
+        RGBA(([102, 152, 80]./255)...), 
+        RGBA(([80, 173, 202]./255)...), 
+        RGBA(([219, 130, 57]./255)...), 
+        RGBA(([81, 51, 154]./255)...), 
+        RGBA(([185, 156, 105]./255)...), 
+        RGBA(([126, 74, 51]./255)...), 
+        RGBA(([124, 124, 124]./255)...), 
+        RGBA(([202, 76, 60]./255)...)
         ]
-    heatmap(arr, c = cmap, legend = false, yflip = true, xmirror=true, framestyle = :box, size=(200, 200))
+    for i in eachindex(alpha_map)
+        cmap = @set cmap[alpha_map[i]+1].alpha = 0.3
+    end
+    heatmap(arr, c = cmap, legend = false, yflip = true, xmirror=true, framestyle = :box, size=(200, 200), dpi=300)
     vline!(1.5:5.5, c=:black, linewidth=0.2)
     hline!(1.5:5.5, c=:black, linewidth=0.2)
     for c in sort(unique(arr))[2:end]
@@ -639,7 +643,7 @@ function draw_board(arr)
         s = sum(idxs)
         annotate!(s[2]/l, s[1]/l, text(c, :white, 20))
     end
-    display(plot!())
+    plot!()
 end
 
 

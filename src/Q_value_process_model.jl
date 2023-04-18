@@ -242,10 +242,10 @@ end
 ### FIT WITH BLACKBOXOPTIM
 
 function subject_fit(x, qs, Qs)
-    # λ, logb = x
-    # β = exp(logb)
-    λ, d_fl = x
-    d = Int(round(d_fl))
+    λ, logb = x
+    β = exp(logb)
+    # λ, d_fl = x
+    # d = Int(round(d_fl))
     r = 0
     for prb in keys(qs)
         qs_prb = qs[prb]
@@ -256,8 +256,8 @@ function subject_fit(x, qs, Qs)
             for j in eachindex(qs_prb_restart)
                 q = qs_prb_restart[j]
                 Q = Qs_prb_restart[j]
-                #r -= log(lapsed_softmin(λ, β, q, Q))
-                r -= log(lapsed_depth_limited_random(λ, d, q, Q))
+                r -= log(lapsed_softmin(λ, β, q, Q))
+                #r -= log(lapsed_depth_limited_random(λ, d, q, Q))
             end
         end
     end
@@ -271,8 +271,8 @@ function fit_all_subjs(qqs, QQs; max_time=30)
     iter = ProgressBar(enumerate(keys(qqs)))
     for (m, subj) in iter
         # Initial guess
-        #x0 = [0.1, 1.0]
-        x0 = [0.1, 4]
+        x0 = [0.1, 1.0]
+        #x0 = [0.1, 4]
         # Optimization
         # res = bboptimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; SearchRange = [(0.0, 1.0), (-10.0, 4.0)], NumDimensions = 2, TraceMode=:silent, MaxTime=max_time/M);
         # params[m, :] = best_candidate(res)
@@ -302,20 +302,20 @@ function get_accuracy_and_confidence(qqs, QQs, params)
         ii = 0 
         qs = qqs[subj]
         Qs = QQs[subj]
-        # λ, logb = params[m, :]
-        # β = exp(logb)
-        λ, d_fl = params[m, :]
-        d = Int(round(d_fl))
+        λ, logb = params[m, :]
+        β = exp(logb)
+        # λ, d_fl = params[m, :]
+        # d = Int(round(d_fl))
         for prb in keys(Qs)
             for k in eachindex(Qs[prb])
                 for j in eachindex(Qs[prb][k])
                     q = qs[prb][k][j]
                     Q = Qs[prb][k][j]
-                    #p = lapsed_softmin(λ, β, q, Q)
-                    p = lapsed_depth_limited_random(λ, d, q, Q)
+                    p = lapsed_softmin(λ, β, q, Q)
+                    #p = lapsed_depth_limited_random(λ, d, q, Q)
                     confidence += p
-                    #ps = lapsed_softmin(λ, β, Q)
-                    ps = lapsed_depth_limited_random(λ, d, Q)
+                    ps = lapsed_softmin(λ, β, Q)
+                    #ps = lapsed_depth_limited_random(λ, d, Q)
                     accuracy += p == maximum(ps) ? 1 : 0
                     chance += 1/length(Q)
                     ii += 1
@@ -510,7 +510,7 @@ subjs = collect(keys(data));
 full_heur_dict_opt = load("data/processed_data/full_heur_dict_opt.jld2");
 
 
-qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=7);
+qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=4);
 
 nnn = 0
 for subj in subjs
