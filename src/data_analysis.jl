@@ -759,33 +759,33 @@ function twod_colormap(X)
     return cs, cbar_cs, cbar, unique_visits, unique_proportion
 end
 
-cs, cbar_cs, cbar, unique_visits, unique_proportion = twod_colormap(joint);
+# cs, cbar_cs, cbar, unique_visits, unique_proportion = twod_colormap(joint);
 
-# xt = round.(Int, collect(range(1, length(unique_proportion), length=5)));
-# yt = round.(Int, collect(range(1, length(unique_visits), length=5)));
-xs = [0.0, 0.15, 0.2, 0.25, 0.4, 1.0];
-xt = [findfirst(x->x==item, round.(unique_proportion, digits=4)) for item in xs];
-ys = [0, 10, 20, 50, 100, 200, 500];
-yt = [findfirst(x->x==item, floor.(unique_visits, sigdigits=1)) for item in ys];
-
-
-plot(layout=(1, 2), size=(600, 300))
-heatmap!(joint', sp=1, color=cs, colorbar=false, xlabel=latexstring("|A|"), ylabel="opt_L", framestyle = :box)
-
-heatmap!(cbar, sp=2, color=cbar_cs, colorbar=false, xlabel=latexstring("f_\\texttt{opt}"), ylabel="Visits", xticks=(xt, string.(round.(unique_proportion[xt], digits=2))), yticks=(yt, string.(Int.(floor.(unique_visits[yt], sigdigits=1)))), framestyle = :box)
-plot!([10], [10], sp=2, label=nothing, tick_direction=:out, xlim=(0, length(unique_proportion)), ylim=(0, length(unique_visits)))
+# # xt = round.(Int, collect(range(1, length(unique_proportion), length=5)));
+# # yt = round.(Int, collect(range(1, length(unique_visits), length=5)));
+# xs = [0.0, 0.15, 0.2, 0.25, 0.4, 1.0];
+# xt = [findfirst(x->x==item, round.(unique_proportion, digits=4)) for item in xs];
+# ys = [0, 10, 20, 50, 100, 200, 500];
+# yt = [findfirst(x->x==item, floor.(unique_visits, sigdigits=1)) for item in ys];
 
 
-prbbs = ["prb21272_7","prb20059_7","prb45893_16","prb24227_16"];
-prbbbs = [prbs[46], prbs[44]];
-plot(layout=(1, 2), size=(900, 360), bottom_margin = 8Plots.mm, left_margin = 8Plots.mm, legendfont=font(18), 
-xtickfont=font(16), 
-ytickfont=font(16), 
-guidefont=font(32), grid=false, ylabel=latexstring("d_\\texttt{goal}"))
-for i in eachindex(prbbbs)
-    plot_puzzle_timeline(prbbbs[i], visited_states, IDV, sp=i)
-end
-plot!()
+# plot(layout=(1, 2), size=(600, 300))
+# heatmap!(joint', sp=1, color=cs, colorbar=false, xlabel=latexstring("|A|"), ylabel="opt_L", framestyle = :box)
+
+# heatmap!(cbar, sp=2, color=cbar_cs, colorbar=false, xlabel=latexstring("f_\\texttt{opt}"), ylabel="Visits", xticks=(xt, string.(round.(unique_proportion[xt], digits=2))), yticks=(yt, string.(Int.(floor.(unique_visits[yt], sigdigits=1)))), framestyle = :box)
+# plot!([10], [10], sp=2, label=nothing, tick_direction=:out, xlim=(0, length(unique_proportion)), ylim=(0, length(unique_visits)))
+
+
+# prbbs = ["prb21272_7","prb20059_7","prb45893_16","prb24227_16"];
+# prbbbs = [prbs[46], prbs[44]];
+# plot(layout=(1, 2), size=(900, 360), bottom_margin = 8Plots.mm, left_margin = 8Plots.mm, legendfont=font(18), 
+# xtickfont=font(16), 
+# ytickfont=font(16), 
+# guidefont=font(32), grid=false, ylabel=latexstring("d_\\texttt{goal}"))
+# for i in eachindex(prbbbs)
+#     plot_puzzle_timeline(prbbbs[i], visited_states, IDV, sp=i)
+# end
+# plot!()
 # flat_joint = vcat(joint...);
 # flat_joint_sorted_unique = sort(unique(flat_joint));
 # cs = twod_colormap.(flat_joint_sorted_unique);

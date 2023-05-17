@@ -783,6 +783,21 @@ function get_optimal_actions(distance_from_sol, all_parents)
     return optimal_a
 end
 
+function get_action_from_states(s1, s2)
+    arr1 = int_to_arr(s1)
+    arr2 = int_to_arr(s2)
+    dif = arr2 - arr1
+    pos = dif[dif .> 0]
+    car = pos[1]
+    b1 = arr_to_board(arr1)
+    b2 = arr_to_board(arr2)
+    if b1.cars[car].is_horizontal
+        return (car, b2.cars[car].x - b1.cars[car].x)
+    else
+        return (car, b2.cars[car].y - b1.cars[car].y)
+    end
+end
+
 #solution_paths, fake_tree, max_heur = get_solution_paths(solutions, parents, stat);
 
 # board = load_data("hard_puzzle_1")

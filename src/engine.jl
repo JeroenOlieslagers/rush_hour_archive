@@ -202,6 +202,40 @@ function get_available_moves!(available_moves, arr, car)
     #return available_moves
 end
 
+function get_available_moves(arr, car)
+    """
+    Calculates all available moves of given car
+    """
+    # Initialise
+    available_moves = Array{Array{Int, 1}, 1}()
+    # Get row/col
+    row = get_1d_arr(arr, car)
+    # Get id
+    id = car.id
+    # Split row/col
+    idx = findfirst(x -> x == id, row)
+    # Get backward moves
+    b = reverse(@view row[1:idx-1])
+    for (m, pos) in enumerate(b)
+        if pos == 0
+            push!(available_moves, [id, -m])
+        else
+            break
+        end
+    end
+    # Get forward moves
+    f = @view row[idx+car.len:end]
+    for (m, pos) in enumerate(f)
+        if pos == 0
+            push!(available_moves, [id, m])
+        else
+            break
+        end
+    end
+    return nothing
+    #return available_moves
+end
+
 function get_type(arr)
     """
     Return datatype necessary to store int representation of board
@@ -361,7 +395,7 @@ function move_blocked_by(car, m, arr)
     return unique(blockages)
 end
 
-function moves_that_unblock(car1, car2, arr)
+function moves_that_unblock(car1, car2, arr; move_amount=nothing)
     """
     Returns list of all moves by car2 that move it out of car1's way
     Also returns a list of cars blocked by each of those moves
@@ -372,18 +406,19 @@ function moves_that_unblock(car1, car2, arr)
     # Dictionary that maps moves to cars it blocks
     blockages = Dict{Int, Array{Int, 1}}()
     # Get all moves by car2
-    moves = get_all_moves(arr, car2)
+    moves = reverse(get_all_moves(arr, car2))
+    moves = moves[sortperm(abs.(moves), alg=MergeSort)]
     # Get position depending on orientation
     pos2 = car2.is_horizontal ? car2.x : car2.y
     # If both cars are aligned
     if !(car1.is_horizontal ⊻ car2.is_horizontal)
         pos1 = car1.is_horizontal ? car1.x : car1.y
         for move in moves
-            if (pos2 > pos1) && move > 0
+            if (pos2+move >= pos1+move_amount+car2.len-1) && move > 0 && move_amount > 0
                 blocks = move_blocked_by(car2, move, arr)
                 push!(possible_moves, move=>length(blocks))
                 push!(blockages, move=>blocks)
-            elseif (pos2 < pos1) && move < 0
+            elseif (pos2+move <= pos1+move_amount-(car2.len-1)) && move < 0 && move_amount < 0
                 blocks = move_blocked_by(car2, move, arr)
                 push!(possible_moves, move=>length(blocks))
                 push!(blockages, move=>blocks)

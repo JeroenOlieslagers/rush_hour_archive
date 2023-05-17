@@ -144,6 +144,10 @@ function get_state_data(data, full_heur_dict; heur=4)
             for (j, move) in enumerate(tot_move_tuples[prb])
                 # Reset board
                 if move == (-1, 0)
+                    if restart_count > 0
+                        s = board_to_int(arr, BigInt)
+                        push!(subj_dict_visited[prb][restart_count], s)
+                    end
                     restart_count += 1
                     # Initialise new reset
                     push!(subj_dict_qs[prb], [])
@@ -153,8 +157,8 @@ function get_state_data(data, full_heur_dict; heur=4)
                     board = load_data(prb)
                     arr = get_board_arr(board)
                     # Initialise visited states at root
-                    s_init = board_to_int(arr, BigInt)
-                    push!(subj_dict_visited[prb][restart_count], s_init)
+                    # s_init = board_to_int(arr, BigInt)
+                    # push!(subj_dict_visited[prb][restart_count], s_init)
                     continue
                 end
                 # Get all neighbours
@@ -176,10 +180,10 @@ function get_state_data(data, full_heur_dict; heur=4)
                     neighs[n] = s
                     undo_moves!(board, [a])
                 end
-                # Make move
-                make_move!(board, move)
-                arr = get_board_arr(board)
                 s = board_to_int(arr, BigInt)
+                if IDV[prb][s][1] == 0
+                    break
+                end
                 # If action leads to state in state space, add it
                 if string(s) ∈ keys(full_heur_dict)
                     push!(subj_dict_qs[prb][restart_count], full_heur_dict[string(s)][heur])
@@ -187,6 +191,9 @@ function get_state_data(data, full_heur_dict; heur=4)
                     push!(subj_dict_visited[prb][restart_count], s)
                     push!(subj_dict_neigh[prb][restart_count], neighs)
                 end
+                # Make move
+                make_move!(board, move)
+                arr = get_board_arr(board)
             end
         end
         qqs[subj] = subj_dict_qs
@@ -242,10 +249,10 @@ end
 ### FIT WITH BLACKBOXOPTIM
 
 function subject_fit(x, qs, Qs)
-    λ, logb = x
-    β = exp(logb)
-    # λ, d_fl = x
-    # d = Int(round(d_fl))
+    # λ, logb = x
+    # β = exp(logb)
+    λ, d_fl = x
+    d = Int(round(d_fl))
     r = 0
     for prb in keys(qs)
         qs_prb = qs[prb]
@@ -256,8 +263,8 @@ function subject_fit(x, qs, Qs)
             for j in eachindex(qs_prb_restart)
                 q = qs_prb_restart[j]
                 Q = Qs_prb_restart[j]
-                r -= log(lapsed_softmin(λ, β, q, Q))
-                #r -= log(lapsed_depth_limited_random(λ, d, q, Q))
+                #r -= log(lapsed_softmin(λ, β, q, Q))
+                r -= log(lapsed_depth_limited_random(λ, d, q, Q))
             end
         end
     end
@@ -267,24 +274,25 @@ end
 function fit_all_subjs(qqs, QQs; max_time=30)
     M = length(qqs)
     params = zeros(M, 2)
-    fitness = 0
-    iter = ProgressBar(enumerate(keys(qqs)))
-    for (m, subj) in iter
+    fitness = zeros(M)
+    subjs = collect(keys(qqs))
+
+    Threads.@threads for m in ProgressBar(1:M)
         # Initial guess
-        x0 = [0.1, 1.0]
-        #x0 = [0.1, 4]
+        #x0 = [0.1, 1.0]
+        x0 = [0.1, 4]
         # Optimization
         # res = bboptimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; SearchRange = [(0.0, 1.0), (-10.0, 4.0)], NumDimensions = 2, TraceMode=:silent, MaxTime=max_time/M);
         # params[m, :] = best_candidate(res)
         # fitness += best_fitness(res)
         #res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, -10.0], [1.0, 3.0], x0, Fminbox(); autodiff=:forward)
-        res = optimize((x) -> subject_fit(x, qqs[subj], QQs[subj]), [0.0, 0.0], [1.0, 20.0], x0, Fminbox(); autodiff=:forward)
+        res = optimize((x) -> subject_fit(x, qqs[subjs[m]], QQs[subjs[m]]), [0.0, 0.0], [1.0, 20.0], x0, Fminbox(); autodiff=:forward)
         # df = TwiceDifferentiable((x) -> subject_fit(x, qqs[subj], QQs[subj]), x0; autodiff=:forward)
         # dfc = TwiceDifferentiableConstraints([0.0, -10.0], [1.0, 3.0])
         # res = optimize(df, dfc, x0, IPNewton())
         params[m, :] = Optim.minimizer(res)
-        fitness += Optim.minimum(res)
-        set_description(iter, "Fitting subject $(m)/$(M)")
+        fitness[m] = Optim.minimum(res)
+        #set_description(iter, "Fitting subject $(m)/$(M)")
     end
     return params, fitness
 end
@@ -363,6 +371,7 @@ function calculate_p_error(QQs, visited_states, neighbour_states, params, full_h
     chance_l = Dict{String, Array{Array{Float64, 1}, 1}}()
     chance_a = Dict{String, Array{Array{Float64, 1}, 1}}()
     cnt = 0
+    ls = []
     # Fake data
     fake_qqs = Dict{String, DefaultDict{String, Array{Array{Float64, 1}, 1}}}()
     # Loop over subjects
@@ -393,11 +402,11 @@ function calculate_p_error(QQs, visited_states, neighbour_states, params, full_h
                 # Loop over states (ignore last state as it has no action)
                 for i in 1:length(states)-1
                     s = states[i]
-                    ns = neighs[i]
                     # Don't calculate error on solved positions
                     if IDV[prb][s][1] == 0
-                        continue
+                        break
                     end
+                    ns = neighs[i]
                     ## ERROR AND COUNTS FROM DATA
                     # Add error count to independent variable category
                     if states[i+1] ∉ opt[s]
@@ -434,6 +443,7 @@ function calculate_p_error(QQs, visited_states, neighbour_states, params, full_h
 
                     ## FAKE DATA
                     # Fake data
+                    push!(ls, IDV[prb][s][1])
                     a_fake = sample_action(x_subj, QQs[subj][prb][r][i])
                     s_fake = ns[a_fake]
                     push!(fake_subj_dict_qs[prb][r], full_heur_dict[string(s_fake)][heur])
@@ -454,7 +464,7 @@ function calculate_p_error(QQs, visited_states, neighbour_states, params, full_h
         end
         fake_qqs[subj] = fake_subj_dict_qs
     end
-    return error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs
+    return ls, error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs
 end
 
 ### FANCY ERROR BARS
@@ -510,7 +520,7 @@ subjs = collect(keys(data));
 full_heur_dict_opt = load("data/processed_data/full_heur_dict_opt.jld2");
 
 
-qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=4);
+qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=7);
 
 nnn = 0
 for subj in subjs
@@ -548,7 +558,7 @@ for i in 1:42
     fit2 += subject_fit(params[i, :], qqs[subjs[i]], QQs[subjs[i]])
 end
 
-error_l_data, error_a_data, error_l_model2, error_a_model2, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict_opt);
+ls2, error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict_opt);
 error_l_data, error_a_data, error_l_model3, error_a_model3, chance_l, chance_a = simulate_rollouts([-2.0, 10000.0], visited_states, graphs_prb, solutions_prb);
 
 error_l_data_qb, av_subj, av_bin_l = quantile_binning(error_l_data, bounds=true);

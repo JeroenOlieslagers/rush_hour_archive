@@ -1,0 +1,8 @@
+{"cars": 
+    [
+        {"player": false, "position": 3, "length": 3, "id": "0", "orientation": "vertical"}, 
+        {"player": false, "position": 11, "length": 2, "id": "1", "orientation": "vertical"}, 
+        {"player": false, "position": 21, "length": 2, "id": "2", "orientation": "horizontal"}, 
+        {"player": true, "position": 12, "length": 2, "id": "r", "orientation": "horizontal"}
+    ], 
+"id": "exandor"}

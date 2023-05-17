@@ -615,7 +615,7 @@ function draw_prb(prb)
     draw_board(arr)
 end
 
-function draw_board(arr; alpha_map=[])
+function draw_board(arr; alpha_map=[], sp=nothing)
     """
     Draws board state as heatmap with custom colormap
     """
@@ -634,14 +634,26 @@ function draw_board(arr; alpha_map=[])
     for i in eachindex(alpha_map)
         cmap = @set cmap[alpha_map[i]+1].alpha = 0.3
     end
-    heatmap(arr, c = cmap, legend = false, yflip = true, xmirror=true, framestyle = :box, size=(200, 200), dpi=300)
-    vline!(1.5:5.5, c=:black, linewidth=0.2)
-    hline!(1.5:5.5, c=:black, linewidth=0.2)
-    for c in sort(unique(arr))[2:end]
-        idxs = findall(x->x==c, arr)
-        l = length(idxs)
-        s = sum(idxs)
-        annotate!(s[2]/l, s[1]/l, text(c, :white, 20))
+    if sp === nothing
+        heatmap(arr, c = cmap, legend = false, yflip = true, xmirror=true, framestyle = :box, size=(200, 200), dpi=300)
+        vline!(1.5:5.5, c=:black, linewidth=0.2)
+        hline!(1.5:5.5, c=:black, linewidth=0.2)
+        for c in sort(unique(arr))[2:end]
+            idxs = findall(x->x==c, arr)
+            l = length(idxs)
+            s = sum(idxs)
+            annotate!(s[2]/l, s[1]/l, text(c, :white, 20))
+        end
+    else
+        heatmap!(arr, c = cmap, sp=sp, legend = nothing, yflip = true, xmirror=true, framestyle = :box)
+        vline!(1.5:5.5, sp=sp, c=:black, linewidth=0.2, legend=nothing)
+        hline!(1.5:5.5, sp=sp, c=:black, linewidth=0.2, legend=nothing)
+        for c in sort(unique(arr))[2:end]
+            idxs = findall(x->x==c, arr)
+            l = length(idxs)
+            s = sum(idxs)
+            annotate!(s[2]/l, s[1]/l, sp=sp, text(c, :white, 20), legend=nothing)
+        end
     end
     plot!()
 end
