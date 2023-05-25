@@ -327,6 +327,36 @@ function blocked_by(arr, car)
     return [car_id for car_id in uniq if !(car_id in [0, id])]
 end
 
+function blocked_by_amount(arr, car)
+    """
+    Calculates which cars are blocked by given car and how far they are
+    """
+    blockages = Vector{Tuple{Int, Int}}()
+    # Get row/col
+    row = get_1d_arr(arr, car)
+    # Get id
+    id = car.id
+    # Split row/col
+    idx = findfirst(x -> x == id, row)
+    if id != 9
+        # Get backward moves
+        b = reverse(@view row[1:idx-1])
+        for (m, pos) in enumerate(b)
+            if pos != 0
+                push!(blockages, (pos, m))
+            end
+        end
+    end
+    # Get forward moves
+    f = @view row[idx+car.len:end]
+    for (m, pos) in enumerate(f)
+        if pos != 0
+            push!(blockages, (pos, m))
+        end
+    end
+    return blockages
+end
+
 function get_mag(board::Board, arr)
     """
     Calculates macro-action graph (MAG)
@@ -395,6 +425,34 @@ function move_blocked_by(car, m, arr)
     return unique(blockages)
 end
 
+function possible_moves(arr, car)
+    """
+    Returns car indices that are blocked by move m from car
+    """
+    # Get row/col
+    row = get_1d_arr(arr, car)
+    # Get car position in row
+    pos = car.is_horizontal ? car.x : car.y
+    lb = 0
+    ub = 6
+    for c in unique(row)
+        if c ∉ [0, car.id]
+            cnt = count(x->x==c, row)
+            if cnt > 1
+                fst = findfirst(x->x==c, row)
+                if fst < pos
+                    lb += cnt
+                else
+                    ub -= cnt
+                end
+            end
+        end
+    end
+    moves = collect(lb-(pos-1):ub-(pos-1+car.len))
+    deleteat!(moves, moves .== 0)
+    return moves
+end
+
 function moves_that_unblock(car1, car2, arr; move_amount=nothing)
     """
     Returns list of all moves by car2 that move it out of car1's way
@@ -414,11 +472,11 @@ function moves_that_unblock(car1, car2, arr; move_amount=nothing)
     if !(car1.is_horizontal ⊻ car2.is_horizontal)
         pos1 = car1.is_horizontal ? car1.x : car1.y
         for move in moves
-            if (pos2+move >= pos1+move_amount+car2.len-1) && move > 0 && move_amount > 0
+            if (pos2+move >= pos1+move_amount+car1.len) && move > 0 && move_amount > 0
                 blocks = move_blocked_by(car2, move, arr)
                 push!(possible_moves, move=>length(blocks))
                 push!(blockages, move=>blocks)
-            elseif (pos2+move <= pos1+move_amount-(car2.len-1)) && move < 0 && move_amount < 0
+            elseif (pos2+move <= pos1+move_amount-car2.len) && move < 0 && move_amount < 0
                 blocks = move_blocked_by(car2, move, arr)
                 push!(possible_moves, move=>length(blocks))
                 push!(blockages, move=>blocks)

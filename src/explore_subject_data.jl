@@ -119,7 +119,8 @@ function move_hist(p1, p2, actions, move, opt, s, subind, inds)
     display(plot!())
 end
 
-ps, pps, acs, ops, movs, js, ss = get_errors(params1, params, states_all, trials_all, actions_all, moves_all, opt_all, d_goal_all, n_a_all);
+ps, pps, acs, blcks, ungs, diffns, ops, op_inds, movs, mov_parents, mov_inds, js, ss, all_prbs, all_subjs = get_errors(paramss, params1, states_all, trials_all, actions_all, blockages_all, ungreen_all, diff_nodes_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all);
+
 
 inds = reverse(sortperm(js))
 ind = inds[1]
@@ -128,7 +129,21 @@ move_9 = [2, 4]
 good = [9, 11, 12]
 bad = [15, 20]
 
-move_hist(ps, pps, acs, movs, ops, ss, extra_plan, inds)
+move_hist(ps, pps, acs, movs, ops, ss, [1, 2], inds)
+
+
+ll1, ll2, ll3, cor1, cor2 = 0, 0, 0, 0, 0
+for i in eachindex(ps)
+    N = length(ps[i])
+    ll1 += ps[i][mov_inds[i]]
+    ll2 += pps[i][mov_inds[i]]
+    ll3 += 1/N
+    if wsample(1:N, ps[i]) in op_inds[i]
+        if wsample(1:N, pps[i]) ∉ op_inds[i]
+            cor2 += 1
+        end
+    end
+end
 
 
 # many_move_hist(prbs[1:18]);

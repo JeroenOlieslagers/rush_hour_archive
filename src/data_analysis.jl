@@ -641,83 +641,83 @@ function plot_puzzle_timeline(puzzle, visited_states, IDV; sp=nothing)
     end
 end
 
-states = BigInt[]
-push!(states, visited_states[subj][prb][1][1])
-for i in 1:10000
-    push!(states, sample(graphs_prb[prb][states[end]]))
-    if states[end] in solutions_prb[prb]
-        break
-    end
-end
+# states = BigInt[]
+# push!(states, visited_states[subj][prb][1][1])
+# for i in 1:10000
+#     push!(states, sample(graphs_prb[prb][states[end]]))
+#     if states[end] in solutions_prb[prb]
+#         break
+#     end
+# end
 
 
-x, y = trajectory(visited_states[subj], IDV);
-x_rand, y_rand = trajectory_rand(states, IDV, prb);
+# x, y = trajectory(visited_states[subj], IDV);
+# x_rand, y_rand = trajectory_rand(states, IDV, prb);
 
-plot!(x_rand, y_rand, c=:red, alpha=0.5, label=nothing)
-plot!(x[1], y[1], c=:blue, alpha=0.5,label=nothing)
+# plot!(x_rand, y_rand, c=:red, alpha=0.5, label=nothing)
+# plot!(x[1], y[1], c=:blue, alpha=0.5,label=nothing)
 
-for i in eachindex(x)
-    plot!(x[i] .+ 0.5, y[i] .+ 0.5, c=:blue, alpha=0.2, label=nothing)
-end
-plot!()
+# for i in eachindex(x)
+#     plot!(x[i] .+ 0.5, y[i] .+ 0.5, c=:blue, alpha=0.2, label=nothing)
+# end
+# plot!()
 
 
-graphs_prb = load("data/processed_data/graphs_prb.jld2")["data"];
-solutions_prb = load("data/processed_data/solutions_prb.jld2")["data"];
+# graphs_prb = load("data/processed_data/graphs_prb.jld2")["data"];
+# solutions_prb = load("data/processed_data/solutions_prb.jld2")["data"];
 
 
 optimal_a = load("data/processed_data/optimal_a.jld2");
 IDV = load("data/processed_data/IDV.jld2");
-A, opt_L, opt, opt_L_av, opt_av, opt_dict, joint = plot_optimal_action_fraction(IDV, optimal_a; visited_states=visited_states);
+# A, opt_L, opt, opt_L_av, opt_av, opt_dict, joint = plot_optimal_action_fraction(IDV, optimal_a; visited_states=visited_states);
 
 
-lim_A = maximum(A)+1
-lim_opt = maximum(opt)+1
-lim_opt_L = maximum(opt_L)+1
-lim = maximum([lim_A, lim_opt])
-histogram2d(A, opt, bins=(lim_A, lim_opt), xlim=(1, lim), ylim=(1, lim), grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("|A_\\texttt{opt}|"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
+# lim_A = maximum(A)+1
+# lim_opt = maximum(opt)+1
+# lim_opt_L = maximum(opt_L)+1
+# lim = maximum([lim_A, lim_opt])
+# histogram2d(A, opt, bins=(lim_A, lim_opt), xlim=(1, lim), ylim=(1, lim), grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("|A_\\texttt{opt}|"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
 
-plot!([1, lim], [1, lim], c=:red, label="Diagonal")
+# plot!([1, lim], [1, lim], c=:red, label="Diagonal")
 
-plot!((1:lim_A-1) .+ 0.5, opt_av, label="Average "*latexstring("|A_\\texttt{opt}|"), c=:blue)
+# plot!((1:lim_A-1) .+ 0.5, opt_av, label="Average "*latexstring("|A_\\texttt{opt}|"), c=:blue)
 
-histogram2d(A, opt_L, bins=(lim_A, lim_opt_L), xlim=(1, lim_A), ylim=(1, lim_opt_L), grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(400, 400))
-plot!((1:lim_A-1) .+ 0.5, opt_L_av, label="Average "*latexstring("L_\\texttt{opt}"), c=:blue)
+# histogram2d(A, opt_L, bins=(lim_A, lim_opt_L), xlim=(1, lim_A), ylim=(1, lim_opt_L), grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(400, 400))
+# plot!((1:lim_A-1) .+ 0.5, opt_L_av, label="Average "*latexstring("L_\\texttt{opt}"), c=:blue)
 
-prb_states = Dict{String, Array}()
-for prbb in prbbs
-    prb_states[prbb] = [visited_states[subjs[9]][prbb][end]]
-end
+# prb_states = Dict{String, Array}()
+# for prbb in prbbs
+#     prb_states[prbb] = [visited_states[subjs[9]][prbb][end]]
+# end
 
-xx = []
-yy = []
-for prb in prbs
-    for subj in subjs
-        if prb in keys(visited_states[subj])
-            push!(xx, IDV[prb][visited_states[subj][prb][1][1]][2])
-            push!(yy, IDV[prb][visited_states[subj][prb][1][1]][1])
-            break
-        end
-    end
-end
+# xx = []
+# yy = []
+# for prb in prbs
+#     for subj in subjs
+#         if prb in keys(visited_states[subj])
+#             push!(xx, IDV[prb][visited_states[subj][prb][1][1]][2])
+#             push!(yy, IDV[prb][visited_states[subj][prb][1][1]][1])
+#             break
+#         end
+#     end
+# end
 
-x, y = trajectory(prb_states, IDV)
+# x, y = trajectory(prb_states, IDV)
 
-marginal_histogram(A, opt_L, bins=(lim_A, lim_opt_L), xlim=(1, lim_A), ylim=(1, lim_opt_L), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), size=(400, 400))
-scatter!(xx, yy, sp=2, c=:gray, markersize=1, label=nothing)
-plot!(x[1], y[1], label="Puzzle 1", sp=2, c=palette(:default)[1],foreground_color_legend = nothing)
-scatter!([x[1][1]], [y[1][1]], sp=2, c=palette(:default)[1], label=nothing)
-plot!(x[4], y[4], label="Puzzle 2", sp=2, c=palette(:default)[2])
-scatter!([x[4][1]], [y[4][1]], sp=2, c=palette(:default)[2], label=nothing)
-plot!(x[2], y[2], label="Puzzle 3", sp=2, c=palette(:default)[3])
-scatter!([x[2][1]], [y[2][1]], sp=2, c=palette(:default)[3], label=nothing)
-plot!(x[3], y[3], label="Puzzle 4", sp=2, c=palette(:default)[4])
-scatter!([x[3][1]], [y[3][1]], sp=2, c=palette(:default)[4], label=nothing)
-scatter!([],[],sp=2,c=:gray,label="Initial states",mc=:white, msc=:black)
+# marginal_histogram(A, opt_L, bins=(lim_A, lim_opt_L), xlim=(1, lim_A), ylim=(1, lim_opt_L), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), size=(400, 400))
+# scatter!(xx, yy, sp=2, c=:gray, markersize=1, label=nothing)
+# plot!(x[1], y[1], label="Puzzle 1", sp=2, c=palette(:default)[1],foreground_color_legend = nothing)
+# scatter!([x[1][1]], [y[1][1]], sp=2, c=palette(:default)[1], label=nothing)
+# plot!(x[4], y[4], label="Puzzle 2", sp=2, c=palette(:default)[2])
+# scatter!([x[4][1]], [y[4][1]], sp=2, c=palette(:default)[2], label=nothing)
+# plot!(x[2], y[2], label="Puzzle 3", sp=2, c=palette(:default)[3])
+# scatter!([x[2][1]], [y[2][1]], sp=2, c=palette(:default)[3], label=nothing)
+# plot!(x[3], y[3], label="Puzzle 4", sp=2, c=palette(:default)[4])
+# scatter!([x[3][1]], [y[3][1]], sp=2, c=palette(:default)[4], label=nothing)
+# scatter!([],[],sp=2,c=:gray,label="Initial states",mc=:white, msc=:black)
 
 
-heatmap((joint .% 1.0)', color=cgrad(:grays, rev=true), xlim=(0, lim_A), ylim=(0, lim_opt_L), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), size=(400, 400))
+# heatmap((joint .% 1.0)', color=cgrad(:grays, rev=true), xlim=(0, lim_A), ylim=(0, lim_opt_L), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), size=(400, 400))
 
 function twod_colormap(X)
     flat = vcat(X...)
@@ -825,12 +825,12 @@ end
 
 #scatter(A, opt_L, markershape=:rect, color=:black, markersize=5, xlim=(0, lim_A), ylim=(0, lim_opt_L), ylabel=latexstring("L_\\texttt{opt}"), xlabel=latexstring("|A|"), size=(350, 500))
 
-histogram2d(A, opt ./ A, grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("\\frac{|A_\\texttt{opt}|}{|A|}"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
-plot!(1:lim-1, 1 ./ collect(1:lim-1), c=:red, label=latexstring("1/|A|"))
-plot!(2:lim-1, 2 ./ collect(2:lim-1), c=:red, label=latexstring("2/|A|"))
-plot!(3:lim-1, 3 ./ collect(3:lim-1), c=:red, label=latexstring("3/|A|"))
-plot!(4:lim-1, 4 ./ collect(4:lim-1), c=:red, label=latexstring("4/|A|"))
-plot!(1:lim-1, opt_av ./ collect(1:lim-1), label=latexstring("\\mathbb{E}[|A_\\texttt{opt}|/|A|]"), c=:blue)
+# histogram2d(A, opt ./ A, grid=false, color=cgrad(:grays, rev=true), ylabel=latexstring("\\frac{|A_\\texttt{opt}|}{|A|}"), xlabel=latexstring("|A|"), colorbar_title="\nCounts", left_margin = 3Plots.mm, right_margin = 7Plots.mm, size=(500, 400))
+# plot!(1:lim-1, 1 ./ collect(1:lim-1), c=:red, label=latexstring("1/|A|"))
+# plot!(2:lim-1, 2 ./ collect(2:lim-1), c=:red, label=latexstring("2/|A|"))
+# plot!(3:lim-1, 3 ./ collect(3:lim-1), c=:red, label=latexstring("3/|A|"))
+# plot!(4:lim-1, 4 ./ collect(4:lim-1), c=:red, label=latexstring("4/|A|"))
+# plot!(1:lim-1, opt_av ./ collect(1:lim-1), label=latexstring("\\mathbb{E}[|A_\\texttt{opt}|/|A|]"), c=:blue)
 
 # av_subj, av_bins = quantile_binning(opt_dict; bins=6, bounds=true, lim=lim-1);
 # a_dict = quantile_binning(opt_dict; bins=6, lim=lim-1);

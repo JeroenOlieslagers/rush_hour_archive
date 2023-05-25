@@ -103,9 +103,66 @@ function new_draw_tree(tree, board, visited; highlight_node=nothing)
     return GraphViz.Graph(graph)
 end
 
+board = load_data("prb72800_14")
+make_move!(board, (2, -1))
+make_move!(board, (6, -1))
+make_move!(board, (7, -3))
+make_move!(board, (8, -1))
+make_move!(board, (3, 3))
+make_move!(board, (5, 3))
+make_move!(board, (8, 3))
+make_move!(board, (1, 3))
+
+board = load_data("prb26567_7")
+make_move!(board, (9, 2))
+make_move!(board, (7, 1))
+make_move!(board, (6, -1))
+make_move!(board, (1, -1))
+make_move!(board, (2, 2))
+
+board = load_data("prb55384_14")
+make_move!(board, (3, 1))
+make_move!(board, (9, 1))
+make_move!(board, (8, 4))
+make_move!(board, (9, -1))
+make_move!(board, (2, -1))
+make_move!(board, (3, -3))
+make_move!(board, (4, -3))
+
+board = load_data("prb23404_14")
+make_move!(board, (3, -1))
+make_move!(board, (1, 2))
+make_move!(board, (5, 2))
+make_move!(board, (2, 3))
+make_move!(board, (9, 1))
+make_move!(board, (4, -4))
+make_move!(board, (9, -1))
+make_move!(board, (2, 1))
+
+board = load_data("prb15595_16")
+make_move!(board, (6, -1))
+make_move!(board, (5, 3))
+make_move!(board, (4, 1))
+make_move!(board, (7, -1))
+make_move!(board, (2, 2))
+make_move!(board, (9, 1))
+make_move!(board, (3, -2))
+
+board = load_data("prb44171_16")
+make_move!(board, (5, -2))
+make_move!(board, (8, 1))
+make_move!(board, (6, -1))
+make_move!(board, (3, 3))
+make_move!(board, (5, 3))
+make_move!(board, (6, 1))
+make_move!(board, (7, 4))
+make_move!(board, (6, -1))
+make_move!(board, (4, -1))
+
 board = load_data(prbs[1])
+
 draw_board(get_board_arr(board))
-tree, visited, actions, trials, parents, move_parents, h = new_and_or_tree(board);
+tree, visited, actions, blockages, trials, parents, move_parents, h = new_and_or_tree(board);
 g = new_draw_tree(tree, board, visited)
 
 actions, trials, visited, timeline, draw_tree_nodes = and_or_tree(board);
