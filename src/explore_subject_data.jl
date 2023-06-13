@@ -109,7 +109,7 @@ function move_hist(p1, p2, actions, move, opt, s, subind, inds)
         for mm in opt[inds[subind[i]]]
             push!(optz, create_move_icon(mm, board))
         end
-        bar!(movez, p1[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="AND-OR", legend=true)
+        bar!(movez, p1[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="AND-OR", legend=true, xticks=:all)
         bar!(movez, p2[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="Eureka", legend=true)
         bar!(optz, ones(length(optz)) ./ length(optz), alpha=0.5, sp=1 + (i-1)*2, label="Optimal", bar_width=0.5, legend=true)
         bar!([create_move_icon(move[inds[subind[i]]], board)], [1], sp=1 + (i-1)*2, label="Human", bar_width=0.2, c=:black, legend=true)
@@ -119,17 +119,17 @@ function move_hist(p1, p2, actions, move, opt, s, subind, inds)
     display(plot!())
 end
 
-ps, pps, acs, blcks, ungs, diffns, ops, op_inds, movs, mov_parents, mov_inds, js, ss, all_prbs, all_subjs = get_errors(paramss, params1, states_all, trials_all, actions_all, blockages_all, ungreen_all, diff_nodes_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all);
+ps, pps, ppps, pppps, acs, blcks, ungs, diffns, ops, op_inds, movs, mov_parents, mov_inds, js, ss, all_prbs, all_subjs = get_errors(paramss, params3, states_all, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, ac_count_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all, ds=dss[5]);
 
 
-inds = reverse(sortperm(js))
+indss = reverse(sortperm(js))
 ind = inds[1]
 extra_plan = [1, 3, 7, 8, 10, 18]
 move_9 = [2, 4]
 good = [9, 11, 12]
 bad = [15, 20]
 
-move_hist(ps, pps, acs, movs, ops, ss, [1, 2], inds)
+move_hist(ps, pps, acs, movs, ops, ss, [1, 2, 3, 4, 5], indss)
 
 
 ll1, ll2, ll3, cor1, cor2 = 0, 0, 0, 0, 0

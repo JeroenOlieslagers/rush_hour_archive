@@ -96,3 +96,30 @@ function generate_fake_data(M, prbs, x, R, full_heur_dict; heur=4)
     return qqs, QQs, visited_states, neighbour_states, cnt
 end
 
+function fake_and_or_data(params, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, parents_all, move_parents_all, h_all, moves_all)
+    M = length(moves_all)
+    fake_moves_all = Dict{String, Dict{String, Vector{Tuple{Int, Int}}}}()
+    for (m, subj) in enumerate(keys(moves_all))
+        β₁, β₂, β₃, β₄, β₅, β₆, k, λ = params[m, :]
+        fake_moves_subj = Dict{String, Vector{Tuple{Int, Int}}}()
+        for prb in keys(moves_all[subj])
+            fake_moves = Vector{Tuple{Int, Int}}()
+            for n in eachindex(moves_all[subj][prb])
+                trials = trials_all[subj][prb][n]
+                actions = actions_all[subj][prb][n]
+                action_lengths = action_lengths_all[subj][prb][n]
+                blockages = blockages_all[subj][prb][n]
+                ungreen = ungreen_all[subj][prb][n]
+                diff_nodes = diff_nodes_all[subj][prb][n]
+                parents = parents_all[subj][prb][n]
+                move_parents = move_parents_all[subj][prb][n]
+                h = h_all[subj][prb][n]
+                p = bfs_prev_move_probability(trials, actions, action_lengths, blockages, ungreen, diff_nodes, parents, move_parents, h, β₁, β₂, β₃, β₄, β₅, β₆, k, λ)
+                push!(fake_moves, wsample(actions, p))
+            end
+            fake_moves_subj[prb] = fake_moves
+        end
+        fake_moves_all[subjs[m]] = fake_moves_subj
+    end
+    return fake_moves_all
+end

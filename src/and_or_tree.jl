@@ -69,6 +69,7 @@ function new_and_or_tree(board; max_iter=1000, tree_only=false)
     visited = Vector{s_type}()
     parents_of_actions = Vector{s_type}()
     actions = Vector{Tuple{Int, Int}}()
+    repeated_actions = Vector{Tuple{Int, Int}}()
     blockages = Vector{Int}()
     trials = Vector{Int}()
     parents = DefaultDict{s_type, Vector{Tuple{s_type, Tuple{Int, Int}}}}([])
@@ -101,18 +102,21 @@ function new_and_or_tree(board; max_iter=1000, tree_only=false)
             else
                 parent_h = 0
             end
-            if length(cars) == 0 && move ∉ actions
-                if parent_h == 0
-                    hs[s_old] = 1
-                else
-                    hs[s_old] = parent_h + 1
+            if length(cars) == 0
+                push!(repeated_actions, move)
+                if move ∉ actions
+                    if parent_h == 0
+                        hs[s_old] = 1
+                    else
+                        hs[s_old] = parent_h + 1
+                    end
+                    push!(actions, move)
+                    push!(blockages, calculate_blockage_features(board, arr, move))
+                    push!(parents_of_actions, s_old)
+                    #push!(trials, i)
+                    # BFS trials
+                    push!(trials, f_new)
                 end
-                push!(actions, move)
-                push!(blockages, calculate_blockage_features(board, arr, move))
-                push!(parents_of_actions, s_old)
-                #push!(trials, i)
-                # BFS trials
-                push!(trials, f_new)
             else
                 if parent_h > 0
                     hs[s_old] = parent_h + 1
@@ -190,7 +194,7 @@ function new_and_or_tree(board; max_iter=1000, tree_only=false)
             h[a] = h[a][ind]
         end
     end
-    return tree, visited, actions, blockages, trials, parents_of_actions, move_parents, h
+    return tree, visited, actions, blockages, trials, parents_of_actions, move_parents, h, repeated_actions
 end
 
 
@@ -610,9 +614,9 @@ function fit_subj(x, trials_subj, actions_subj, action_lengths_subj, blockages_s
             m = moves_prb[n]
             opt = opt_prb[n]
             d_goal = d_goal_prb[n]
-            # if d_goal < 10
-            #     continue
-            # end
+            if d_goal > 3
+                continue
+            end
             p = bfs_prev_move_probability(trials, actions, action_lengths, blockages, ungreen, diff_nodes, parents, move_parents, h, β₁, β₂, β₃, β₄, β₅, β₆, k, λ)
             #p = probability_over_moves(trials, actions, γ, ϵ, β, λ)
             #p = eureka(actions, opt, d_goal, d, λ)
@@ -623,7 +627,7 @@ function fit_subj(x, trials_subj, actions_subj, action_lengths_subj, blockages_s
     return nll
 end
 
-function get_errors(params, params_a, states_all, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all; ds=collect(1:100))
+function get_errors(params, params_a, states_all, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, ac_count_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all; ds=collect(1:100))
     error_l_model = Dict{String, Array{Array{Int, 1}, 1}}()
     error_a_model = Dict{String, Array{Array{Int, 1}, 1}}()
     error_l_model_a = Dict{String, Array{Array{Int, 1}, 1}}()
@@ -631,7 +635,7 @@ function get_errors(params, params_a, states_all, trials_all, actions_all, actio
     error_l_data = Dict{String, Array{Array{Int, 1}, 1}}()
     error_a_data = Dict{String, Array{Array{Int, 1}, 1}}()
 
-    ps, pps, acs, blcks, ungs, diffns, ops, op_inds, movs, mov_parents, mov_inds, js, ss, all_prbs, all_subjs = [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
+    ps, pps, ppps, pppps, acs, blcks, ungs, diffns, ops, op_inds, movs, mov_parents, mov_inds, js, ss, all_prbs, all_subjs = [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
     for (m, subj) in enumerate(keys(trials_all))
         x = params[m, :]
         β₁, β₂, β₃, β₄, β₅, β₆, k, λ1 = x
@@ -658,6 +662,7 @@ function get_errors(params, params_a, states_all, trials_all, actions_all, actio
                 action_lengths = action_lengths_all[subj][prb][i]
                 ungreen = ungreen_all[subj][prb][i]
                 diff_nodes = diff_nodes_all[subj][prb][i]
+                ac_count = ac_count_all[subj][prb][i]
                 parents = parents_all[subj][prb][i]
                 move_parents = move_parents_all[subj][prb][i]
                 h = h_all[subj][prb][i]
@@ -671,7 +676,7 @@ function get_errors(params, params_a, states_all, trials_all, actions_all, actio
                 # ss = sum(trials .== 1000000)
                 # ss = ss > 0 ? ss : length(trials)
                 #p = probability_over_moves(trials, actions, γ, ϵ, 0.0, λ)
-                p = bfs_prev_move_probability(trials, actions ,action_lengths, blockages, ungreen, diff_nodes, parents, move_parents, h, β₁, β₂, β₃, β₄, β₅, β₆, k, λ1)
+                p = bfs_prev_move_probability(trials, actions, ac_count, blockages, ungreen, diff_nodes, parents, move_parents, h, β₁, β₂, β₃, β₄, β₅, β₆, k, λ1)
                 model_a = wsample(actions, p)
                 if model_a ∉ opt
                     # if d_goal == 2
@@ -711,9 +716,16 @@ function get_errors(params, params_a, states_all, trials_all, actions_all, actio
                     push!(error_l_model_a[subj][d_goal], 0)
                     push!(error_a_model_a[subj][n_a], 0)
                 end
+                ppp = zeros(length(p))
+                ppp[findfirst(x->x==move, actions)] = 1.0
+                pppp = zeros(length(p))
+                pppp[findall(x->x∈opt, actions)] .= 1.0
+                pppp ./= sum(pppp)
 
                 push!(ps, p)
                 push!(pps, pp)
+                push!(ppps, ppp)
+                push!(pppps, pppp)
                 push!(acs, actions)
                 push!(blcks, blockages)
                 push!(ungs, ungreen)
@@ -731,15 +743,15 @@ function get_errors(params, params_a, states_all, trials_all, actions_all, actio
                     end
                 end
                 push!(op_inds, op_ind)
-                push!(js, js_divergence(p, pp))
+                push!(js, js_divergence(p, pppp))
                 push!(ss, state)
                 push!(all_prbs, prb)
                 push!(all_subjs, subj)
             end
         end
     end
-    #return ps, pps, acs, blcks, ungs, diffns, ops, op_inds, movs, mov_parents, mov_inds, js, ss, all_prbs, all_subjs
-    return error_l_model, error_a_model, error_l_model_a, error_a_model_a, error_l_data, error_a_data
+    return ps, pps, ppps, pppps, acs, blcks, ungs, diffns, ops, op_inds, movs, mov_parents, mov_inds, js, ss, all_prbs, all_subjs
+    #return error_l_model, error_a_model, error_l_model_a, error_a_model_a, error_l_data, error_a_data
 end
 
 function get_and_or_tree_data(data)
@@ -752,6 +764,9 @@ function get_and_or_tree_data(data)
     blockages_all = Dict{String, Dict{String, Vector{Vector{Int}}}}()
     ungreen_all = Dict{String, Dict{String, Vector{Vector{Int}}}}()
     diff_nodes_all = Dict{String, Dict{String, Vector{Vector{Int}}}}()
+    new_move_height_all = Dict{String, Dict{String, Vector{Vector{Int}}}}()
+    new_move_cand_all = Dict{String, Dict{String, Vector{Vector{Vector{Tuple{Int, Int}}}}}}()
+    ac_count_all = Dict{String, Dict{String, Vector{Vector{Int}}}}()
     parents_all = Dict{String, Dict{String, Vector{Vector{s_type}}}}()
     move_parents_all = Dict{String, Dict{String, Vector{Vector{Tuple{Int, Int}}}}}()
     h_all = Dict{String, Dict{String, Vector{Vector{Int}}}}()
@@ -772,6 +787,9 @@ function get_and_or_tree_data(data)
         blockages_all_prb = Dict{String, Vector{Vector{Int}}}()
         ungreen_all_prb = Dict{String, Vector{Vector{Int}}}()
         diff_nodes_all_prb = Dict{String, Vector{Vector{Int}}}()
+        new_move_height_all_prb = Dict{String, Vector{Vector{Int}}}()
+        new_move_cand_all_prb = Dict{String, Vector{Vector{Vector{Tuple{Int, Int}}}}}()
+        ac_count_all_prb = Dict{String, Vector{Vector{Int}}}()
         parents_all_prb = Dict{String, Vector{Vector{s_type}}}()
         move_parents_all_prb = Dict{String, Vector{Vector{Tuple{Int, Int}}}}()
         h_all_prb = Dict{String, Vector{Vector{Int}}}()
@@ -792,6 +810,9 @@ function get_and_or_tree_data(data)
             blockages_state = Vector{Vector{Int}}()
             ungreen_state = Vector{Vector{Int}}()
             diff_nodes_state = Vector{Vector{Int}}()
+            new_move_height_state = Vector{Vector{Int}}()
+            new_move_cand_state = Vector{Vector{Vector{Tuple{Int, Int}}}}()
+            ac_count_state = Vector{Vector{Int}}()
             parents_state = Vector{Vector{s_type}}()
             move_parents_state = Vector{Vector{Tuple{Int, Int}}}()
             h_state = Vector{Vector{Int}}()
@@ -823,14 +844,32 @@ function get_and_or_tree_data(data)
                 end
                 # Get AND/OR tree
                 #actions, trials, visited, timeline, draw_tree_nodes = and_or_tree(board)
-                tree, visited, actions, blockages, trials, parents, move_parents, h = new_and_or_tree(board)
+                tree, visited, actions, blockages, trials, parents, move_parents, h, repeated_actions = new_and_or_tree(board)
                 ungreen = zeros(length(actions))
                 diff_nodes = zeros(length(actions))
+                new_move_height = zeros(length(actions))
+                new_move_cand = [[] for _ in eachindex(actions)]
+                ac_count = zeros(length(actions))
                 for i in eachindex(actions)
                     make_move!(board, actions[i])
-                    tree_n, _, actions_n, _, _, _, _, _ = new_and_or_tree(board; tree_only=true)
+                    tree_n, _, actions_n, _, trials_n, _, _, _ = new_and_or_tree(board; tree_only=true)
+                    # trialz, actionz = [], []
+                    # for (n, a) in enumerate(actions_n)
+                    #     if a[1] != actions[i][1] && a ∉ actions
+                    #         push!(trialz, trials_n[n])
+                    #         push!(actionz, a)
+                    #     end
+                    # end
+                    # if isempty(trialz)
+                    #     new_move_height[i] = 20#maximum(trials) + 1
+                    #     new_move_cand[i] = []
+                    # else
+                    #     new_move_height[i] = minimum(trialz)
+                    #     new_move_cand[i] = actionz[findall(x->x==minimum(trialz), trialz)]
+                    # end
                     ungreen[i] = length(actions) - length(actions_n)
                     diff_nodes[i] = length(tree) - length(tree_n)
+                    ac_count[i] = count(x->x==actions[i], repeated_actions)
                     undo_moves!(board, [actions[i]])
                 end
                 # Incorporate other moves
@@ -849,6 +888,9 @@ function get_and_or_tree_data(data)
                 push!(blockages_state, blockages)
                 push!(ungreen_state, ungreen)
                 push!(diff_nodes_state, diff_nodes)
+                push!(new_move_height_state, new_move_height)
+                push!(new_move_cand_state, new_move_cand)
+                push!(ac_count_state, ac_count)
                 push!(parents_state, parents)
                 if Tuple(move) in keys(move_parents)
                     push!(h_state, h[Tuple(move)])
@@ -875,6 +917,9 @@ function get_and_or_tree_data(data)
             blockages_all_prb[prb] = blockages_state
             ungreen_all_prb[prb] = ungreen_state
             diff_nodes_all_prb[prb] = diff_nodes_state
+            new_move_height_all_prb[prb] = new_move_height_state
+            new_move_cand_all_prb[prb] = new_move_cand_state
+            ac_count_all_prb[prb] = ac_count_state
             parents_all_prb[prb] = parents_state
             move_parents_all_prb[prb] = move_parents_state
             h_all_prb[prb] = h_state
@@ -892,6 +937,9 @@ function get_and_or_tree_data(data)
         blockages_all[subj] = blockages_all_prb
         ungreen_all[subj] = ungreen_all_prb
         diff_nodes_all[subj] = diff_nodes_all_prb
+        new_move_height_all[subj] = new_move_height_all_prb
+        new_move_cand_all[subj] = new_move_cand_all_prb
+        ac_count_all[subj] = ac_count_all_prb
         parents_all[subj] = parents_all_prb
         move_parents_all[subj] = move_parents_all_prb
         h_all[subj] = h_all_prb
@@ -902,7 +950,7 @@ function get_and_or_tree_data(data)
         white_size_all[subj] = white_size_all_prb
         red_size_all[subj] = red_size_all_prb
     end
-    return states_all, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all, white_size_all, red_size_all
+    return states_all, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, ac_count_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all, white_size_all, red_size_all
 end
 
 function dict_of_dicts_to_arr(dict)
@@ -953,6 +1001,16 @@ function evaluate_params(params, trials_all, actions_all, action_lengths_all_nor
     return fitness
 end
 
+function summary_RMSE(error_data, error_model)
+    rmse = 0
+    for subj in keys(error_data)
+        for i in eachindex(error_data[subj])
+            rmse += sum(xor.(error_data[subj][i], error_model[subj][i]))
+        end
+    end
+    return rmse
+end
+
 n_a = dict_of_dicts_to_arr(n_a_all);
 d_goal = dict_of_dicts_to_arr(d_goal_all);
 white_size = dict_of_dicts_to_arr(white_size_all);
@@ -966,11 +1024,12 @@ actions, trials, visited, timeline, draw_tree_nodes = and_or_tree(board)
 g = draw_tree(draw_tree_nodes)
 probability_over_moves(trials, actions, 0.1, 1.0, 0.0, 0.0)
 
-states_all, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all, white_size_all, red_size_all = get_and_or_tree_data(data);
+states_all, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, ac_count_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all, white_size_all, red_size_all = get_and_or_tree_data(data);
 action_lengths_all_norm = z_score_dict(action_lengths_all);
 blockages_all_norm = z_score_dict(blockages_all);
 ungreen_all_norm = z_score_dict(ungreen_all);
 diff_nodes_all_norm = z_score_dict(diff_nodes_all);
+ac_count_all_norm = z_score_dict(ac_count_all);
 
 #0,7 hard
 #3,4 full
@@ -980,43 +1039,47 @@ diff_nodes_all_norm = z_score_dict(diff_nodes_all);
 # ,9 fix lambda 0.01
 # ,10 fake data fit
 # ,11 fake data gen w 0 param fit
+# ,12 1-3 d fit
+# ,11 fake data gen w k=1 param fit
 Ps = zeros(100, 42, 8);
 fs = zeros(100);
 for i in 1:100
-    fitness10, params10 = analyze_all_trees(trials_all, actions_all, action_lengths_all_norm, blockages_all_norm, ungreen_all_norm, diff_nodes_all_norm, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all);
+    fitness100, params100 = analyze_all_trees(trials_all, actions_all, action_lengths_all_norm, blockages_all_norm, ungreen_all_norm, diff_nodes_all_norm, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all);
     Ps[i, :, :] = params10
     fs[i] = sum(fitness10)
 end
 
 fake_moves_all = fake_and_or_data(paramss, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, parents_all, move_parents_all, h_all, moves_all)
-fitness11, params11 = analyze_all_trees(trials_all, actions_all, action_lengths_all_norm, blockages_all_norm, ungreen_all_norm, diff_nodes_all_norm, parents_all, move_parents_all, h_all, fake_moves_all, opt_all, d_goal_all);
+fitness12, params12 = analyze_all_trees(trials_all, actions_all, action_lengths_all_norm, blockages_all_norm, ungreen_all_norm, diff_nodes_all_norm, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all);
 
 fitness = evaluate_params(params8, trials_all, actions_all, action_lengths_all_norm, blockages_all_norm, ungreen_all_norm, diff_nodes_all_norm, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all);
 
 eureka_params = [params1, params2, params0, params3];
 and_or_params = [params6, params5, params7, params4];
 category = ["very_easy", "easy", "hard", "full"];
-dss = [collect(1:2), collect(1:6), collect(10:40), collect(1:40)];
+dss = [collect(1:2), collect(1:6), collect(10:40), collect(1:40), collect(1:3)];
 
 # for i in 1:4
 #     for j in 1:1
 params_eur = eureka_params[i]
 params_ao = and_or_params[j]
-error_l_model1, error_a_model1, error_l_model, error_a_model, error_l_data, error_a_data = get_errors(params11, eureka_params[4], states_all, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, parents_all, move_parents_all, h_all, fake_moves_all, opt_all, d_goal_all, n_a_all; ds=dss[4]);
+error_l_model1, error_a_model1, error_l_model, error_a_model, error_l_data, error_a_data = get_errors(params4, params3, states_all, trials_all, actions_all, action_lengths_all, blockages_all, ungreen_all, diff_nodes_all, parents_all, move_parents_all, h_all, moves_all, opt_all, d_goal_all, n_a_all; ds=dss[4]);
+summary_RMSE(error_l_data, error_l_model1)
+summary_RMSE(error_l_data, error_l_model)
 
 begin
 i = 4;
-error_l_data_qb, av_subj, av_bin_l = quantile_binning(error_l_data, bounds=true, bins=minimum([7, length(ds[i])]));
+error_l_data_qb, av_subj, av_bin_l = quantile_binning(error_l_data, bounds=true, bins=minimum([7, length(dss[i])]));
 error_a_data_qb, av_subj, av_bin_a = quantile_binning(error_a_data, bounds=true);
 mu_hat_bar_l_data, error_bar_l_data = get_errorbar(error_l_data_qb);
 mu_hat_bar_a_data, error_bar_a_data = get_errorbar(error_a_data_qb);
     
-error_l_model_qb1 = quantile_binning(error_l_model, bins=minimum([7, length(ds[i])]));
+error_l_model_qb1 = quantile_binning(error_l_model, bins=minimum([7, length(dss[i])]));
 error_a_model_qb1 = quantile_binning(error_a_model);
 mu_hat_bar_l_model1, error_bar_l_model1 = get_errorbar(error_l_model_qb1);
 mu_hat_bar_a_model1, error_bar_a_model1 = get_errorbar(error_a_model_qb1);
 
-error_l_model_qb2 = quantile_binning(error_l_model1, bins=minimum([7, length(ds[i])]));
+error_l_model_qb2 = quantile_binning(error_l_model1, bins=minimum([7, length(dss[i])]));
 error_a_model_qb2 = quantile_binning(error_a_model1);
 mu_hat_bar_l_model2, error_bar_l_model2 = get_errorbar(error_l_model_qb2);
 mu_hat_bar_a_model2, error_bar_a_model2 = get_errorbar(error_a_model_qb2);
@@ -1040,7 +1103,7 @@ plot!(av_bin_a, mu_hat_bar_a_model2, ribbon=2*error_bar_a_model2, sp=2, c=palett
 plot!(av_bin_a, mu_hat_bar_a_model2, ribbon=2*error_bar_a_model2, sp=2, c=palette(:default)[3], lw=3.0, label=nothing)
 plot!([], [], sp=2, c=palette(:default)[3], label=nothing, lw=10)
 
-plot!([], [], yerr=[], sp=1, c=:black, label="Fake data")
+plot!([], [], yerr=[], sp=1, c=:black, label="Data")
 plot!(av_bin_l, mu_hat_bar_l_data, bottom_margin=-4Plots.mm, yerr=2*error_bar_l_data, sp=1, ms=10, l=nothing, c=:black, markershape=:none, label=nothing, xlabel=latexstring("d_\\textrm{goal}"), ylabel=latexstring("p(\\textrm{error})"), xticks=round.(av_bin_l, digits=1))
 plot!(av_bin_l, mu_hat_bar_l_data, yerr=2*error_bar_l_data, sp=1, c=:transparent, msw=1, label=nothing)
 plot!(av_bin_a, mu_hat_bar_a_data, yerr=2*error_bar_a_data, sp=2, ms=10, l=nothing, c=:black, label=nothing, xlabel=latexstring("n_A"), ylabel=latexstring("p(\\textrm{error})"), xticks=round.(av_bin_a, digits=1))

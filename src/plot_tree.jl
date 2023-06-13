@@ -1,97 +1,107 @@
 using GraphViz, FileIO, ImageIO
 
-function draw_tree(draw_tree_nodes; highlight_node=nothing)
-    tree = """graph{layout="dot";"""
-    drawn = []
-    or_counter = 100000
-    child_drawn_counter = 1000000
-    highlighted = false
-    parents = collect(keys(draw_tree_nodes))
-    for (n, parent) in enumerate(parents)
-        if parent ∉ drawn
-            tree *= """ "$(parent)"[label="$(parent[1])"];"""
-            push!(drawn, parent)
-        end
-        children = draw_tree_nodes[parent]
-        chds = zeros(Int, length(children))
-        for (m, child) in enumerate(children)
-            if child in drawn
-                if child[1] == 'm'
-                    tree *= """ "$(child_drawn_counter)"[fixedsize=shape;shape=diamond;label="$(child[3:end])"fillcolor="lime";style=filled;height=.5;width=.5;];"""
-                else
-                    tree *= """ "$(child_drawn_counter)"[label="$(child[child[1]=='v' ? 2 : 1])"fillcolor="red";style=filled;];"""
-                end
-                chds[m] = child_drawn_counter
-                child_drawn_counter += 1
-            elseif child[1] == 'm'
-                if child == highlight_node
-                    highlighted = true
-                    tree *= """ "$(child)"[fixedsize=shape;shape=diamond;label="$(child[3:end])"fillcolor="magenta";style=filled;height=.5;width=.5;];"""
-                else
-                    tree *= """ "$(child)"[fixedsize=shape;shape=diamond;label="$(child[3:end])"fillcolor="lime";style=filled;height=.5;width=.5;];"""
-                end
-            elseif child[1] == 'v'#child ∉ parents
-                tree *= """ "$(child)"[label="$(child[2])"fillcolor="red";style=filled;];"""
-            elseif child[end] == '_'#child ∉ parents
-                tree *= """ "$(child)"[label="$(child[1])"fillcolor="red";style=filled;];"""
-            elseif n == length(draw_tree_nodes)
-                tree *= """ "$(child)"[label="$(child[1])"fillcolor="red";style=filled;];"""
-            else
-                tree *= """ "$(child)"[label="$(child[1])"];"""
-            end
-            push!(drawn, child)
-        end
-        childss = split(parent, "_")[2:end]
-        counter3 = 1
-        for childs in childss
-            if children[counter3][1] == 'm'
-                if chds[counter3] > 0
-                    tree *= """ "$(parent)"--"$(chds[counter3])";"""
-                else
-                    tree *= """ "$(parent)"--"$(children[counter3])";"""
-                end
-                or_counter += 1
-                counter3 += 1
-                continue
-            end
-            tree *= """ $(or_counter) [shape=diamond,style=filled,label="",height=.3,width=.3];"""
-            tree *= """ "$(parent)"--"$(or_counter)";"""
-            childs = split(childs, "")
-            for chld in childs
-                if chds[counter3] > 0
-                    tree *= """ "$(or_counter)"--"$(chds[counter3])";"""
-                else
-                    tree *= """ "$(or_counter)"--"$(children[counter3])";"""
-                end
-                counter3 += 1
-            end
-            or_counter += 1
-        end
-    end
-    if highlight_node !== nothing && !highlighted
-        tree *= """ "$(or_counter+1)"[label="$(highlight_node[2])"];"""
-        tree *= """ "$(highlight_node)"[fixedsize=shape;shape=diamond;label="$(highlight_node[3:end])"fillcolor="magenta";style=filled;height=.5;width=.5;];"""
-        tree *= """ "$(or_counter+1)"--"$(highlight_node)";"""
-    end
-    tree *= "}"
-    return GraphViz.Graph(tree)
-end
+# function draw_tree(draw_tree_nodes; highlight_node=nothing)
+#     tree = """graph{layout="dot";"""
+#     drawn = []
+#     or_counter = 100000
+#     child_drawn_counter = 1000000
+#     highlighted = false
+#     parents = collect(keys(draw_tree_nodes))
+#     for (n, parent) in enumerate(parents)
+#         if parent ∉ drawn
+#             tree *= """ "$(parent)"[label="$(parent[1])"];"""
+#             push!(drawn, parent)
+#         end
+#         children = draw_tree_nodes[parent]
+#         chds = zeros(Int, length(children))
+#         for (m, child) in enumerate(children)
+#             if child in drawn
+#                 if child[1] == 'm'
+#                     tree *= """ "$(child_drawn_counter)"[fixedsize=shape;shape=diamond;label="$(child[3:end])"fillcolor="lime";style=filled;height=.5;width=.5;];"""
+#                 else
+#                     tree *= """ "$(child_drawn_counter)"[label="$(child[child[1]=='v' ? 2 : 1])"fillcolor="red";style=filled;];"""
+#                 end
+#                 chds[m] = child_drawn_counter
+#                 child_drawn_counter += 1
+#             elseif child[1] == 'm'
+#                 if child == highlight_node
+#                     highlighted = true
+#                     tree *= """ "$(child)"[fixedsize=shape;shape=diamond;label="$(child[3:end])"fillcolor="magenta";style=filled;height=.5;width=.5;];"""
+#                 else
+#                     tree *= """ "$(child)"[fixedsize=shape;shape=diamond;label="$(child[3:end])"fillcolor="lime";style=filled;height=.5;width=.5;];"""
+#                 end
+#             elseif child[1] == 'v'#child ∉ parents
+#                 tree *= """ "$(child)"[label="$(child[2])"fillcolor="red";style=filled;];"""
+#             elseif child[end] == '_'#child ∉ parents
+#                 tree *= """ "$(child)"[label="$(child[1])"fillcolor="red";style=filled;];"""
+#             elseif n == length(draw_tree_nodes)
+#                 tree *= """ "$(child)"[label="$(child[1])"fillcolor="red";style=filled;];"""
+#             else
+#                 tree *= """ "$(child)"[label="$(child[1])"];"""
+#             end
+#             push!(drawn, child)
+#         end
+#         childss = split(parent, "_")[2:end]
+#         counter3 = 1
+#         for childs in childss
+#             if children[counter3][1] == 'm'
+#                 if chds[counter3] > 0
+#                     tree *= """ "$(parent)"--"$(chds[counter3])";"""
+#                 else
+#                     tree *= """ "$(parent)"--"$(children[counter3])";"""
+#                 end
+#                 or_counter += 1
+#                 counter3 += 1
+#                 continue
+#             end
+#             tree *= """ $(or_counter) [shape=diamond,style=filled,label="",height=.3,width=.3];"""
+#             tree *= """ "$(parent)"--"$(or_counter)";"""
+#             childs = split(childs, "")
+#             for chld in childs
+#                 if chds[counter3] > 0
+#                     tree *= """ "$(or_counter)"--"$(chds[counter3])";"""
+#                 else
+#                     tree *= """ "$(or_counter)"--"$(children[counter3])";"""
+#                 end
+#                 counter3 += 1
+#             end
+#             or_counter += 1
+#         end
+#     end
+#     if highlight_node !== nothing && !highlighted
+#         tree *= """ "$(or_counter+1)"[label="$(highlight_node[2])"];"""
+#         tree *= """ "$(highlight_node)"[fixedsize=shape;shape=diamond;label="$(highlight_node[3:end])"fillcolor="magenta";style=filled;height=.5;width=.5;];"""
+#         tree *= """ "$(or_counter+1)"--"$(highlight_node)";"""
+#     end
+#     tree *= "}"
+#     return GraphViz.Graph(tree)
+# end
 
-function new_draw_tree(tree, board, visited; highlight_node=nothing)
+function new_draw_tree(tree, board, root; visited=[], highlight_node=nothing, green_act=[])
     graph = """graph{graph [pad="0.2",nodesep="0.1",ranksep="0.2"];layout="dot";"""
-    drawn = []
-    for node in visited
-        if node ∉ keys(tree)
-            continue
+    if isempty(visited)
+        visited = collect(keys(tree))
+    end
+    s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
+    frontier = Vector{s_type}()
+    drawn = Vector{s_type}()
+    push!(frontier, root)
+    for i in 1:length(tree)
+        if isempty(frontier)
+            break
         end
+        node = popfirst!(frontier)
         push!(drawn, node)
         graph *= """ "$(node)"[fixedsize=shape,style=filled,fillcolor="$(isempty(tree[node]) ? "red" : "white")",width=0.6,margin=0,label="$(node[1])",fontsize=32,shape="circle"];"""
         for (or_node, s) in sort(collect(tree[node]), by=x->x[2])
-            graph *= """ "$((node, or_node))" [fixedsize=shape,shape=diamond,style=filled,fillcolor="$(isempty(s) ? "lime" : "gray75")",label="$(create_move_icon(or_node, board)[2:end])",height=$(isempty(s) ? .5 : .3),width=$(isempty(s) ? .5 : .3),fontsize=$(isempty(s) ? 18 : 10)];"""
+            graph *= """ "$((node, or_node))" [fixedsize=shape,shape=diamond,style=filled,fillcolor="$(isempty(s) ? or_node in green_act ? "lime" : "red" : "gray75")",label="$(create_move_icon(or_node, board)[2:end])",height=$(isempty(s) ? .5 : .3),width=$(isempty(s) ? .5 : .3),fontsize=$(isempty(s) ? 18 : 10)];"""
             graph *= """ "$(node)"--"$((node, or_node))";"""
             for grandchild in reverse(s)
                 if grandchild in keys(tree) && grandchild ∉ drawn
                     graph *= """ "$((node, or_node))"--"$(grandchild)";"""
+                    if grandchild ∉ frontier
+                        push!(frontier, grandchild)
+                    end
                 else
                     graph *= """ "$((node, grandchild))"[shape="circle",label="$(grandchild[1])",style=filled,fillcolor="red"];"""
                     graph *= """ "$((node, or_node))"--"$((node, grandchild))";"""
@@ -99,9 +109,151 @@ function new_draw_tree(tree, board, visited; highlight_node=nothing)
             end
         end
     end
+    # for node in visited
+    #     if node ∉ keys(tree)
+    #         continue
+    #     end
+    #     graph *= """ "$(node)"[fixedsize=shape,style=filled,fillcolor="$(isempty(tree[node]) ? "red" : "white")",width=0.6,margin=0,label="$(node[1])",fontsize=32,shape="circle"];"""
+    #     push!(drawn, node)
+    #     for (or_node, s) in sort(collect(tree[node]), by=x->x[2])
+    #         graph *= """ "$((node, or_node))" [fixedsize=shape,shape=diamond,style=filled,fillcolor="$(isempty(s) ? or_node in green_act ? "lime" : "red" : "gray75")",label="$(create_move_icon(or_node, board)[2:end])",height=$(isempty(s) ? .5 : .3),width=$(isempty(s) ? .5 : .3),fontsize=$(isempty(s) ? 18 : 10)];"""
+    #         graph *= """ "$(node)"--"$((node, or_node))";"""
+    #         for grandchild in reverse(s)
+    #             if grandchild in drawn
+    #                 continue
+    #             end
+    #             if grandchild in keys(tree)
+    #                 graph *= """ "$((node, or_node))"--"$(grandchild)";"""
+    #             else
+    #                 graph *= """ "$((node, grandchild))"[shape="circle",label="$(grandchild[1])",style=filled,fillcolor="red"];"""
+    #                 graph *= """ "$((node, or_node))"--"$((node, grandchild))";"""
+    #             end
+    #         end
+    #     end
+    # end
     graph *= "}"
     return GraphViz.Graph(graph)
 end
+
+function invert_backtrack_tree(ms, root_a)
+    tree = DefaultDict{Tuple{Tuple{Int, Int}, Int}, Vector{Tuple{Tuple{Int, Int}, Int}}}([])
+    sol_counter = 0
+    for level in reverse(sort(collect(keys(ms))))
+        for (from, to) in ms[level]
+            if to == root_a
+                sol_counter += 1
+                push!(tree[(to, sol_counter)], (from, sol_counter))
+                ls = [from]
+                new_ls = []
+                for level2 in reverse(collect(1:level-1))
+                    for (from2, to2) in ms[level2]
+                        if to2 in ls
+                            push!(tree[(to2, sol_counter)], (from2, sol_counter))
+                            push!(new_ls, from2)
+                        end
+                    end
+                    ls = new_ls
+                    new_ls = []
+                end
+            end
+        end
+    end
+    return tree, sol_counter
+end
+
+function draw_backtrack_tree(ms, board, root_a; max_depth=100)
+    inverted_tree, n_sol = invert_backtrack_tree(ms, root_a);
+    graph = """graph{graph [pad="0.2",nodesep="0.1",ranksep="0.2"];layout="dot";"""
+    for i in 3:3
+        frontier = Vector{Tuple{Tuple{Int, Int}, Int}}()
+        push!(frontier, (root_a, 0))
+        graph *= """ "$((root_a, i, 0))" [fixedsize=shape,shape=diamond,style=filled,fillcolor="cyan",label="$(create_move_icon(root_a, board)[1:end])",height=.7,width=.7,fontsize=18];"""
+        for j in 1:max_depth
+            if isempty(frontier)
+                break
+            end
+            to, level = popfirst!(frontier)
+            for (from, _) in inverted_tree[(to, i)]
+                graph *= """ "$((from, i, level+1))" [fixedsize=shape,shape=diamond,style=filled,fillcolor="lime",label="$(create_move_icon(from, board)[1:end])",height=.5,width=.5,fontsize=12];"""
+                graph *= """ "$((from, i, level+1))"--"$((to, i, level))";"""
+                if (from, level+1) ∉ frontier 
+                    push!(frontier, (from, level+1))
+                end
+            end
+        end
+    end
+    graph *= "}"
+    return GraphViz.Graph(graph)
+end
+
+function draw_backtrack_state_space(state_space, action_space, board, root, idv_prb, optimal_a_prb; max_iter=1000, highlight_nodes=[], full=false)
+    frontier = Vector{Tuple{BigInt, BigInt, Int, Int, Tuple{Int, Int}}}()
+    visited = Vector{Tuple{BigInt, BigInt}}()
+    push!(frontier, (root, 0, idv_prb[root][1], -1, (-1, 0)))
+    push!(visited, (root, 0))
+    act_counter = 1
+    constrained = []
+    graph = """digraph{graph [pad="0.2",nodesep="0.5",ranksep="0.8"];layout="dot";"""
+    if full
+        for s in keys(optimal_a_prb)
+            graph *= """ "$(s)"[fixedsize=shape,style=filled,fillcolor="white",width=0.3,margin=0,label="",fontsize=16,shape="circle"];"""
+            for so in optimal_a_prb[s]
+                graph *= """ "$(s)"->"$(so)"[constraint=true, style=invis;];"""
+            end
+        end
+    end
+    graph *= """ "$(root)"[fixedsize=shape,style=filled,fillcolor="$(isempty(state_space[root]) ? "lime" : "cyan")",width=0.6,margin=0,label="",fontsize=16,shape="circle"];"""
+    for i in 1:max_iter
+        if isempty(frontier)
+            break
+        end
+        node, prev_node, d_goal, prev_d_goal, action = popfirst!(frontier)
+        if prev_node != 0
+            if node != root
+                graph *= """ "$(node)"[fixedsize=shape,style=filled,fillcolor="$(isempty(state_space[node]) ? "lime" : node in highlight_nodes ? "orange" : state_space[node] == [-1] ? "purple" : state_space[node] == [-2] ? "red" : state_space[node] == [-3] ? "brown" : "white")",width=0.6,margin=0,label="",fontsize=16,shape="circle"];"""
+            end
+            if full
+                graph *= """ "$(prev_node)"->"$(node)"[constraint=false,taillabel="$(create_move_icon(action, board)[1:end])";];"""
+            else
+            #graph *= """ "$(act_counter)" [fixedsize=shape,shape=diamond,style=filled,fillcolor="gray",label="$(create_move_icon(action, board)[1:end])",height=.7,width=.7,fontsize=18];"""
+                constraint = false
+                if state_space[node] == [-3]
+                    graph *= """ "$(node)"->"$(prev_node)"[constraint=true,taillabel="$(create_move_icon((action[1], -action[2]), board)[1:end])";];"""
+                end
+                for s in optimal_a_prb[prev_node]
+                    if s in keys(state_space) && (prev_node, s) ∉ constrained
+                        if s == node
+                            constraint = true
+                            graph *= """ "$(prev_node)"->"$(node)"[constraint=true,taillabel="$(create_move_icon(action, board)[1:end])";];"""
+                        else
+                            graph *= """ "$(prev_node)"->"$(s)"[constraint=true, style=invis;];"""
+                        end
+                        push!(constrained, (prev_node, s))
+                    end
+                end
+                if !constraint
+                    if prev_node in optimal_a_prb[node] && (prev_node, node) ∉ constrained
+                        graph *= """ "$(node)"->"$(prev_node)"[constraint=true, style=invis;];"""
+                    end
+                    graph *= """ "$(prev_node)"->"$(node)"[constraint=false,taillabel="$(create_move_icon(action, board)[1:end])";];"""
+                end
+            end
+            #graph *= """ "$(prev_node)"--"$(act_counter)"[constraint=$(d_goal < prev_d_goal);];"""
+            #graph *= """ "$(act_counter)"--"$(node)"[constraint=$(d_goal < prev_d_goal);];"""
+            act_counter += 1
+        end
+        for (n, s) in enumerate(state_space[node])
+            if (s, node) ∉ visited && !(s < 0)
+                push!(frontier, (s, node, idv_prb[s][1], d_goal, action_space[node][n]))
+                push!(visited, (s, node))
+            end
+        end
+    end
+    graph *= "}"
+    return GraphViz.Graph(graph)
+end
+
+#draw_backtrack_state_space(state_space, action_space, board, root, IDV[prb])
 
 board = load_data("prb72800_14")
 make_move!(board, (2, -1))
@@ -137,7 +289,6 @@ make_move!(board, (2, 3))
 make_move!(board, (9, 1))
 make_move!(board, (4, -4))
 make_move!(board, (9, -1))
-make_move!(board, (2, 1))
 
 board = load_data("prb15595_16")
 make_move!(board, (6, -1))
@@ -159,11 +310,13 @@ make_move!(board, (7, 4))
 make_move!(board, (6, -1))
 make_move!(board, (4, -1))
 
+board = load_data(prbs[20])
 board = load_data(prbs[1])
-
+board = arr_to_board(int_to_arr(s))
+board = arr_to_board(int_to_arr(sss))
 draw_board(get_board_arr(board))
-tree, visited, actions, blockages, trials, parents, move_parents, h = new_and_or_tree(board);
-g = new_draw_tree(tree, board, visited)
+tree, visited, actions, blockages, trials, parents, move_parents, h, repeated_actions = new_and_or_tree(board);
+g = new_draw_tree(tree, board)#; visited)#; green_act=actions)
 
 actions, trials, visited, timeline, draw_tree_nodes = and_or_tree(board);
 g = draw_tree(draw_tree_nodes)
