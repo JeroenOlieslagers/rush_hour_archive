@@ -120,10 +120,16 @@ function get_board_arr(board::Board)::Matrix{Int}
         # Fill in array
         if car.is_horizontal
             for l in 1:car.len
+                if car.y < 1 || car.x+l-1 > 6
+                    println(board)
+                end
                 arr[car.y, car.x+l-1] = car.id
             end
         else
             for l in 1:car.len
+                if car.y+l-1 < 1 || car.x > 6
+                    println(board)
+                end
                 arr[car.y+l-1, car.x] = car.id
             end
         end
@@ -309,6 +315,60 @@ function check_solved(arr)
     end
 end
 
+function is_valid_board(board)
+    for car in board.cars
+        if car.is_horizontal
+            if car.x < 1 || car.x+(car.len-1) > 6
+                return false
+            end
+        else
+            if car.y < 1 || car.y+(car.len-1) > 6
+                return false
+            end
+        end
+    end
+    return true
+end
+
+function board_has_overlap(arr, board)
+    for car in board.cars
+        if count(x->x==car.id, arr) != car.len
+            return true
+        end
+    end
+    return false
+end
+
+function move_has_overlap(arr, board, move)
+    car = board.cars[move[1]]
+    s = car.is_horizontal ? car.x : car.y
+    row = get_1d_arr(arr, car)
+    if move[2] > 0
+        if sum(row[maximum([1, s+car.len]):minimum([s+(car.len-1)+move[2], 6])]) == 0
+            return false
+        end
+    else
+        if sum(row[maximum([1, s+move[2]]):minimum([s-1, 6])]) == 0
+            return false
+        end
+    end
+    return true
+end
+
+function is_valid_move(board, move)
+    car = board.cars[move[1]]
+    if car.is_horizontal
+        if car.x+move[2] < 1 || car.x+move[2]+car.len-1 > 6
+            return false
+        end
+    else
+        if car.y+move[2] < 1 || car.y+move[2]+car.len-1 > 6
+            return false
+        end
+    end
+    return true
+end
+
 function blocked_by(arr, car)
     """
     Calculates which cars are blocked by given car
@@ -417,8 +477,18 @@ function move_blocked_by(car, m, arr)
     pos = car.is_horizontal ? car.x : car.y
     # Get blocked arr elements
     if m > 0
+        if pos+m+car.len-1 > 6
+            println(car)
+            println(m)
+            println(arr)
+        end
         blockages = reverse(row[pos:pos+m+car.len-1])
     else
+        if pos+m < 1
+            println(car)
+            println(m)
+            println(arr)
+        end
         blockages = row[pos+m:pos+car.len-1]
     end
     deleteat!(blockages, findall(x->x in [0, car.id], blockages))
@@ -465,7 +535,7 @@ function moves_that_unblock(car1, car2, arr; move_amount=nothing)
     blockages = Dict{Int, Array{Int, 1}}()
     # Get all moves by car2
     moves = reverse(get_all_moves(arr, car2))
-    moves = moves[sortperm(abs.(moves), alg=MergeSort)]
+    moves = moves[sortperm(abs.(moves)*2 + ((1 .- sign.(moves)) ./ 2), alg=MergeSort)]
     # Get position depending on orientation
     pos2 = car2.is_horizontal ? car2.x : car2.y
     # If both cars are aligned
@@ -494,7 +564,8 @@ function moves_that_unblock(car1, car2, arr; move_amount=nothing)
         end
     end
     # Sort blockages and returns only move keys
-    constrained_moves = collect(keys(sort(possible_moves, byvalue=true)))
+    #constrained_moves = collect(keys(sort(possible_moves, byvalue=true)))
+    constrained_moves = collect(keys(possible_moves))
     # Return sorted blockages
     return constrained_moves, [blockages[i] for i in constrained_moves]
 end

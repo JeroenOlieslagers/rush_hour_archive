@@ -186,7 +186,7 @@ function draw_backtrack_tree(ms, board, root_a; max_depth=100)
     return GraphViz.Graph(graph)
 end
 
-function draw_backtrack_state_space(state_space, action_space, board, root, idv_prb, optimal_a_prb; max_iter=1000, highlight_nodes=[], full=false)
+function draw_backtrack_state_space(state_space, action_space, board, root, idv_prb, optimal_a_prb; max_iter=100000, highlight_nodes=[], full=false, subj_states=[])
     frontier = Vector{Tuple{BigInt, BigInt, Int, Int, Tuple{Int, Int}}}()
     visited = Vector{Tuple{BigInt, BigInt}}()
     push!(frontier, (root, 0, idv_prb[root][1], -1, (-1, 0)))
@@ -196,7 +196,7 @@ function draw_backtrack_state_space(state_space, action_space, board, root, idv_
     graph = """digraph{graph [pad="0.2",nodesep="0.5",ranksep="0.8"];layout="dot";"""
     if full
         for s in keys(optimal_a_prb)
-            graph *= """ "$(s)"[fixedsize=shape,style=filled,fillcolor="white",width=0.3,margin=0,label="",fontsize=16,shape="circle"];"""
+            graph *= """ "$(s)"[fixedsize=shape,style=filled,fillcolor="$(s in highlight_nodes ? "orange" : "white")",width=0.3,margin=0,label="",fontsize=16,shape="circle"];"""
             for so in optimal_a_prb[s]
                 graph *= """ "$(s)"->"$(so)"[constraint=true, style=invis;];"""
             end
@@ -210,7 +210,7 @@ function draw_backtrack_state_space(state_space, action_space, board, root, idv_
         node, prev_node, d_goal, prev_d_goal, action = popfirst!(frontier)
         if prev_node != 0
             if node != root
-                graph *= """ "$(node)"[fixedsize=shape,style=filled,fillcolor="$(isempty(state_space[node]) ? "lime" : node in highlight_nodes ? "orange" : state_space[node] == [-1] ? "purple" : state_space[node] == [-2] ? "red" : state_space[node] == [-3] ? "brown" : "white")",width=0.6,margin=0,label="",fontsize=16,shape="circle"];"""
+                graph *= """ "$(node)"[fixedsize=shape,style=filled,fillcolor="$(0 in state_space[node] ? "lime" : node in highlight_nodes ? "orange" : unique(state_space[node]) == [-1] ? "purple" : unique(state_space[node]) == [-2] ? "red" : unique(state_space[node]) == [-3] ? "brown" : "white")",width=0.6,margin=0,label="",fontsize=16,shape="circle"];"""
             end
             if full
                 graph *= """ "$(prev_node)"->"$(node)"[constraint=false,taillabel="$(create_move_icon(action, board)[1:end])";];"""
@@ -243,9 +243,21 @@ function draw_backtrack_state_space(state_space, action_space, board, root, idv_
             act_counter += 1
         end
         for (n, s) in enumerate(state_space[node])
-            if (s, node) ∉ visited && !(s < 0)
+            if (s, node) ∉ visited && !(s <= 0)
                 push!(frontier, (s, node, idv_prb[s][1], d_goal, action_space[node][n]))
                 push!(visited, (s, node))
+            end
+        end
+    end
+    subj_edges = []
+    for n in eachindex(subj_states)
+        for m in 2:length(subj_states[n])
+            node = subj_states[n][m]
+            prev_node = subj_states[n][m-1]
+            if (prev_node, node) ∉ subj_edges
+                graph *= """ "$(node)"[fixedsize=shape,style=filled,color="blue",fillcolor="$(node == root ? "cyan" : "white")",width=0.6,margin=0,label="",fontsize=16,shape="circle"];"""
+                graph *= """ "$(prev_node)"->"$(node)"[constraint=false,color="blue";];"""
+                push!(subj_edges, (prev_node, node))
             end
         end
     end
