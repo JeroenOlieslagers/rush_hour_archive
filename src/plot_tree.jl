@@ -76,6 +76,28 @@ using GraphViz, FileIO, ImageIO
 #     tree *= "}"
 #     return GraphViz.Graph(tree)
 # end
+function create_move_icon(move, board)
+    car, m = move
+    s = string(car)
+    if board.cars[car].is_horizontal
+        for i in 1:abs(m)
+            if sign(m) == 1
+                s *= "→"
+            else
+                s *= "←"
+            end
+        end
+    else
+        for i in 1:abs(m)
+            if sign(m) == 1
+                s *= "↓"
+            else
+                s *= "↑"
+            end
+        end
+    end
+    return s
+end
 
 function new_draw_tree(tree, board, root; visited=[], highlight_node=nothing, green_act=[])
     graph = """graph{graph [pad="0.2",nodesep="0.1",ranksep="0.2"];layout="dot";"""
