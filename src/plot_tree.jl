@@ -287,6 +287,206 @@ function draw_backtrack_state_space(state_space, action_space, board, root, idv_
     return GraphViz.Graph(graph)
 end
 
+function draw_chain_dict(chain_dict, board, root, optimal_a_prb; highlight_nodes=[], full=false)
+    graph = """digraph{graph [pad="0.2",nodesep="0.5",ranksep="0.8"];layout="dot";"""
+    if full
+        for s in keys(optimal_a_prb)
+            graph *= """ "$(s)"[fixedsize=shape,style=filled,fillcolor="$(s in highlight_nodes ? "orange" : "white")",width=0.3,margin=0,label="",fontsize=16,shape="circle"];"""
+            for so in optimal_a_prb[s]
+                graph *= """ "$(s)"->"$(so)"[constraint=true, style=invis;];"""
+            end
+        end
+    end
+    drawn = []
+    drawn_edges = []
+    constrained = []
+    ss = [s[1] for s in keys(chain_dict)]
+    for triplet in keys(chain_dict)
+        node = triplet[1]
+        if node == 0
+            continue
+        end
+        action = triplet[3]
+        # from node
+        if node != root
+            if node ∉ drawn
+                push!(drawn, node)
+                graph *= """ "$(node)"[fixedsize=shape,style=filled,fillcolor="$((-1, (-1, (-1,)), (-1, -1)) in chain_dict[triplet] ? "purple" : (-3, (-3, (-3,)), (-3, -3)) in chain_dict[triplet] ? "brown" : node in highlight_nodes ? "orange" : "white")",width=0.6,margin=0,label="",fontsize=16,shape="circle"];"""
+            end
+        else
+            graph *= """ "$(node)"[fixedsize=shape,style=filled,fillcolor=cyan,width=0.6,margin=0,label="",fontsize=16,shape="circle"];"""
+        end
+        for next_triplet in chain_dict[triplet]
+            next_node = next_triplet[1]
+            if next_node < 0 || next_node == node
+                continue
+            end
+            # to node
+            if (next_node == 0 || (next_node != root && next_node ∉ ss)) && (node, next_node) ∉ drawn_edges
+                push!(drawn, next_node)
+                graph *= """ "$(next_node)"[fixedsize=shape,style=filled,fillcolor=lime,width=0.6,margin=0,label="",fontsize=16,shape="circle"];"""
+                graph *= """ "$(node)"->"$(next_node)"[constraint=true,taillabel="$(create_move_icon(action, board)[1:end])";];"""
+                push!(drawn_edges, (node, next_node))
+                push!(constrained, (node, next_node))
+                continue
+            end
+            # edges
+            if full
+                if (node, next_node) ∉ drawn_edges
+                    push!(drawn_edges, (node, next_node))
+                    graph *= """ "$(node)"->"$(next_node)"[constraint=false,taillabel="$(create_move_icon(action, board)[1:end])";];"""
+                end
+            else
+                constraint = false
+                for s in optimal_a_prb[node]
+                    if s in ss && (node, s) ∉ constrained
+                        if s == next_node
+                            constraint = true
+                            graph *= """ "$(node)"->"$(next_node)"[constraint=true,taillabel="$(create_move_icon(action, board)[1:end])";];"""
+                            push!(drawn_edges, (node, s))
+                        else
+                            graph *= """ "$(node)"->"$(s)"[constraint=true, style=invis;];"""
+                        end
+                        push!(constrained, (node, s))
+                    end
+                end
+                if !constraint
+                    if node in optimal_a_prb[next_node] && (node, next_node) ∉ constrained
+                        graph *= """ "$(next_node)"->"$(node)"[constraint=true, style=invis;];"""
+                    end
+                    if (node, next_node) ∉ drawn_edges
+                        push!(drawn_edges, (node, next_node))
+                        graph *= """ "$(node)"->"$(next_node)"[constraint=false,taillabel="$(create_move_icon(action, board)[1:end])";];"""
+                        if (-3, (-3, (-3,)), (-3, -3)) in chain_dict[next_triplet] || (-1, (-1, (-1,)), (-1, -1)) in chain_dict[next_triplet]
+                            graph *= """ "$(next_node)"->"$(node)"[constraint=true, style=invis;];"""
+                        end
+                    end
+                end
+            end
+        end
+    end
+    graph *= "}"
+    return GraphViz.Graph(graph)
+end
+
+function new_draw_chain_dict(chain_dict, board, root; max_iters=100000)
+    graph = """digraph{graph [pad="0.2",nodesep="0.5",ranksep="0.8"];layout="dot";"""
+    drawn = []
+    frontier = []
+    push!(frontier, (root, [(0, (0,))], (0, 0)))
+    for i in 1:max_iters
+        if isempty(frontier)
+            break
+        end
+        s = pop!(frontier)
+        if s in drawn
+            continue
+        end
+        if length(unique(chain_dict[s])) == 1 && chain_dict[s][1][1] < 0
+            continue
+        end
+        push!(drawn, s)
+        graph *= """ "$(s)"[fixedsize=shape,style=filled,fillcolor=white,width=0.3,margin=0,label="",fontsize=16,shape="circle"];"""
+        for ss in chain_dict[s]
+            if ss[1] <= 0
+                continue
+            end
+            action = ss[3]
+            if ss ∉ drawn
+                graph *= """ "$(s)"->"$(ss)"[constraint="true",taillabel="$(create_move_icon(action, board)[1:end])";];"""
+            else
+                graph *= """ "$(s)"->"$(ss)"[constraint="false",taillabel="$(create_move_icon(action, board)[1:end])";];"""
+            end
+            if ss ∉ keys(chain_dict)
+                push!(drawn, ss)
+                graph *= """ "$(ss)"[fixedsize=shape,style=filled,fillcolor=red,width=0.3,margin=0,label="",fontsize=16,shape="circle"];"""
+            elseif length(unique(chain_dict[ss])) == 1 && chain_dict[ss][1][1] == 0
+                push!(drawn, ss)
+                graph *= """ "$(ss)"[fixedsize=shape,style=filled,fillcolor=lime,width=0.3,margin=0,label="",fontsize=16,shape="circle"];"""
+            elseif length(unique(chain_dict[ss])) == 1 && chain_dict[ss][1][1] == -1
+                push!(drawn, ss)
+                graph *= """ "$(ss)"[fixedsize=shape,style=filled,fillcolor=purple,width=0.3,margin=0,label="",fontsize=16,shape="circle"];"""
+            elseif length(unique(chain_dict[ss])) == 1 && chain_dict[ss][1][1] == -3
+                push!(drawn, ss)
+                graph *= """ "$(ss)"[fixedsize=shape,style=filled,fillcolor=brown,width=0.3,margin=0,label="",fontsize=16,shape="circle"];"""
+            end
+            pushfirst!(frontier, ss)
+        end
+    end
+    graph *= "}"
+    return GraphViz.Graph(graph)
+end
+
+function draw_one_step_chains(chains)
+    graph = """digraph{graph [pad="0.2",nodesep="0.2",ranksep="0.2"];layout="dot";rankdir="LR";"""
+    counter = 0
+    for chain in reverse(chains)
+        move = chain[end][2]
+        counter += 1
+        graph *= """ "$(counter)" [fixedsize=shape,shape=diamond,style=filled,fillcolor=lime,label="$(create_move_icon(move, board)[2:end])",height=.5,width=.5,fontsize=$(abs(move[2]) == 1 ? 20 : abs(move[2]) == 2 ? 18 : abs(move[2]) == 3 ? 8 : 6)];"""
+        counter += 1
+        graph *= """ "$(counter)"->"$(counter-1)"[constraint="true",arrowhead=none;];"""
+        graph *= """ "$(counter)"[fixedsize=shape,style=filled,fillcolor=white,width=0.5,margin=0,label="$(move[1])",fontsize=16,shape="circle"];"""
+        for (n, node) in enumerate(reverse(chain[1:end-1]))
+            move = node[2]
+            counter += 1
+            graph *= """ "$(counter)"->"$(counter-1)"[constraint="true",arrowhead=none;];"""
+            graph *= """ "$(counter)" [fixedsize=shape,shape=diamond,style=filled,fillcolor=gray75,label="$(create_move_icon(move, board)[2:end])",height=.5,width=.5,fontsize=$(abs(move[2]) == 1 ? 20 : abs(move[2]) == 2 ? 18 : abs(move[2]) == 3 ? 8 : 6)];"""
+            counter += 1
+            graph *= """ "$(counter)"->"$(counter-1)"[constraint="true",arrowhead=none;];"""
+            graph *= """ "$(counter)"[fixedsize=shape,style=filled,fillcolor=white,width=0.5,margin=0,label="$(move[1])",fontsize=16,shape="circle"];"""
+        end
+    end
+    graph *= "}"
+    return GraphViz.Graph(graph)
+end
+
+function draw_one_step_tree(chains, board)
+    # AND-OR tree node type
+    s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
+    # action type
+    a_type = Tuple{Int, Int}
+    graph = """digraph{graph [pad="0.2",nodesep="0.15",ranksep="0.3"];layout="dot";"""
+    AND = DefaultDict{Tuple{s_type, a_type, Int}, Vector{Tuple{s_type, Int}}}([])
+    OR = DefaultDict{Tuple{s_type, Int}, Vector{Tuple{s_type, a_type, Int}}}([])
+    drawn = Vector{Tuple{s_type, Int}}()
+    for chain in chains
+        for (n, node) in enumerate(chain[1:end-1])
+            AND_current = (node[1], n)
+            move = node[2]
+            OR_node = (AND_current[1], move, n)
+            AND_next = (chain[n+1][1], n+1)
+            if OR_node ∉ OR[AND_current]
+                push!(OR[AND_current], OR_node)
+            end
+            if AND_next ∉ AND[OR_node]
+                if isempty(AND[OR_node])
+                    graph *= """ "$(AND_current)"[fixedsize=shape,style=filled,fillcolor=white,width=0.6,margin=0,label="$(AND_current[1][1])",fontsize=16,shape="circle"];"""
+                    graph *= """ "$(AND_current)"->"$(OR_node)"[constraint="true"];"""
+                end
+                push!(AND[OR_node], AND_next)
+                graph *= """ "$(OR_node)" [fixedsize=shape,shape=diamond,style=filled,fillcolor=gray75,label="$(create_move_icon(move, board)[2:end])",height=.5,width=.5,fontsize=14];"""
+                graph *= """ "$(OR_node)"->"$(AND_next)"[constraint=true];"""
+                graph *= """ "$(AND_next)"[fixedsize=shape,style=filled,fillcolor=white,width=0.6,margin=0,label="$(AND_next[1][1])",fontsize=16,shape="circle"];"""
+            end
+        end
+        last_AND_node = (chain[end][1], length(chain))
+        last_move = chain[end][2]
+        last_OR_node = (last_AND_node[1], last_move, length(chain))
+        if last_OR_node ∉ OR[last_AND_node]
+            push!(OR[last_AND_node], last_OR_node)
+        end
+        if ((0, (0,)), length(chain)) ∉ AND[last_OR_node]
+            push!(AND[last_OR_node], ((0, (0,)), length(chain)))
+            graph *= """ "$(last_AND_node)"->"$(last_OR_node)"[constraint="true"];"""
+            graph *= """ "$(last_OR_node)" [fixedsize=shape,shape=diamond,style=filled,fillcolor=lime,label="$(create_move_icon(last_move, board)[2:end])",height=.5,width=.5,fontsize=14];"""
+        end
+    end
+    graph *= "}"
+    return (AND, OR), GraphViz.Graph(graph)
+end
+
+
 #draw_backtrack_state_space(state_space, action_space, board, root, IDV[prb])
 
 board = load_data("prb72800_14")

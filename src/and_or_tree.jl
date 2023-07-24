@@ -852,7 +852,7 @@ function get_and_or_tree_data(data)
                 ac_count = zeros(length(actions))
                 for i in eachindex(actions)
                     make_move!(board, actions[i])
-                    tree_n, _, actions_n, _, trials_n, _, _, _ = new_and_or_tree(board; tree_only=true)
+                    #tree_n, _, actions_n, _, trials_n, _, _, _ = new_and_or_tree(board; tree_only=true)
                     # trialz, actionz = [], []
                     # for (n, a) in enumerate(actions_n)
                     #     if a[1] != actions[i][1] && a ∉ actions
@@ -867,9 +867,9 @@ function get_and_or_tree_data(data)
                     #     new_move_height[i] = minimum(trialz)
                     #     new_move_cand[i] = actionz[findall(x->x==minimum(trialz), trialz)]
                     # end
-                    ungreen[i] = length(actions) - length(actions_n)
-                    diff_nodes[i] = length(tree) - length(tree_n)
-                    ac_count[i] = count(x->x==actions[i], repeated_actions)
+                    ungreen[i] = 0#length(actions) - length(actions_n)
+                    diff_nodes[i] = 0#length(tree) - length(tree_n)
+                    ac_count[i] = 0#count(x->x==actions[i], repeated_actions)
                     undo_moves!(board, [actions[i]])
                 end
                 # Incorporate other moves

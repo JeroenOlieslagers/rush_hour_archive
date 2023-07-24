@@ -254,7 +254,7 @@ function board_to_int(arr, T)
     """
     Returns flattened version of array as string
     """
-    return parse(T, string(vcat(arr...)...))
+    return parse(T, string(vec(arr)...))
 end
 
 """
@@ -477,19 +477,9 @@ function move_blocked_by(car, m, arr)
     pos = car.is_horizontal ? car.x : car.y
     # Get blocked arr elements
     if m > 0
-        if pos+m+car.len-1 > 6
-            println(car)
-            println(m)
-            println(arr)
-        end
-        blockages = reverse(row[pos:pos+m+car.len-1])
+        blockages = row[pos:pos+m+car.len-1]
     else
-        if pos+m < 1
-            println(car)
-            println(m)
-            println(arr)
-        end
-        blockages = row[pos+m:pos+car.len-1]
+        blockages = reverse(row[pos+m:pos+car.len-1])
     end
     deleteat!(blockages, findall(x->x in [0, car.id], blockages))
     return unique(blockages)

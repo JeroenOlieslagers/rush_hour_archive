@@ -34,13 +34,13 @@ function backtracking_and_or_tree(d, board; max_iter=1000)
     chains = Vector{Vector{Tuple{BigInt, a_type, Int}}}()
     # points each (s, a, tree) triplet to a chain and the position in that chain
     #chain_dict = Dict{Tuple{BigInt, s_type, a_type}, Tuple{Int, Int}}()
-    chain_dict = Dict{Tuple{BigInt, s_type, a_type}, Vector{Tuple{BigInt, s_type, a_type}}}()
+    chain_dict = DefaultDict{Tuple{BigInt, s_type, a_type}, Vector{Tuple{BigInt, s_type, a_type}}}([])
     # records to be kept
     records = Dict(
         "state_space" => state_space,
         "action_space" => action_space,
         #"tree_space" => tree_space,
-        "chains" => chains
+        #"chains" => chains
     )
     # current planning trajectory (gets copied for each recursion)
     current_chain = Vector{Tuple{BigInt, a_type, Int}}()
@@ -49,7 +49,7 @@ function backtracking_and_or_tree(d, board; max_iter=1000)
     s_root = board_to_int(arr, BigInt)
     root, current_depth = initialize_tree(board, frontier, children, parents, depths, actions)
     # Expand tree and recurse
-    expand_tree!(frontier, visited, d, (root[1], root[2][1]), actions, parents_a, records, chain_dict, current_chain, board, arr, tree, current_depth, 0, root, s_root, max_iter)
+    expand_tree!(frontier, visited, d, (root[1], root[2][1]), actions, parents_a, records, chain_dict, current_chain, board, arr, tree, current_depth, 0, root, s_root, 0, ((0, (0,)), (0, 0)), max_iter)
     return records, chain_dict
 end
 
@@ -88,7 +88,7 @@ function expand_tree!(frontier, visited, d, action, actions, parents_a, records,
         # extend planning trajectories after layer has been completed
         if depth_new > current_depth
             if !isempty(actions)
-                extend_planning_trajectories(d, actions, parents_a, records, chain_dict, current_chain, board, tree, current_depth, recursion_depth, root, s_next)#replan ? s_prev : s_next
+                extend_planning_trajectories(d, actions, parents_a, records, chain_dict, current_chain, board, tree, current_depth, recursion_depth, root, s_next, s_prev, action, s_start)#replan ? s_prev : s_next
             end
             # reset actions and parents of actions
             empty!(actions)
@@ -216,6 +216,7 @@ function extend_planning_trajectories(d, actions, parents_a, records, chain_dict
     parents = tree["parents"]
     children = tree["children"]
     no_code_chain = [ch[1:2] for ch in current_chain]
+    no_code_chainn = [ch[2] for ch in current_chain]
     # Recurse each action in layer
     for a in actions
         # if recursion_depth == 2 && a != (8, 4)
@@ -229,18 +230,20 @@ function extend_planning_trajectories(d, actions, parents_a, records, chain_dict
             visited_and = []
             # Recurse each parent node of the current node (multiple branches)
             for s_start in parents[s]
-                # Only recurse if triplet has not already been visited
-                if (s_current, a) ∉ no_code_chain && s_start[1] ∉ visited_and && s_start[1] ∈ keys(children)
-                    if (s_current, s_start[1], a) ∉ keys(chain_dict)
+                # Only recurse if tuple has not already been visited
+                if (s_current, a) ∉ no_code_chain && s_start ∉ visited_and && s_start[1] ∈ keys(children)
+                    #if (s_current, s_start[1], a) ∉ keys(chain_dict)
                         # update chain pointers
                         #chain_dict[(s_current, s_start[1], a)] = (length(records["chains"])+1, length(current_chain)+1)
+                    if (s_current, s_start[1], a) ∉ chain_dict[(s_prev, s_startt[1], action)]
                         push!(chain_dict[(s_prev, s_startt[1], action)], (s_current, s_start[1], a))
-                        push!(visited_and, s_start[1])
+                        push!(visited_and, s_start)
                         backtrack!(d, records, chain_dict, copy(current_chain), board, deepcopy(tree), current_depth-1, s_start, s, a, recursion_depth + 1, root)
-                    else
-                        pointer = chain_dict[(s_current, s_start[1], a)]
-                        update_records!(records, nothing, nothing, pointer, nothing, 3, copy(current_chain); new_chain=true, create_pointer=true)
                     end
+                    #else
+                        #pointer = chain_dict[(s_current, s_start[1], a)]
+                        #update_records!(records, nothing, nothing, pointer, nothing, 3, copy(current_chain); new_chain=true, create_pointer=true)
+                    #end
                 end
             end
         end
@@ -282,18 +285,18 @@ function update_records!(records, s_prev, s_next, action, tree, code, current_ch
         push!(action_space[s_prev], action)
         #push!(tree_space[s_prev], tree)
         push!(current_chain, (s_prev, action, code))
-        if new_chain
-            chains = records["chains"]
-            push!(chains, copy(current_chain))
-        end
+        # if new_chain
+        #     chains = records["chains"]
+        #     push!(chains, copy(current_chain))
+        # end
     else
         push!(current_chain, (-1, action, code))
-        if new_chain
-            chains = records["chains"]
-            #if current_chain ∉ chains
-            push!(chains, copy(current_chain))
-            #end
-        end
+        # if new_chain
+        #     chains = records["chains"]
+        #     #if current_chain ∉ chains
+        #     push!(chains, copy(current_chain))
+        #     #end
+        # end
     end
 end
 
@@ -407,6 +410,7 @@ function backtrack!(d, records, chain_dict, current_chain, board, tree, current_
     # Stop if recursion depth is reached
     if recursion_depth > d
         update_records!(records, s_prev, -1, action, tree, -1, current_chain; new_chain=true)
+        push!(chain_dict[(s_prev, s_start[1], action)], (-1, (-1, (-1,)), (-1, -1)))
         return nothing
     end
     # Type of AND-OR node
@@ -441,6 +445,7 @@ function backtrack!(d, records, chain_dict, current_chain, board, tree, current_
             update_records!(records, s_prev, s_next, action, tree, 1, current_chain)
             # Final node
             update_records!(records, s_next, 0, (0, 0), tree_c, 0, current_chain; new_chain=true)
+            push!(chain_dict[(s_prev, s_start[1], action)], (s_next, root, (root[1], root[2][1])))
             return nothing
         else # Replan from root
             #@label replan
@@ -454,7 +459,6 @@ function backtrack!(d, records, chain_dict, current_chain, board, tree, current_
     else
         update_records!(records, s_prev, -2, action, tree, -2, current_chain)
     end
-
     visited = collect(keys(children))
     # If not replanning but no available actions
     # extend frontier with children of parents of current node]
@@ -491,6 +495,9 @@ function backtrack!(d, records, chain_dict, current_chain, board, tree, current_
                 end
             end
         end
+        # println(children[s_start[1]])
+        # println(s_start)
+        # println(collect(keys(depths)))
     end
     # Expand and recurse
     expand_tree!(frontier, visited, d, action, actions, parents_a, records, chain_dict, current_chain, board, arr, tree_c, current_depth, recursion_depth, root, replan ? s_prev : s_next, s_prev, s_start, max_iter)
@@ -500,24 +507,30 @@ function backtrack!(d, records, chain_dict, current_chain, board, tree, current_
         if isempty(records["state_space"][s_next])
             rev_a = (action[1], -action[2])
             update_records!(records, s_next, -3, rev_a, tree_c, -3, current_chain; new_chain=true)
+            push!(chain_dict[(s_prev, s_start[1], action)], (s_next, s_start[1], rev_a))
+            push!(chain_dict[(s_next, s_start[1], rev_a)], (-3, (-3, (-3,)), (-3, -3)))
         end
     end
     return nothing
 end
 
-function complete_chains!(chains)
-    for chain in chains
-        if chain[end][3] == 3
-            idx = chain[end][2]
-            push!(chain, chains[idx[1]][idx[2]:end]...)
-        end
-    end
-end
+# function complete_chains!(chains)
+#     for chain in chains
+#         if chain[end][3] == 3
+#             idx = chain[end][2]
+#             push!(chain, chains[idx[1]][idx[2]:end]...)
+#         end
+#     end
+# end
 
-prb = prbs[sp[end-1]]
+prb = prbs[sp[24]]
 board = load_data(prb);
-@time records, chain_dict = backtracking_and_or_tree(50, board);
+@time records, chain_dict = backtracking_and_or_tree(1000, board);
 
+root = board_to_int(get_board_arr(board), BigInt)
+g = draw_chain_dict(chain_dict, board, root, optimal_a[prb]; full=false)
+
+a
 # ls = []
 # ss = []
 # cs = []
@@ -587,7 +600,7 @@ for subj in subjs
 end
 
 g = new_draw_tree(t1["children"], board, (9, (2,)))
-g = new_draw_tree(t2["children"], board, (9, (2,)))
+g = new_draw_tree(tt, board, (9, (4,)))
 
 for chain in chains
     if chain[3][2] == (8, 4)
