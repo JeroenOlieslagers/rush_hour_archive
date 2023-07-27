@@ -1,27 +1,83 @@
-
-
 function get_all_and_or_chains(board; max_iter=1000)
     # AND-OR tree node type
     s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
     # action type
     a_type = Tuple{Int, Int}
-    # AND-OR chains (downward direction, i.e. children)
-    chains = Vector{Vector{Tuple{s_type, a_type, Vector{s_type}}}}()
-    # individual chains
-    current_chain = Vector{Tuple{s_type, a_type, Vector{s_type}}}()
-    # keeps track of current AO nodes visited
+    ####### CHAINS APPROACH
+    # # AND-OR chains (downward direction, i.e. children)
+    # #chains = Vector{Vector{Tuple{s_type, a_type, Vector{s_type}}}}()
+    # chains = Vector{Vector{Tuple{s_type, a_type}}}()
+    # # individual chains
+    # #current_chain = Vector{Tuple{s_type, a_type, Vector{s_type}}}()
+    # current_chain = Vector{Tuple{s_type, a_type}}()
+    # # keeps track of current AO nodes visited
     current_visited = Vector{s_type}()
+    ####### AO TREE APPROACH
+    # AND node type
+    and_type = Tuple{s_type, Int}
+    # OR node type
+    or_type = Tuple{s_type, a_type, Int}
+    AND = DefaultDict{or_type, Vector{and_type}}([])
+    OR = DefaultDict{and_type, Vector{or_type}}([])
     # initialize process
     arr = get_board_arr(board)
     m_init = 6 - (board.cars[9].x+1)
     ao_root = (9, (m_init,))
     root = (9, m_init)
-    initial_nodes = get_blocking_nodes(board, arr, root)
-    push!(current_chain, (ao_root, root, initial_nodes))
+    #initial_nodes = get_blocking_nodes(board, arr, root)
+    # push!(current_chain, (ao_root, root))#, initial_nodes))
     push!(current_visited, ao_root)
+    and_node = (ao_root, 1)
+    or_node = (ao_root, root, 1)
+    push!(OR[and_node], or_node)
     # Expand tree and recurse
-    replan!(chains, current_chain, current_visited, board, arr, 0, max_iter)
-    return chains
+    #replan!(chains, current_chain, current_visited, board, arr, 0, max_iter)
+    replan!(or_node, current_visited, AND, OR, board, arr, 0, max_iter)
+    return (AND, OR)
+end
+
+function replan!(or_node, current_visited, AND, OR, board, arr, recursion_depth, max_iter)
+    if recursion_depth > max_iter
+        throw(DomainError("max_iter depth reached"))
+    end
+    s, move, d = or_node
+    and_node = (s, d)
+    child_nodes = get_blocking_nodes(board, arr, move)
+    # move is impossible
+    if child_nodes == [(0, (0,))]
+        return nothing
+    end
+    # if move is unblocked, have reached end of chain
+    if isempty(child_nodes)
+        if or_node ∉ OR[and_node]
+            push!(OR[and_node], or_node)
+        end
+        if ((0, (0,)), d+1) ∉ AND[or_node]
+            push!(AND[or_node], ((0, (0,)), d+1))
+        end
+        return nothing
+    end
+    # recurse all children
+    for node in child_nodes
+        if node in current_visited
+            continue
+        end
+        and_current = (node, d+1)
+        if and_current ∉ AND[or_node]
+            push!(AND[or_node], and_current)
+        end
+        for m in node[2]
+            next_move = (node[1], m)
+            next_or_node = (node, next_move, d+1)
+            if next_or_node ∉ OR[and_current]
+                push!(OR[and_current], next_or_node)
+            end
+            cv = copy(current_visited)
+            push!(cv, node)
+            replan!(next_or_node, cv, AND, OR, board, arr, recursion_depth + 1, max_iter)
+        end
+    end
+    return nothing
 end
 
 function replan!(chains, current_chain, current_visited, board, arr, recursion_depth, max_iter)
@@ -46,7 +102,7 @@ function replan!(chains, current_chain, current_visited, board, arr, recursion_d
         end
         for m in node[2]
             next_move = (node[1], m)
-            next_node = (node, next_move, child_nodes)
+            next_node = (node, next_move)#, child_nodes)
             cc = copy(current_chain)
             push!(cc, next_node)
             cv = copy(current_visited)
@@ -64,9 +120,12 @@ function get_blocking_nodes(board, arr, move)
     ls = []
     for car in cars
         # Get all OR nodes of next layer
-        ms_new, _ = moves_that_unblock(board.cars[car_id], board.cars[car], arr, move_amount=m)
+        car1 = board.cars[car_id]
+        car2 = board.cars[car]
+        ms_new = unblocking_moves(car1, car2, arr; move_amount=m)
+        #ms_new, _ = moves_that_unblock(car1, car2, arr; move_amount=m)
         # Remove impossible moves with cars in same row
-        ms_new = ms_new[(in).(ms_new, Ref(possible_moves(arr, board.cars[car])))]
+        #ms_new = ms_new[(in).(ms_new, Ref(possible_moves(arr, car2)))]
         # If no possible moves, end iteration for this move
         if length(ms_new) == 0
             return [(0, (0,))]
@@ -76,6 +135,39 @@ function get_blocking_nodes(board, arr, move)
     end
     return ls
 end
+
+function chains_to_ao(chains)
+    # AND-OR tree node type
+    s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
+    # action type
+    a_type = Tuple{Int, Int}
+    # AND node type
+    and_type = Tuple{s_type, Int}
+    # OR node type
+    or_type = Tuple{s_type, a_type, Int}
+    AND = DefaultDict{or_type, Vector{and_type}}([])
+    OR = DefaultDict{and_type, Vector{or_type}}([])
+    for chain in chains
+        for (n, node) in enumerate(chain)
+            AND_current = (node[1], n)
+            OR_node = (node[1], node[2], n)
+            AND_next = ()
+            if n == length(chain)
+                AND_next = ((0, (0,)), n+1)
+            else
+                AND_next = (chain[n+1][1], n+1)
+            end
+            if OR_node ∉ OR[AND_current]
+                push!(OR[AND_current], OR_node)
+            end
+            if AND_next ∉ AND[OR_node]
+                push!(AND[OR_node], AND_next)
+            end
+        end
+    end
+    return (AND, OR)
+end
+
 
 function filter_chains(chains, move)
     new_chains = []
@@ -131,8 +223,6 @@ function propagate_ps(AO, all_moves, AND_root, γ, λ)
     return λ/length(all_moves) .+ (1-λ)*ps
 end
 
-ps = propagate_ps(AO, all_moves, ((9, (3,)), 1), 0.1, 0.0)
-
 function loglik(all_moves, ps, subj_moves)
     ll = 0
     for move in subj_moves
@@ -161,26 +251,40 @@ prb_moves_all = [moves[2] for moves in prb_moves_all]
 
 loglik(all_moves, ps, prb_moves_all)
 
-function subject_fit(x, moves_all, chains_all, prbs, heuristics)
+function subject_fit(x, tot_moves)
     nll = 0
-    for prb in prbs
+    γ = x[1]
+    λ = x[2]
+    for prb in keys(tot_moves)
         board = load_data(prb)
-        arr = get_board_arr(board)
-        chains = chains_all[prb]
+        tot_moves_prb = tot_moves[prb]
+        println("==========")
+        println(prb)
+        for move in tot_moves_prb
+            println(move)
+            if move == (-1, 0)
+                board = load_data(prb)
+                continue
+            end
+            arr = get_board_arr(board)
+            all_moves = Tuple.(get_all_available_moves(board, arr))
+            m_init = 6 - (board.cars[9].x+1)
+            ao_root = ((9, (m_init,)), 1)
 
-        all_moves = Tuple.(get_all_available_moves(board, arr))
-        betas = x[2:end]
-        λ = x[1]
-        ps = move_ps(chains, all_moves, heuristics, betas, λ)
+            chains = get_all_and_or_chains(board)
+            println("--")
+            AO = chains_to_ao(chains);
+            println("==")
+            ps = propagate_ps(AO, all_moves, ao_root, γ, λ)
+            nll -= log(ps[findfirst(x->x==move, all_moves)])
 
-        prb_moves_all = [prb in keys(moves_all[subj]) ? moves_all[subj][prb] : [] for subj in subjs]
-        prb_moves_all = prb_moves_all[length.(prb_moves_all) .> 0]
-        prb_moves_all = [moves[1] for moves in prb_moves_all]
-
-        nll -= loglik(all_moves, ps, prb_moves_all)
+            make_move!(board, move)
+        end
     end
     return nll
 end
+_, tot_moves, _, _ = analyse_subject(data[subjs[1]]);
+nll = subject_fit(x0, tot_moves)
 
 x0 = [0.1, 0.0];
 chains_all = Dict{String, Vector{Any}}()
@@ -195,8 +299,20 @@ fitness = Optim.minimum(res)
 
 prb = prbs[sp[4]]
 prb = "prb79230_11"
+prb = "prb33117_14"
 board = load_data(prb);
-AO, g = draw_one_step_tree(chains_all[prb], board);
+for move in moves[2:end]
+    make_move!(board, move)
+end
+arr = get_board_arr(board)
+@time AO = get_all_and_or_chains(board);
+
+# @time chains = get_all_and_or_chains(board);
+# @time AO = chains_to_ao(chains);
+
+g = draw_ao_tree(AO, board)
+
+@time ps = propagate_ps(AO, all_moves, ((9, (3,)), 1), 0.1, 0.0)
 
 ls = []
 ms = []

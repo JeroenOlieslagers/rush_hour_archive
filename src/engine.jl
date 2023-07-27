@@ -308,7 +308,7 @@ function check_solved(arr)
     # Get forward moves
     f = row[idx+2:end]
     # Check if there is anything blocking red car
-    if unique(f) == [0] || length(f) == 0
+    if sum(f) == [0] || length(f) == 0
         return true
     else
         return false
@@ -476,40 +476,118 @@ function move_blocked_by(car, m, arr)
     # Get car position in row
     pos = car.is_horizontal ? car.x : car.y
     # Get blocked arr elements
+    blockages = Vector{Int}()
     if m > 0
-        blockages = row[pos:pos+m+car.len-1]
+        for i in pos+car.len:pos+car.len-1+m
+            c = row[i]
+            if c != 0 && c ∉ blockages
+                push!(blockages, c)
+            end
+        end
+        #blockages = row[pos+car.len:pos+car.len-1+m]
     else
-        blockages = reverse(row[pos+m:pos+car.len-1])
+        for i in pos+m:pos-1
+            c = row[i]
+            if c != 0 && c ∉ blockages
+                pushfirst!(blockages, c)
+            end
+        end
+        #blockages = reverse(row[pos+m:pos-1])
     end
-    deleteat!(blockages, findall(x->x in [0, car.id], blockages))
-    return unique(blockages)
+    #deleteat!(blockages, findall(x->x == 0, blockages))
+    return blockages#unique(blockages)
 end
 
 function possible_moves(arr, car)
-    """
-    Returns car indices that are blocked by move m from car
-    """
     # Get row/col
     row = get_1d_arr(arr, car)
     # Get car position in row
     pos = car.is_horizontal ? car.x : car.y
     lb = 0
     ub = 6
-    for c in unique(row)
-        if c ∉ [0, car.id]
-            cnt = count(x->x==c, row)
-            if cnt > 1
-                fst = findfirst(x->x==c, row)
-                if fst < pos
-                    lb += cnt
-                else
-                    ub -= cnt
+    visited = Int[]
+    for c in row
+        if c != 0 && c != car.id
+            if c ∉ visited
+                push!(visited, c)
+                cnt = count(x->x==c, row)
+                if cnt > 1
+                    fst = findfirst(x->x==c, row)
+                    if fst < pos
+                        lb += cnt
+                    else
+                        ub -= cnt
+                    end
                 end
             end
         end
     end
-    moves = collect(lb-(pos-1):ub-(pos-1+car.len))
-    deleteat!(moves, moves .== 0)
+    if lb == 0 && ub == 6
+        return nothing
+    else
+        moves = collect(lb-(pos-1):ub-(pos-1+car.len))
+        deleteat!(moves, moves .== 0)
+        return moves
+    end
+end
+
+function unblocking_moves(car1, car2, arr; move_amount=nothing)
+    moves = Vector{Int}()
+    # Get car position in row
+    pos2 = car2.is_horizontal ? car2.x : car2.y
+    # squares behind and in front of car
+    b = pos2-1
+    f = 6-(pos2-1+car2.len)
+    # Only check possible moves
+    poss_moves = possible_moves(arr, car2)
+    # If both cars are aligned
+    if !(car1.is_horizontal ⊻ car2.is_horizontal)
+        pos1 = car1.is_horizontal ? car1.x : car1.y
+        # backward moves
+        if move_amount < 0
+            if (pos2+car2.len-1) - (pos1+move_amount) < b
+                for i in (pos2+car2.len-1) - (pos1+move_amount) + 1:b
+                    if poss_moves === nothing
+                        pushfirst!(moves, -i)
+                    elseif -i in poss_moves
+                        pushfirst!(moves, -i)
+                    end
+                end
+            end
+        else # forward moves
+            if (pos1+car1.len-1+move_amount) - pos2 < f
+                for i in (pos1+car1.len-1+move_amount) - pos2 + 1:f
+                    if poss_moves === nothing
+                        push!(moves, i)
+                    elseif i in poss_moves
+                        push!(moves, i)
+                    end
+                end
+            end
+        end
+    else
+        pos1_perp = car1.is_horizontal ? car1.y : car1.x
+        # backward moves
+        if (pos2+car2.len-1) - pos1_perp < b
+            for i in (pos2+car2.len-1) - pos1_perp + 1:b
+                if poss_moves === nothing
+                    pushfirst!(moves, -i)
+                elseif -i in poss_moves
+                    pushfirst!(moves, -i)
+                end
+            end
+        end
+        # forward moves
+        if pos1_perp - pos2 < f
+            for i in pos1_perp - pos2 + 1:f
+                if poss_moves === nothing
+                    push!(moves, i)
+                elseif i in poss_moves
+                    push!(moves, i)
+                end
+            end
+        end
+    end
     return moves
 end
 

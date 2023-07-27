@@ -441,51 +441,36 @@ function draw_one_step_chains(chains)
     return GraphViz.Graph(graph)
 end
 
-function draw_one_step_tree(chains, board)
-    # AND-OR tree node type
-    s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
-    # action type
-    a_type = Tuple{Int, Int}
+function draw_ao_tree(AO, board)
     graph = """digraph{graph [pad="0.2",nodesep="0.15",ranksep="0.3"];layout="dot";"""
-    AND = DefaultDict{Tuple{s_type, a_type, Int}, Vector{Tuple{s_type, Int}}}([])
-    OR = DefaultDict{Tuple{s_type, Int}, Vector{Tuple{s_type, a_type, Int}}}([])
-    drawn = Vector{Tuple{s_type, Int}}()
-    for chain in chains
-        for (n, node) in enumerate(chain[1:end-1])
-            AND_current = (node[1], n)
-            move = node[2]
-            OR_node = (AND_current[1], move, n)
-            AND_next = (chain[n+1][1], n+1)
-            if OR_node ∉ OR[AND_current]
-                push!(OR[AND_current], OR_node)
-            end
-            if AND_next ∉ AND[OR_node]
-                if isempty(AND[OR_node])
-                    graph *= """ "$(AND_current)"[fixedsize=shape,style=filled,fillcolor=white,width=0.6,margin=0,label="$(AND_current[1][1])",fontsize=16,shape="circle"];"""
-                    graph *= """ "$(AND_current)"->"$(OR_node)"[constraint="true"];"""
-                end
-                push!(AND[OR_node], AND_next)
-                graph *= """ "$(OR_node)" [fixedsize=shape,shape=diamond,style=filled,fillcolor=gray75,label="$(create_move_icon(move, board)[2:end])",height=.5,width=.5,fontsize=14];"""
-                graph *= """ "$(OR_node)"->"$(AND_next)"[constraint=true];"""
-                graph *= """ "$(AND_next)"[fixedsize=shape,style=filled,fillcolor=white,width=0.6,margin=0,label="$(AND_next[1][1])",fontsize=16,shape="circle"];"""
-            end
+    drawn_and = []
+    drawn_or = []
+    AND, OR = AO
+    for or in keys(AND)
+        if or ∉ drawn_or
+            push!(drawn_or, or)
+            move = or[2]
+            graph *= """ "$(or)" [fixedsize=shape,shape=diamond,style=filled,fillcolor="$(AND[or][1][1] == (0, (0,)) ? "lime" : "gray75")",label="$(create_move_icon(move, board)[2:end])",height=.5,width=.5,fontsize=14];"""
         end
-        last_AND_node = (chain[end][1], length(chain))
-        last_move = chain[end][2]
-        last_OR_node = (last_AND_node[1], last_move, length(chain))
-        if last_OR_node ∉ OR[last_AND_node]
-            push!(OR[last_AND_node], last_OR_node)
+        for and in AND[or]
+            if and[1] == (0, (0,))
+                continue
+            end
+            graph *= """ "$(or)"->"$(and)"[constraint="true"];"""
         end
-        if ((0, (0,)), length(chain)) ∉ AND[last_OR_node]
-            push!(AND[last_OR_node], ((0, (0,)), length(chain)))
-            graph *= """ "$(last_AND_node)"->"$(last_OR_node)"[constraint="true"];"""
-            graph *= """ "$(last_OR_node)" [fixedsize=shape,shape=diamond,style=filled,fillcolor=lime,label="$(create_move_icon(last_move, board)[2:end])",height=.5,width=.5,fontsize=14];"""
+    end
+    for and in keys(OR)
+        if and ∉ drawn_and
+            push!(drawn_and, and)
+            graph *= """ "$(and)"[fixedsize=shape,style=filled,fillcolor=white,width=0.6,margin=0,label="$(and[1][1])",fontsize=16,shape="circle"];"""
+        end
+        for or in OR[and]
+            graph *= """ "$(and)"->"$(or)"[constraint="true"];"""
         end
     end
     graph *= "}"
-    return (AND, OR), GraphViz.Graph(graph)
+    return GraphViz.Graph(graph)
 end
-
 
 #draw_backtrack_state_space(state_space, action_space, board, root, IDV[prb])
 
