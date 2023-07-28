@@ -1,3 +1,5 @@
+include("basics_for_hpc.jl")
+
 function get_move_probabilities(x, board; max_iter=1000)
     # AND-OR tree node type
     s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
@@ -29,6 +31,8 @@ function propagate!(x, p, move, current_visited, dict, board, arr, recursion_dep
         throw(DomainError("max_iter depth reached"))
     end
     γ = x[1]
+    # β_AND1 = x[2]
+    # β_AND2 = x[3]
     #move = current_node[2]
     child_nodes = get_blocking_nodes(board, arr, move)
     # move is impossible
@@ -43,8 +47,9 @@ function propagate!(x, p, move, current_visited, dict, board, arr, recursion_dep
     end
     # assign probability to each child node being selected
     p_children = p / length(child_nodes)
+    #p_children = softmax([1:length(child_nodes), [length(c[2]) for c in child_nodes]], [β_AND1, β_AND2])
     # recurse all children
-    for node in child_nodes
+    for (n, node) in enumerate(child_nodes)
         if node in current_visited
             dict[(-2, -2)] += p_children
             continue
@@ -108,7 +113,7 @@ function subject_nll(x, tot_moves)
     nll = 0
     γ = exp(-x[1])
     λ = x[2]
-    for prb in keys(tot_moves)
+    for prb in collect(keys(tot_moves))
         board = load_data(prb)
         tot_moves_prb = tot_moves[prb]
         for move in tot_moves_prb
@@ -135,31 +140,42 @@ end
 
 function all_subjects_fit(all_subj_moves, x0)
     params = zeros(length(all_subj_moves), 2)
-    fitness = 0
-    for (n, subj) in ProgressBar(enumerate(keys(all_subj_moves)))
-        x, nll = fit_subject(all_subj_moves[subj], x0)
-        params[n, :] = x
-        fitness += nll
+    fitness = zeros(length(all_subj_moves))
+    subjs = collect(keys(all_subj_moves))
+    M = length(all_subj_moves)
+    Threads.@threads for m in ProgressBar(1:M)
+        x, nll = fit_subject(all_subj_moves[subjs[m]], x0)
+        params[m, :] = x
+        fitness[m] = nll
     end
     return params, fitness
 end
 
-all_subj_moves = Dict{String, Dict{String, Vector{Tuple{Int64, Int64}}}}()
-for subj in ProgressBar(subjs[1:2])
-    _, tot_moves, _, _ = analyse_subject(data[subj]);
-    all_subj_moves[subj] = tot_moves
+function get_all_subj_moves(data)
+    all_subj_moves = Dict{String, Dict{String, Vector{Tuple{Int64, Int64}}}}()
+    for subj in collect(keys(data))
+        _, tot_moves, _, _ = analyse_subject(data[subj]);
+        all_subj_moves[subj] = tot_moves
+    end
+    return all_subj_moves
 end
+#data = load("data/processed_data/filtered_data.jld2")["data"]
+#subjs = collect(keys(data))
+
+all_subj_moves = get_all_subj_moves(data);
 x0 = [2.0, 0.1];
-params, fitness = all_subjects_fit(all_subj_moves, x0)
+params, fitness = all_subjects_fit(all_subj_moves, x0);
+display(params)
+println(sum(fitness))
 
-nll = subject_fit(x0, tot_moves)
+# nll = subject_fit(x0, tot_moves)
 
-prb = prbs[sp[4]]
-board = load_data(prb);
-arr = get_board_arr(board)
-dict = get_move_probabilities(x0, board);
+# prb = prbs[sp[4]]
+# board = load_data(prb);
+# arr = get_board_arr(board)
+# dict = get_move_probabilities(x0, board);
 
-moves, ps = process_dict(dict);
+# moves, ps = process_dict(dict);
 
 
 
