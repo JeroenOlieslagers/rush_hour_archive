@@ -149,6 +149,20 @@ function move_blocked_by(car, m, arr)
     return blockages#unique(blockages)
 end
 
+function move_blocks_red(board, move)
+    c, m = move
+    car = board.cars[c]
+    red_car = board.cars[9]
+    if !car.is_horizontal
+        if red_car.x < car.x
+            if car.y+m <= red_car.y && car.y+m+car.len-1 >= red_car.y
+                return true
+            end
+        end
+    end
+    return false
+end
+
 function possible_moves(arr, car)
     # Get row/col
     row = get_1d_arr(arr, car)

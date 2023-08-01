@@ -180,20 +180,22 @@ function get_state_data(data, full_heur_dict; heur=4)
                     neighs[n] = s
                     undo_moves!(board, [a])
                 end
+                # Make move
+                arr = get_board_arr(board)
+                sp = board_to_int(arr, BigInt)
+                make_move!(board, move)
+                arr = get_board_arr(board)
                 s = board_to_int(arr, BigInt)
-                if IDV[prb][s][1] == 0
-                    break
-                end
                 # If action leads to state in state space, add it
                 if string(s) ∈ keys(full_heur_dict)
                     push!(subj_dict_qs[prb][restart_count], full_heur_dict[string(s)][heur])
                     push!(subj_dict_Qs[prb][restart_count], Q)
-                    push!(subj_dict_visited[prb][restart_count], s)
+                    push!(subj_dict_visited[prb][restart_count], sp)
                     push!(subj_dict_neigh[prb][restart_count], neighs)
                 end
-                # Make move
-                make_move!(board, move)
-                arr = get_board_arr(board)
+                if IDV[prb][s][1] == 0
+                    break
+                end
             end
         end
         qqs[subj] = subj_dict_qs
@@ -558,7 +560,7 @@ for i in 1:42
     fit2 += subject_fit(params[i, :], qqs[subjs[i]], QQs[subjs[i]])
 end
 
-ls2, error_l_data, error_a_data, error_l_model, error_a_model, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict_opt);
+ls2, error_l_data, error_a_data, error_l_model1, error_a_model1, chance_l, chance_a, cnt, error_l_fake, error_a_fake, fake_qqs = calculate_p_error(QQs, visited_states, neighbour_states, params, full_heur_dict_opt);
 error_l_data, error_a_data, error_l_model3, error_a_model3, chance_l, chance_a = simulate_rollouts([-2.0, 10000.0], visited_states, graphs_prb, solutions_prb);
 
 error_l_data_qb, av_subj, av_bin_l = quantile_binning(error_l_data, bounds=true);
