@@ -426,11 +426,13 @@ function analyse_subject(subject_data)
     targets = subject_data.target
     pieces = subject_data.piece
     events = subject_data.event
+    times = subject_data.t
     # Only include move end and restart data (tells us everything we need)
     excl_events = findall(x->x∉["drag_end", "restart"], events)
     tot_arrs = Dict{String, Array{Matrix{Int}, 1}}()
     tot_move_tuples = Dict{String, Array{Tuple{Int, Int}, 1}}()
     tot_states_visited = Dict{String, Array{BigInt, 1}}()
+    tot_RTs = Dict{String, Array{Int, 1}}()
     # Record number of moves per puzzle per attempt
     #attempts = DefaultDict{String, Dict{Int, Int}}(Dict{Int, Int})
     attempts = Dict{String, Int}()
@@ -438,6 +440,10 @@ function analyse_subject(subject_data)
         # Get indices that correspond to the current problem instance
         idx = findall(x->x==uni, probs)
         idx_restart = findall(x->x==uni, probs)
+        iddx = findfirst(x->x=="start", events[idx])
+        if iddx !== nothing
+            start_time = times[idx[iddx]]
+        end
         # Remove indices that are BONUS_FAIL/BONUS_SUCCESS and not drag_end
         filter!(x->x∉negs, idx)
         filter!(x->x∉excl_events, idx)
@@ -461,7 +467,9 @@ function analyse_subject(subject_data)
         prob_targets = targets[idx]
         prob_pieces = pieces[idx]
         prob_events = events[idx]
+        prob_times = times[idx]
         if idx[end]+1 <= length(events)
+            #println(events[idx[end]+1])
             if events[idx[end]+1] != "win"
                 continue
             end
@@ -483,6 +491,8 @@ function analyse_subject(subject_data)
         arrs = Array{Matrix{Int}, 1}()
         move_tuples = Array{Tuple{Int, Int}, 1}()
         states_visited = Array{BigInt, 1}()
+        RTs = Array{Int, 1}()
+        init_time = start_time
         for i in 1:length(restarts)-1
             # Get indices for intervals between restarts
             idx = (restarts[i]+1):(restarts[i+1]-1)
@@ -490,9 +500,13 @@ function analyse_subject(subject_data)
             # attempts[uni][i] = length(idx)
             # Initialise board
             board = load_data(uni)
+            if i > 1
+                init_time = prob_times[idx[1]-1]
+            end
             # Loop over moves
-            for (move, target, piece) in zip(prob_moves[idx], prob_targets[idx], prob_pieces[idx])
+            for j in idx
                 # If start or restart, reload problem
+                move, target, piece, time = prob_moves[j], prob_targets[j], prob_pieces[j], prob_times[j]
                 if move == 0
                     # Load problem
                     board = load_data(uni)
@@ -500,6 +514,7 @@ function analyse_subject(subject_data)
                     push!(arrs, arr)
                     push!(move_tuples, (-1, 0))
                     push!(states_visited, board_to_int(arr, BigInt))
+                    push!(RTs, 0)
                 end
                 # Get moving piece
                 move_piece = piece + 1
@@ -511,13 +526,17 @@ function analyse_subject(subject_data)
                 push!(arrs, arr)
                 push!(move_tuples, (move_piece, m))
                 push!(states_visited, board_to_int(arr, BigInt))
+                push!(RTs, time - init_time)
             end
         end
         tot_arrs[uni] = arrs
         tot_move_tuples[uni] = move_tuples
         tot_states_visited[uni] = states_visited
+        tot_RTs[uni] = RTs
+        #p = plot(prob_moves)
+        #display(p)
     end
-    return tot_arrs, tot_move_tuples, tot_states_visited, attempts
+    return tot_arrs, tot_move_tuples, tot_states_visited, attempts, tot_RTs
 end
 
 """

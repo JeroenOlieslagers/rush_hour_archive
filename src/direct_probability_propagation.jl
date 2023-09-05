@@ -2,7 +2,7 @@ include("basics_for_hpc.jl")
 #using StatsBase
 #using Plots
 
-function get_move_probabilities(x, board; max_iter=1000)
+function get_move_probabilities(x, board; backtracking=false, max_iter=1000)
     # AND-OR tree node type
     s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
     # action type
@@ -12,6 +12,19 @@ function get_move_probabilities(x, board; max_iter=1000)
     # keeps track of probability over moves
     # also keeps track of probability of making random move
     dict = DefaultDict{a_type, Any}(0.0)
+    #dict = DefaultDict{a_type, Vector{Vector{Tuple{Tuple{Int, Vector, Vector}, Tuple{Int, Vector, Vector}}}}}([])
+    #p_chain = Vector{Tuple{Tuple{Int, Vector, Vector}, Tuple{Int, Vector, Vector}}}()
+    # AND node type
+    and_type = Tuple{s_type, Int}
+    # OR node type
+    or_type = Tuple{s_type, a_type, Int}
+    # keeps track of probability of every AND/OR state
+    p_AND = DefaultDict{and_type, Any}(0.0)
+    p_OR = DefaultDict{or_type, Any}(0.0)
+    # keeps track of parents for backtracking
+    parents_AND = DefaultDict{and_type, Vector{or_type}}([])
+    parents_OR = DefaultDict{or_type, Vector{and_type}}([])
+    parents_moves = DefaultDict{a_type, Vector{or_type}}([])
     # initialize process
     arr = get_board_arr(board)
     m_init = 6 - (board.cars[9].x+1)
@@ -21,14 +34,22 @@ function get_move_probabilities(x, board; max_iter=1000)
     # fill all moves
     all_moves = Tuple.(get_all_available_moves(board, arr))
     for move in all_moves
+        #dict[move] = []
         dict[move] = 0.0
     end
+    AND_root = (ao_root, 0)
+    OR_root = (ao_root, root_move, 0)
+    p_AND[AND_root] += 1.0
+    p_OR[OR_root] += 1.0
+    push!(parents_AND[AND_root], ((0, (0,)), (0, 0), -1))
+    push!(parents_OR[OR_root], AND_root)
+    child_nodes = get_blocking_nodes(board, arr, root_move)
     # Expand tree and recurse
-    propagate!(x, 1.0, root_move, current_visited, dict, board, arr, 0, max_iter)
-    return dict
+    propagate!(x, 1.0, OR_root, child_nodes, current_visited, dict, parents_moves, p_AND, p_OR, parents_AND, parents_OR, board, arr, 0, max_iter; backtracking=backtracking)
+    return dict, p_AND, p_OR, parents_moves, parents_AND, parents_OR
 end
 
-function propagate!(x, p, move, current_visited, dict, board, arr, recursion_depth, max_iter)
+function propagate!(x, p, prev_OR, child_nodes, current_visited, dict, parents_moves, p_AND, p_OR, parents_AND, parents_OR, board, arr, recursion_depth, max_iter; backtracking=false)
     if recursion_depth > max_iter
         throw(DomainError("max_iter depth reached"))
     end
@@ -37,51 +58,81 @@ function propagate!(x, p, move, current_visited, dict, board, arr, recursion_dep
     β_AND2 = x[3]
     β_OR1 = x[4]
     β_OR2 = x[5]
-    #move = current_node[2]
-    child_nodes = get_blocking_nodes(board, arr, move)
-    # move is impossible
-    if child_nodes == [(0, (0,))]
-        dict[(-2, -2)] += p
-        return nothing
-    end
+    _, move, d = prev_OR
+
     # if move is unblocked, have reached end of chain
     if isempty(child_nodes)
         dict[move] += p
+        #push!(dict[move], p_chain)
+        if prev_OR ∉ parents_moves[move]
+            push!(parents_moves[move], prev_OR)
+        end
         return nothing
     end
     # assign probability to each child node being selected
     #p_children = p / length(child_nodes)
     a1 = collect(1:length(child_nodes))
     a2 = [length(c[2]) for c in child_nodes]
-    # push!(AND1, a1...)
-    # push!(AND2, a2...)
     p_children = p * softmax([a1'; a2']', [β_AND1, β_AND2])
     # recurse all children
     for (i, node) in enumerate(child_nodes)
         if node in current_visited
             dict[(-2, -2)] += p_children[i]
+            #pc = copy(p_chain)
+            #push!(pc, ((i, a1, a2), (1, [1], [1])))
+            #push!(dict[(-2, -2)], pc)
             continue
         end
+        AND = (node, d+1)
+        p_AND[AND] += p_children[i]
+        if backtracking
+            if prev_OR ∉ parents_AND[AND]
+                push!(parents_AND[AND], prev_OR)
+            end
+        end
         # assign probability to each move being selected
-        #p_move = p_children / length(node[2])
-        car = board.cars[node[1]]
-        o1 = [length(move_blocked_by(car, m, arr)) for m in node[2]]
-        o2 = [move_blocks_red(board, (node[1], m)) for m in node[2]]
-        # push!(OR1, o1...)
-        # push!(OR2, o2...)
-        p_move = p_children[i] * softmax([o1'; o2']', [β_OR1, β_OR2])
-        for (j, m) in enumerate(node[2])
+        p_move = p_children / length(node[2])
+        o1 = Int[]
+        o2 = Int[]
+        ls = Int[]
+        childs = []
+        for m in node[2]
             next_move = (node[1], m)
+            child_nodes = get_blocking_nodes(board, arr, next_move)
+            # move is impossible
+            if child_nodes == [(0, (0,))]
+                #dict[(-2, -2)] += p
+                #return nothing
+                continue
+            end
+            push!(o1, length(child_nodes))
+            push!(o2, move_blocks_red(board, next_move))
+            push!(ls, m)
+            push!(childs, child_nodes)
+        end
+        p_move = p_children[i] * softmax([o1'; o2']', [β_OR1, β_OR2])
+        for (j, m) in enumerate(ls)
+            next_move = (node[1], m)
+            OR = (node, next_move, d+1)
+            p_OR[OR] += p_move[j]
+            if backtracking
+                if AND ∉ parents_OR[OR]
+                    push!(parents_OR[OR], AND)
+                end
+            end
             cv = copy(current_visited)
             push!(cv, node)
             p_stop = γ .* p_move[j]
             dict[(-1, -1)] += p_stop
             p_continue = (1-γ) .* p_move[j]
-            propagate!(x, p_continue, next_move, cv, dict, board, arr, recursion_depth + 1, max_iter)
+            #pc = copy(p_chain)
+            #push!(pc, ((i, a1, a2), (j, o1, o2)))
+            propagate!(x, p_continue, OR, childs[j], cv, dict, parents_moves, p_AND, p_OR, parents_AND, parents_OR, board, arr, recursion_depth + 1, max_iter; backtracking=backtracking)
         end
     end
     return nothing
 end
+@btime dict, _, _, _, _ = get_move_probabilities(x0, load_data(prbs[sp[end-1]]));
 
 function softmax(idv, betas)
     sm = exp.(idv * betas)
@@ -108,7 +159,7 @@ function get_blocking_nodes(board, arr, move)
     return ls
 end
 
-function process_dict(dict)
+function process_dict(dict, x)
     moves = []
     ps = []
     for move in keys(dict)
@@ -125,13 +176,40 @@ function process_dict(dict)
     end
     # random move in case of stopping early
     ps .+= dict[(-1, -1)]/length(ps)
+
+    μ = x[end-1]
+    λ = x[end]
+    idx = Int[]
+    for n in eachindex(moves)
+        if moves[n][1] == 9
+            push!(idx, n)
+        end
+    end
+    ps[idx] = μ/length(idx) .+ (1-μ)*ps[idx]
+    ps = λ/length(ps) .+ (1-λ)*ps
     return moves, ps
+end
+
+function filter_prev_move(move, p_AND, p_OR, parents_moves, parents_AND, parents_OR)
+    OR_nodes = parents_moves[move]
+    AND_parents = []
+    for OR_node in OR_nodes
+        push!(AND_parents, parents_OR[OR_node]...)
+    end
+    OR_parents = []
+    for AND_parent in unique(AND_parents)
+        push!(OR_parents, parents_AND[AND_parent]...)
+    end
+    dict = DefaultDict{Tuple{Int, Int}, Float64}(0.0)
+    for OR_parent in unique(OR_parents)
+        dict[OR_parent[2]] += p_OR[OR_parent]
+    end
+    sm = sum(values(dict))
+    return replace(kv -> kv[1] => kv[2]/sm, dict)
 end
 
 function simulate_model(x, tot_moves, optimal_a, IDV)
     nll = 0
-    γ = exp(-x[1])
-    λ = x[2]
     error_l_model = [Int[] for _ in 1:35]
     error_a_model = [Int[] for _ in 1:35]
     for prb in collect(keys(tot_moves))
@@ -153,9 +231,8 @@ function simulate_model(x, tot_moves, optimal_a, IDV)
                 break
             end
 
-            dict = get_move_probabilities([γ], board);
-            all_moves, ps = process_dict(dict);
-            ps = λ/length(ps) .+ (1-λ)*ps
+            dict = get_move_probabilities(x, board);
+            all_moves, ps = process_dict(dict, x);
 
             nll -= log(ps[findfirst(x->x==move, all_moves)])
 
@@ -185,9 +262,6 @@ end
 
 function subject_nll(x, tot_moves)
     nll = 0
-    θ = x[1:5]
-    μ = x[end-1]
-    λ = x[end]
     for prb in collect(keys(tot_moves))
         board = load_data(prb)
         tot_moves_prb = tot_moves[prb]
@@ -196,16 +270,8 @@ function subject_nll(x, tot_moves)
                 board = load_data(prb)
                 continue
             end
-            dict = get_move_probabilities(θ, board);
-            all_moves, ps = process_dict(dict);
-            idx = Int[]
-            for n in eachindex(all_moves)
-                if all_moves[n][1] == 9
-                    push!(idx, n)
-                end
-            end
-            ps[idx] = μ/length(idx) .+ (1-μ)*ps[idx]
-            ps = λ/length(ps) .+ (1-λ)*ps
+            dict, _, _, _, _ = get_move_probabilities(x, board);
+            all_moves, ps = process_dict(dict, x);
 
             nll -= log(ps[findfirst(x->x==move, all_moves)])
 
@@ -217,16 +283,36 @@ end
 
 function fit_subject(tot_moves, x0)
     #res = optimize((x) -> subject_nll(x, tot_moves), [0.0, 0.0], [20.0, 1.0], x0, Fminbox(); autodiff=:forward)
-    res = optimize((x) -> subject_nll(x, tot_moves), [0.0, -10, -10, -10, -10, 0.0, 0.0], [20.0, 10.0, 10.0, 10.0, 10.0, 1.0, 1.0], x0, Fminbox(); autodiff=:forward)
+    res = optimize((x) -> subject_nll(x, tot_moves), [0.0, -10, -10, -10, -10, 0.0, 0.0], [20.0, 10.0, 10.0, 10.0, 10.0, 1.0, 1.0], x0, Fminbox(); autodiff=:forward, Optim.Options(f_tol = 1.0))
     return Optim.minimizer(res), Optim.minimum(res)
 end
+
+using PythonCall
+pybads = pyimport("pybads")
+BADS = pybads.BADS
+
+bads_target = (x) -> subject_nll(x, all_subj_moves[subjs[1]])
+lb = [0.0, -10, -10, -10, -10, 0.0, 0.0];
+ub = [20.0, 10.0, 10.0, 10.0, 10.0, 1.0, 1.0];
+plb = [2.0, -5, -5, -5, -5, 0.05, 0.05];
+pub = [5.0, 5, 5, 5, 5, 0.5, 0.5];
+x0 = [2.0, 0.0, 0.0, 0.0, 0.0, 0.05, 0.2];
+options = Dict("tolfun"=> 1.0, "max_fun_evals"=>1000);
+bads = BADS(bads_target, x0, lb, ub, plb, pub, options=options)
+@time res = bads.optimize();
+
+x_min = res["x"]
+fval = res["fval"]
+
+println("BADS minimum at: x_min = $(x_min.flatten()), fval = $(fval)")
+println("total f-count: $(res["func_count"]), time: $(res["total_time"]) s")
 
 function all_subjects_fit(all_subj_moves, x0)
     params = zeros(length(all_subj_moves), length(x0))
     fitness = zeros(length(all_subj_moves))
     subjs = collect(keys(all_subj_moves))
     M = length(all_subj_moves)
-    Threads.@threads for m in ProgressBar(1:M)
+    for m in ProgressBar(1:1)#Threads.@threads 
         x, nll = fit_subject(all_subj_moves[subjs[m]], x0)
         params[m, :] = x
         fitness[m] = nll
@@ -235,26 +321,47 @@ function all_subjects_fit(all_subj_moves, x0)
 end
 
 function get_all_subj_moves(data)
-    all_subj_moves = Dict{String, Dict{String, Vector{Tuple{Int64, Int64}}}}()
+    all_subj_moves = Dict{String, Dict{String, Vector{Tuple{Int, Int}}}}()
+    all_subj_times = Dict{String, Dict{String, Vector{Int}}}()
     for subj in collect(keys(data))
-        _, tot_moves, _, _ = analyse_subject(data[subj]);
+        _, tot_moves, _, _, tot_times = analyse_subject(data[subj]);
         all_subj_moves[subj] = tot_moves
+        all_subj_times[subj] = tot_times
     end
-    return all_subj_moves
+    return all_subj_moves, all_subj_times
 end
 
-# board = load_data(prbs[sp[4]])
-# arr = get_board_arr(board)
-# x0 = [2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2]
-# dict = get_move_probabilities(x0, board)
+board = load_data(prbs[sp[4]])
+arr = get_board_arr(board)
+x0 = [100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2]
+
+dict, p_AND, p_OR, parents_moves, parents_AND, parents_OR = get_move_probabilities(x0, board; backtracking=true);
+dd = filter_prev_move((3, -1), p_AND, p_OR, parents_moves, parents_AND, parents_OR)
+
+pilot_moves = [
+    (2, -1),
+    (7, 1),
+    (1, -4),
+    (5, -1),
+    (3, 2)
+]
+prev_moves = []
+for move in pilot_moves
+    dict, p_AND, p_OR, parents_moves, parents_AND, parents_OR = get_move_probabilities(x0, board; backtracking=true);
+    _, ps = process_dict(dict, x0)
+    make_move!(board, move)
+    pushfirst!(prev_moves, (p_AND, p_OR, parents_moves, parents_AND, parents_OR))
+end
+
+undo_moves!(board, pilot_moves)
 
 #data = load("data/processed_data/filtered_data.jld2")["data"]
 #subjs = collect(keys(data))
 
-all_subj_moves = get_all_subj_moves(data);
+all_subj_moves, all_subj_times = get_all_subj_moves(data);
 #x0 = [2.0, 0.1];
 x0 = [2.0, 0.0, 0.0, 0.0, 0.0, 0.05, 0.2];
-# params = [1.63144  0.0272332;
+# params_fit = [1.63144  0.0272332;
 # 4.1322   0.232287;
 # 5.54945  0.376679;
 # 1.78816  0.0420192;
@@ -359,8 +466,36 @@ println(sum(fitness))
 
 # moves, ps = process_dict(dict);
 
-# optimal_a = load("data/processed_data/optimal_a.jld2");
-# IDV = load("data/processed_data/IDV.jld2");
+#optimal_a = load("data/processed_data/optimal_a.jld2");
+#IDV = load("data/processed_data/IDV.jld2");
 
 
+
+
+
+
+# function process_p_chain_dict(x, dict)
+#     γ = exp(-x[1])
+#     β_AND1 = x[2]
+#     β_AND2 = x[3]
+#     β_OR1 = x[4]
+#     β_OR2 = x[5]
+#     p_dict = DefaultDict{Tuple{Int, Int}, Any}(0.0)
+#     for move in keys(dict)
+#         for chain in dict[move]
+#             p = 1
+#             for node in chain
+#                 i = node[1][1]
+#                 j = node[2][1]
+#                 p_and = exp(β_AND1*node[1][2][i] + β_AND2*node[1][3][i])/sum(exp.(β_AND1*node[1][2] + β_AND2*node[1][3]))
+#                 p_or = exp(β_OR1*node[2][2][j] + β_OR2*node[2][3][j])/sum(exp.(β_OR1*node[2][2] + β_OR2*node[2][3]))
+#                 p *= p_and*p_or
+#                 p *= (1-γ)
+#             end
+#             p_dict[move] += move == (-2, -2) ? p/(1-γ) : p
+#         end
+#     end
+#     p_dict[(-1, -1)] = 1 - sum(values(p_dict))
+#     return p_dict
+# end
 
