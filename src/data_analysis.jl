@@ -874,8 +874,8 @@ end
 # scatter!(p, av_bins_all, 1 .- (1 ./ av_bins_all), xlim=(5, 18), label=nothing, color=:blue)
 
 
-# total_data = load_raw_data();
-# data = filter_subjects(total_data);
+# raw_data = load_raw_data();
+# data = filter_subjects(raw_data);
 
 # time_plot(data)
 # problem_plot(data)

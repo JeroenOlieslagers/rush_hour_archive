@@ -500,6 +500,9 @@ end
 
 function move_blocks_red(board, move)
     c, m = move
+    if c < 1
+        return false
+    end
     car = board.cars[c]
     red_car = board.cars[9]
     if !car.is_horizontal

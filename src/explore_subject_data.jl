@@ -110,7 +110,9 @@ function move_hist(p1, p2, actions, move, opt, s, subind, inds)
             push!(optz, create_move_icon(mm, board))
         end
         bar!(movez, p1[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="AND-OR", legend=true, xticks=:all)
-        bar!(movez, p2[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="Eureka", legend=true)
+        if length(p2) > 0
+            bar!(movez, p2[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="Eureka", legend=true)
+        end
         bar!(optz, ones(length(optz)) ./ length(optz), alpha=0.5, sp=1 + (i-1)*2, label="Optimal", bar_width=0.5, legend=true)
         bar!([create_move_icon(move[inds[subind[i]]], board)], [1], sp=1 + (i-1)*2, label="Human", bar_width=0.2, c=:black, legend=true)
         draw_board(arr, sp=2 + (i-1)*2)

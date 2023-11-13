@@ -11,7 +11,7 @@ function initialise_graph(title="")
     if title != ""
         return """digraph {layout="dot";splines=false;dummy [label=""" * string(title) * " shape=box]; dummy -> 9 [style=invis];"
     else
-        return """digraph {layout="dot";"""
+        return """digraph {layout="neato";"""
     end
 end
 
@@ -290,6 +290,79 @@ function draw_solution_paths(solution_paths, parents, stat, max_heur)
     return GraphViz.Graph(g)
 end
 
+function draw_subject_paths(visited_states, prb, d_goals)
+    # Start graph
+    g = initialise_graph()
+    visited = []
+    edges = DefaultDict{Tuple{BigInt, BigInt}, Int}(0)
+    starts = []
+    dead_ends = []
+    wins = []
+    for subj in keys(visited_states)
+        for prbb in keys(visited_states[subj])
+            if prbb == prb
+                for r in eachindex(visited_states[subj][prb])
+                    states = visited_states[subj][prb][r]
+                    for n in eachindex(states)
+                        if n < length(states)
+                            start = states[n]
+                            endd = states[n+1]
+                            if start ∉ visited
+                                if n == 1 && start ∉ starts
+                                    push!(starts, start)
+                                end
+                                push!(visited, start)
+                                #g = add_node(g, start, invisible_nodes=true)
+                            end
+                            if endd ∉ visited
+                                if n+1 == length(states)
+                                    if d_goals[endd] == 0
+                                        if endd ∉ wins
+                                            push!(wins, endd)
+                                        end
+                                    else
+                                        if endd ∉ dead_ends
+                                            push!(dead_ends, endd)
+                                        end
+                                    end
+                                end
+                                push!(visited, endd)
+                                #g = add_node(g, endd, invisible_nodes=true)
+                            end
+                            edges[(start, endd)] += 1
+                            #g = add_edge(g, states[n], states[n+1])
+                        end
+                    end
+                end
+            end
+        end
+    end
+    for state in visited
+        if state in starts
+            g = add_node(g, state, invisible_nodes=true, color=""" "#008ae9" """)
+        elseif state in wins
+            g = add_node(g, state, invisible_nodes=true, color=""" "#239a49" """)
+        elseif state in dead_ends
+            g = add_node(g, state, invisible_nodes=true, color=""" "#df6042" """)
+        else
+            g = add_node(g, state, invisible_nodes=true)
+        end
+    end
+    max = maximum(values(edges))
+    for pair in keys(edges)
+        start, endd = pair
+        alpha = 0.3 + 0.7*(edges[pair] / max)
+        color = """ "#000000"""*string(round(Int, 255*alpha), base=16)*"""" """
+        g = add_edge(g, start, endd, color=color, width=15*(alpha-0.2))
+    end
+    g = close_graph(g)
+    return GraphViz.Graph(g)
+end
+for i in 1:70
+    g = draw_subject_paths(visited_states, prbs[i], d_goals)
+    save_graph(g, "puzzle_"*string(i))
+end
+
 function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], value_map=[], solutions=[], start=nothing)
     """
     Draws full tree of parents
@@ -309,30 +382,40 @@ function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], valu
         node_color = ""
         edge_color = """ "#00000050" """
         edge_width = 1
+        border_color = ""
+        node_width = 0
         if length(solution_paths) > 0
             if child in optimal_nodes
-                node_color = """ "#0000ff" """
-                edge_color = """ "#0000ff" """
+                #node_color = """ "#0000ff" """
+                #edge_color = """ "#0000ff" """
+                border_color = """ "#48a0f8" """
+                edge_color = """ "#48a0f8" """
                 edge_width = 5
+                node_width = 4
             end
         end
         if length(solutions) > 0
             if child in solutions
-                node_color = """ "#00ff00" """
+                #node_color = """ "#00ff00" """
+                node_color = """ "#48a0f8" """
+                border_color = ""
             end
         end
         if child == start
             node_color = """ "#ff0000" """
+            border_color = ""
         end
         if length(value_map) > 0
-            g = add_node(g, child, color=node_color, label=string(round(value_map[child], digits=2)))
+            g = add_node(g, child, color=node_color, label=string(round(value_map[child], digits=2)), border_color=border_color, width=node_width)
         else
-            g = add_node(g, child, invisible_nodes=true, color=node_color)
+            g = add_node(g, child, invisible_nodes=true, color=node_color, border_color=border_color, width=node_width)
         end
         for parent in parents[child]
-            if node_color == """ "#00ff00" """
+            #if node_color == """ "#00ff00" """
+            if node_color == """ "#48a0f8" """
                 if parent in optimal_nodes
-                    edge_color = """ "#0000ff" """
+                    #edge_color = """ "#0000ff" """
+                    edge_color = """ "#48a0f8" """
                     edge_width = 5
                 else
                     edge_width = 1

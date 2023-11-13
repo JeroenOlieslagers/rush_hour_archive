@@ -845,20 +845,26 @@ end
 # @btime multi_mag_size_nodes(board, arr)
 
 # board = load_data("hard_puzzle_1")
-# arr = get_board_arr(board)
-# T = get_type(arr)
-# start = board_to_int(arr, T)
-# tree, seen, stat, dict, all_parents, children, solutions, parent_actions = bfs_path_counters(board, traverse_full=true, all_parents=true);
+board = load_data(prbs[3])
+arr = get_board_arr(board)
+T = get_type(arr)
+start = board_to_int(arr, T)
+tree, seen, stat, dict, all_parents, children, solutions, parent_actions = bfs_path_counters(board, traverse_full=true, all_parents=true);
+tree, seen, stat, dict, parents, children, solutions, parent_actions = bfs_path_counters(board, traverse_full=true, all_parents=false);
 
-# solution_paths, fake_tree, max_heur = get_solution_paths(solutions[1:3], parents, stat);
+solution_paths, fake_tree, max_heur = get_solution_paths(solutions[1:2], parents, stat);
 
 # # plot_tree(fake_tree)
 
 # #g = draw_solution_paths(solution_paths, parents, stat, max_heur)
 
 # g = draw_directed_tree(parents, solution_paths=solution_paths, solutions=solutions, all_parents=all_parents, start=start)
+parents[start] = []
+g = draw_directed_tree(parents, solution_paths=solution_paths, solutions=solutions, all_parents=all_parents, start=start)
+draw_subject_paths(visited_states, prbs[2], d_goals)
 
 # save_graph(g, "bidirectional_hard_1_start_optimal_only_v3")
 # save_graph(g, "solution_hard_puzzle_39_complete")
+save_graph(g, "state_space_example_qual")
 
  

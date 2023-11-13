@@ -120,3 +120,30 @@ function bfs_heur(board)
     end
     return heur_dict
 end
+
+
+# makes d_goal for each state
+d_goals = Dict{BigInt, Int}()
+for prb in ProgressBar(keys(optimal_a))
+    dic = optimal_a[prb]
+    for s in keys(dic)
+        counter = 0
+        ss = s
+        for i in 1:100
+            if dic[ss] == []
+                break
+            else
+                ss = dic[ss][1]
+                counter += 1
+            end
+        end
+        if counter > 95
+            println("wtf")
+        else
+            d_goals[s] = counter
+            if full_heur_dict_opt[string(s)][7] != counter
+                println(s)
+            end
+        end
+    end
+end

@@ -151,8 +151,11 @@ end
 
 function move_blocks_red(board, move)
     c, m = move
+    if c < 1
+        return false
+    end
     car = board.cars[c]
-    red_car = board.cars[9]
+    red_car = board.cars[end]
     if !car.is_horizontal
         if red_car.x < car.x
             if car.y+m <= red_car.y && car.y+m+car.len-1 >= red_car.y
@@ -326,7 +329,7 @@ function check_solved(arr)
     # Get forward moves
     f = row[idx+2:end]
     # Check if there is anything blocking red car
-    if sum(f) == [0] || length(f) == 0
+    if sum(f) == 0 || length(f) == 0
         return true
     else
         return false
@@ -432,7 +435,7 @@ function analyse_subject(subject_data)
     tot_arrs = Dict{String, Array{Matrix{Int}, 1}}()
     tot_move_tuples = Dict{String, Array{Tuple{Int, Int}, 1}}()
     tot_states_visited = Dict{String, Array{BigInt, 1}}()
-    tot_RTs = Dict{String, Array{Int, 1}}()
+    tot_times = Dict{String, Array{Int, 1}}()
     # Record number of moves per puzzle per attempt
     #attempts = DefaultDict{String, Dict{Int, Int}}(Dict{Int, Int})
     attempts = Dict{String, Int}()
@@ -491,7 +494,7 @@ function analyse_subject(subject_data)
         arrs = Array{Matrix{Int}, 1}()
         move_tuples = Array{Tuple{Int, Int}, 1}()
         states_visited = Array{BigInt, 1}()
-        RTs = Array{Int, 1}()
+        times_prb = Array{Int, 1}()
         init_time = start_time
         for i in 1:length(restarts)-1
             # Get indices for intervals between restarts
@@ -514,7 +517,7 @@ function analyse_subject(subject_data)
                     push!(arrs, arr)
                     push!(move_tuples, (-1, 0))
                     push!(states_visited, board_to_int(arr, BigInt))
-                    push!(RTs, 0)
+                    push!(times_prb, 0)
                 end
                 # Get moving piece
                 move_piece = piece + 1
@@ -526,17 +529,17 @@ function analyse_subject(subject_data)
                 push!(arrs, arr)
                 push!(move_tuples, (move_piece, m))
                 push!(states_visited, board_to_int(arr, BigInt))
-                push!(RTs, time - init_time)
+                push!(times_prb, time - init_time)
             end
         end
         tot_arrs[uni] = arrs
         tot_move_tuples[uni] = move_tuples
         tot_states_visited[uni] = states_visited
-        tot_RTs[uni] = RTs
+        tot_times[uni] = times_prb
         #p = plot(prob_moves)
         #display(p)
     end
-    return tot_arrs, tot_move_tuples, tot_states_visited, attempts, tot_RTs
+    return tot_arrs, tot_move_tuples, tot_states_visited, attempts, tot_times
 end
 
 """
@@ -566,3 +569,18 @@ data = load("data/processed_data/filtered_data.jld2")["data"]
 Ls, _ = get_Ls(data)
 prbs = collect(keys(Ls))[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in keys(Ls)])]
 subjs = collect(keys(data))
+
+# prbsn = []
+# winss = []
+# for subj in subjs
+#     push!(prbsn, length(unique(data[subj].instance)))
+#     insts = []
+#     for row in eachrow(data[subj])
+#         if row.event == "win"
+#             if row.instance ∉ insts
+#                 push!(insts, row.instance)
+#             end
+#         end
+#     end
+#     push!(winss, length(insts) / length(unique(data[subj].instance)))
+# end

@@ -446,32 +446,37 @@ function draw_ao_tree(AO, board)
     drawn_and = []
     drawn_or = []
     AND, OR = AO
-    for or in keys(AND)
-        if or ∉ drawn_or
-            push!(drawn_or, or)
-            move = or[2]
-            graph *= """ "$(or)" [fixedsize=shape,shape=diamond,style=filled,fillcolor="$(AND[or][1][1] == (0, (0,)) ? "lime" : "gray75")",label="$(create_move_icon(move, board)[2:end])",height=.5,width=.5,fontsize=14];"""
-        end
-        for and in AND[or]
-            if and[1] == (0, (0,))
-                continue
-            end
-            graph *= """ "$(or)"->"$(and)"[constraint="true"];"""
-        end
-    end
-    for and in keys(OR)
+    for and in keys(AND)
         if and ∉ drawn_and
             push!(drawn_and, and)
             graph *= """ "$(and)"[fixedsize=shape,style=filled,fillcolor=white,width=0.6,margin=0,label="$(and[1][1])",fontsize=16,shape="circle"];"""
         end
-        for or in OR[and]
+        for or in AND[and]
             graph *= """ "$(and)"->"$(or)"[constraint="true"];"""
+        end
+    end
+    for or in keys(OR)
+        if or ∉ drawn_or
+            push!(drawn_or, or)
+            move = or[2]
+            graph *= """ "$(or)" [fixedsize=shape,shape=diamond,style=filled,fillcolor="$(OR[or][1][1] == (0, (0,)) ? "lime" : "gray75")",label="$(create_move_icon(move, board)[2:end])",height=.5,width=.5,fontsize=14];"""
+        end
+        for and in OR[or]
+            if and[1] == (0, (0,))
+                continue
+            end
+            if and ∉ drawn_and
+                push!(drawn_and, and)
+                graph *= """ "$(and)"[fixedsize=shape,style=filled,fillcolor=red,width=0.6,margin=0,label="$(and[1][1])",fontsize=16,shape="circle"];"""
+            end
+            graph *= """ "$(or)"->"$(and)"[constraint="true"];"""
         end
     end
     graph *= "}"
     return GraphViz.Graph(graph)
 end
 
+g = draw_ao_tree(AO, board)
 #draw_backtrack_state_space(state_space, action_space, board, root, IDV[prb])
 
 board = load_data("prb72800_14")

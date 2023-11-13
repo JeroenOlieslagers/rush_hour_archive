@@ -270,6 +270,10 @@ function subject_nll(x, tot_moves)
                 board = load_data(prb)
                 continue
             end
+            arr = get_board_arr(board)
+            if check_solved(arr)
+                continue
+            end
             dict, _, _, _, _ = get_move_probabilities(x, board);
             all_moves, ps = process_dict(dict, x);
 
@@ -283,7 +287,7 @@ end
 
 function fit_subject(tot_moves, x0)
     #res = optimize((x) -> subject_nll(x, tot_moves), [0.0, 0.0], [20.0, 1.0], x0, Fminbox(); autodiff=:forward)
-    res = optimize((x) -> subject_nll(x, tot_moves), [0.0, -10, -10, -10, -10, 0.0, 0.0], [20.0, 10.0, 10.0, 10.0, 10.0, 1.0, 1.0], x0, Fminbox(); autodiff=:forward, Optim.Options(f_tol = 1.0))
+    res = optimize((x) -> subject_nll(x, tot_moves), [0.0, -10, -10, -10, -10, 0.0, 0.0], [20.0, 10.0, 10.0, 10.0, 10.0, 1.0, 1.0], x0, Fminbox(); autodiff=:forward, f_tol=1.0)#Optim.Options(f_tol = 1.0))
     return Optim.minimizer(res), Optim.minimum(res)
 end
 

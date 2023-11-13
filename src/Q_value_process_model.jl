@@ -194,6 +194,7 @@ function get_state_data(data, full_heur_dict; heur=4)
                     push!(subj_dict_neigh[prb][restart_count], neighs)
                 end
                 if IDV[prb][s][1] == 0
+                    push!(subj_dict_visited[prb][restart_count], s)
                     break
                 end
             end
@@ -520,6 +521,7 @@ subjs = collect(keys(data));
 
 #full_heur_dict = load("data/processed_data/full_heur_dict.jld2");
 full_heur_dict_opt = load("data/processed_data/full_heur_dict_opt.jld2");
+IDV = load("data/processed_data/IDV_OLD.jld2");
 
 
 qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=7);
@@ -529,7 +531,7 @@ for subj in subjs
     nnn += subject_fit([0.464, 11.55], qqs[subj], QQs[subj])
 end
 
-params, fitness = fit_all_subjs(qqs, QQs, max_time=600);
+params3, fitness3 = fit_all_subjs(qqs, QQs_prb, max_time=600);
 
 X = zeros(420, 2)
 Y = zeros(420, 2)

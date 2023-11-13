@@ -3,46 +3,55 @@ using StatsBase
 #using Plots
 using Distributions
 
-function get_tree_idv(board; backtracking=false, max_iter=1000)
-    # AND-OR tree node type
+function get_and_or_tree(board; backtracking=false, max_iter=100)
+    # AND-OR tree base node type
+    # (car_id, (possible_moves,))
     s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
     # action type
+    # (car_id, move_amount)
     a_type = Tuple{Int, Int}
-    # keeps track of current AO nodes visited
-    current_visited = Vector{s_type}()
     # AND node type
+    # ((car_id, (possible_moves,)), depth)
     and_type = Tuple{s_type, Int}
     # OR node type
+    # ((car_id, (possible_moves,)), (car_id, move_amount), depth)
     or_type = Tuple{s_type, a_type, Int}
+    # keeps track of current AO nodes visited
+    visited = Vector{s_type}()
     # keeps track of parents for backtracking
     parents_AND = DefaultDict{and_type, Vector{or_type}}([])
     parents_OR = DefaultDict{or_type, Vector{and_type}}([])
     parents_moves = DefaultDict{a_type, Vector{or_type}}([])
-    # forward pass
+    # forward pass (children)
     AND = DefaultDict{and_type, Vector{or_type}}([])
     OR = DefaultDict{or_type, Vector{and_type}}([])
+    # saves properties of nodes
     idv_AND = Dict{and_type, Matrix}()
     idv_OR = Dict{or_type, Matrix}()
     # initialize process
     arr = get_board_arr(board)
-    m_init = 6 - (board.cars[9].x+1)
-    ao_root = (9, (m_init,))
-    root_move = (9, m_init)
+    # ultimate goal move
+    m_init = 6 - (board.cars[end].x+1)
+    ao_root = (length(board.cars), (m_init,))
+    root_move = (length(board.cars), m_init)
+    # all possible moves from start position
     all_moves = Tuple.(get_all_available_moves(board, arr))
-    push!(current_visited, ao_root)
+    push!(visited, ao_root)
     AND_root = (ao_root, 1)
     OR_root = (ao_root, root_move, 1)
     push!(parents_AND[AND_root], ((0, (0,)), (0, 0), 0))
     push!(parents_OR[OR_root], AND_root)
-    child_nodes = get_blocking_nodes(board, arr, root_move)
     push!(AND[AND_root], OR_root)
     idv_AND[AND_root] = [[0]'; [0]']'
+    child_nodes = get_blocking_nodes(board, arr, root_move)
     # Expand tree and recurse
-    forward!(OR_root, child_nodes, current_visited, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR, board, arr, 0, max_iter; backtracking=backtracking)
-    return all_moves, AND_root, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR
+    AND_OR_tree = [AND_root, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR]
+    forward!(OR_root, child_nodes, visited, AND_OR_tree, board, arr, 0, max_iter; backtracking=backtracking)
+    return all_moves, AND_OR_tree
 end
 
-function forward!(prev_OR, child_nodes, current_visited, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR, board, arr, recursion_depth, max_iter; backtracking=backtracking)
+function forward!(prev_OR, child_nodes, visited, AND_OR_tree, board, arr, recursion_depth, max_iter; backtracking=backtracking)
+    AND_root, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR = AND_OR_tree
     if recursion_depth > max_iter
         throw(DomainError("max_iter depth reached"))
     end
@@ -61,8 +70,7 @@ function forward!(prev_OR, child_nodes, current_visited, AND, OR, idv_AND, idv_O
         end
         return nothing
     end
-    # assign probability to each child node being selected
-    #p_children = p / length(child_nodes)
+    # calculate features of AND node
     a1 = collect(1:length(child_nodes))
     a2 = [length(c[2]) for c in child_nodes]
     if !haskey(idv_OR, prev_OR)
@@ -74,7 +82,7 @@ function forward!(prev_OR, child_nodes, current_visited, AND, OR, idv_AND, idv_O
         if and_node ∉ OR[prev_OR]
             push!(OR[prev_OR], and_node)
         end
-        if node in current_visited
+        if node in visited
             # and_cycle = ((-2, (-2,)), d+1)
             # if and_cycle ∉ OR[prev_OR]
             #     push!(OR[prev_OR], and_cycle)
@@ -86,7 +94,7 @@ function forward!(prev_OR, child_nodes, current_visited, AND, OR, idv_AND, idv_O
                 push!(parents_AND[and_node], prev_OR)
             end
         end
-        # assign probability to each move being selected
+        # calculate features of OR node
         o1 = Int[]
         o2 = Int[]
         ls = Int[]
@@ -108,6 +116,7 @@ function forward!(prev_OR, child_nodes, current_visited, AND, OR, idv_AND, idv_O
         if !haskey(idv_AND, and_node)
             idv_AND[and_node] = [o1'; o2']'
         end
+        # loop over next set of OR nodes
         for (j, m) in enumerate(ls)
             next_move = (node[1], m)
             or_node = (node, next_move, d+1)
@@ -119,24 +128,48 @@ function forward!(prev_OR, child_nodes, current_visited, AND, OR, idv_AND, idv_O
                     push!(parents_OR[or_node], and_node)
                 end
             end
-            cv = copy(current_visited)
+            # we copy because we dont want the same nodes in a chain,
+            # but across same chain (at different depths) we can have the same node repeat
+            cv = copy(visited)
             push!(cv, node)
-            forward!(or_node, childs[j], cv, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR, board, arr, recursion_depth + 1, max_iter; backtracking=backtracking)
+            forward!(or_node, childs[j], cv, AND_OR_tree, board, arr, recursion_depth + 1, max_iter; backtracking=backtracking)
         end
     end
     return nothing
 end
 
-function propagate_ps(x, AND_root, AND, OR, idv_AND, idv_OR)
-    #x[1] = exp(-x[1])
-    function propagate!(x, p, current_visited, dict, AND_current, AND, OR, idv_AND, idv_OR)
-        γ = x[1]
-        γ = exp(-x[1])
-        #γ = 0.0
-        β_AND1 = x[3]
-        β_AND2 = x[4]
-        β_OR1 = x[5]
-        β_OR2 = x[6]
+function get_blocking_nodes(board, arr, move)
+    car_id, m = move
+    # get all blocking cars
+    cars = move_blocked_by(board.cars[car_id], m, arr)
+    ls = []
+    for car in cars
+        # Get all OR nodes of next layer
+        car1 = board.cars[car_id]
+        car2 = board.cars[car]
+        ms_new = unblocking_moves(car1, car2, arr; move_amount=m)
+        # If no possible moves, end iteration for this move
+        if length(ms_new) == 0
+            return [(0, (0,))]
+        end
+        # new ao state
+        push!(ls, (car, Tuple(ms_new)))
+    end
+    return ls
+end
+
+function propagate_ps(x, AND_OR_tree)
+    AND_root, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR = AND_OR_tree
+    function propagate!(x, p, visited, dict, AND_current, AND, OR, idv_AND, idv_OR)
+        #γ = x[1]
+        #γ = exp(-x[1])
+        #γ = 0.01
+        #γ = exp(-1.63144)
+        γ = 0.0
+        # β_AND1 = x[3]
+        # β_AND2 = x[4]
+        # β_OR1 = x[5]
+        # β_OR2 = x[6]
         # ASSIGNING PROBABILITY TO AND NODES
         if !haskey(AND, AND_current)
             dict[((-2, (-2,)), (-2, -2), AND_current[2])] += p
@@ -147,7 +180,7 @@ function propagate_ps(x, AND_root, AND, OR, idv_AND, idv_OR)
         p_ands = p*ones(size(mat_and)[1]) ./ size(mat_and)[1]
         for (n, OR_node) in enumerate(AND[AND_current])
             p_and = p_ands[n]
-            if OR_node[1] in current_visited
+            if OR_node[1] in visited
                 dict[((-2, (-2,)), (-2, -2), OR_node[3])] += p_and
                 continue
             end
@@ -164,7 +197,7 @@ function propagate_ps(x, AND_root, AND, OR, idv_AND, idv_OR)
                 else
                     pp = (1-γ)*p_or
                     dict[((-1, (-1,)), (-1, -1), OR_node[3])] += γ*p_or
-                    cv = copy(current_visited)
+                    cv = copy(visited)
                     push!(cv, OR_node[1])
                     propagate!(x, pp, cv, dict, AND_next, AND, OR, idv_AND, idv_OR)
                 end
@@ -179,8 +212,8 @@ function propagate_ps(x, AND_root, AND, OR, idv_AND, idv_OR)
     or_type = Tuple{s_type, a_type, Int}
     dict = DefaultDict{or_type, Any}(0.0)
     # keeps track of current AO nodes visited
-    current_visited = Set{s_type}()
-    propagate!(x, 1.0, current_visited, dict, AND_root, AND, OR, idv_AND, idv_OR)
+    visited = Set{s_type}()
+    propagate!(x, 1.0, visited, dict, AND_root, AND, OR, idv_AND, idv_OR)
     return dict
 end
 
@@ -203,25 +236,602 @@ function first_pass(tot_moves)
     # trees = Vector{Tuple{dict, and_type, AND, OR, idv_AND, idv_OR}}()
     trees = []
     moves = Vector{a_type}()
+
+    dicts_prb = DefaultDict{String, Vector{Vector}}([])
+    all_all_moves_prb = DefaultDict{String, Vector{Vector}}([])
+    trees_prb = DefaultDict{String, Vector{Vector}}([])
+    moves_prb = DefaultDict{String, Vector{Vector}}([])
     for prb in collect(keys(tot_moves))
         board = load_data(prb)
         tot_moves_prb = tot_moves[prb]
+        restart_count = 0
         for move in tot_moves_prb
             if move == (-1, 0)
                 board = load_data(prb)
+                restart_count += 1
+                push!(dicts_prb[prb], [])
+                push!(all_all_moves_prb[prb], [])
+                push!(trees_prb[prb], [])
+                push!(moves_prb[prb], [])
                 continue
             end
-            all_moves, AND_root, AND, OR, idv_AND, idv_OR, parents_moves, _, _ = get_tree_idv(board);
-            push!(trees, (AND_root, AND, OR, idv_AND, idv_OR, parents_moves))
-            dict = propagate_ps(zeros(8), AND_root, AND, OR, idv_AND, idv_OR)
-            push!(dicts, dict)
+            arr = get_board_arr(board)
+            if check_solved(arr)
+                continue
+            end
+            all_moves, AND_OR_tree = get_and_or_tree(board);
+            push!(trees, AND_OR_tree)
+            push!(trees_prb[prb][restart_count], AND_OR_tree)
             push!(all_all_moves, all_moves)
+            push!(all_all_moves_prb[prb][restart_count], all_moves)
+            dict = propagate_ps(zeros(8), AND_OR_tree)
+            push!(dicts, dict)
+            push!(dicts_prb[prb][restart_count], dict)
             push!(moves, move)
+            push!(moves_prb[prb][restart_count], move)
             make_move!(board, move)
         end
     end
-    return trees, dicts, all_all_moves, moves
+    tree_data = [trees, dicts, all_all_moves, moves]
+    tree_data_prb = [trees_prb, dicts_prb, all_all_moves_prb, moves_prb]
+    return tree_data, tree_data_prb
 end
+
+function get_Q(board, A, d_goals)
+    Q = zeros(length(A))
+    ns = zeros(BigInt, length(A))
+    for (n, a) in enumerate(A)
+        make_move!(board, a)
+        arr_a = get_board_arr(board)
+        s = board_to_int(arr_a, BigInt)
+        # Ignore if move outside state space
+        if s ∉ keys(d_goals)
+            println("oops")
+            undo_moves!(board, [a])
+            return []
+        end
+        Q[n] = d_goals[s]
+        ns[n] = s
+        undo_moves!(board, [a])
+    end
+    return Q, ns
+end
+
+function get_QQs(tot_moves, tot_times, all_all_moves_prb, d_goals)
+    QQs = DefaultDict{String, Vector{Vector}}([])
+    RTs = DefaultDict{String, Vector{Vector}}([])
+    d_goal_subj = DefaultDict{String, Vector{Vector}}([])
+    states_subj = DefaultDict{String, Vector{Vector}}([])
+    for prb in collect(keys(tot_moves))
+        board = load_data(prb)
+        tot_moves_prb = tot_moves[prb]
+        tot_times_prb = tot_times[prb]
+        restart_count = 0
+        for (n, move) in enumerate(tot_moves_prb)
+            if move == (-1, 0)
+                board = load_data(prb)
+                restart_count += 1
+                push!(QQs[prb], [])
+                push!(RTs[prb], [])
+                push!(d_goal_subj[prb], [])
+                push!(states_subj[prb], [])
+                continue
+            end
+            arr = get_board_arr(board)
+            s = board_to_int(arr, BigInt)
+            if check_solved(arr)
+                continue
+            end
+            all_moves = all_all_moves_prb[prb][restart_count][length(QQs[prb][restart_count])+1]
+            #A = get_all_available_moves(board, arr)
+            Q, ns = get_Q(board, all_moves, d_goals)
+            push!(QQs[prb][restart_count], Q)
+            push!(RTs[prb][restart_count], tot_times_prb[n] - tot_times_prb[n-1])
+            push!(d_goal_subj[prb][restart_count], d_goals[s])
+            push!(states_subj[prb][restart_count], s)
+            make_move!(board, move)
+        end
+    end
+    return QQs, RTs, d_goal_subj, states_subj
+end
+
+function process_dict(all_moves, dict, excl_moves, μ_same, μ_block, board)
+    ps = []
+    move_dict = Dict{Tuple{Int, Int}, Any}()
+    # add all possible moves
+    for move in all_moves
+        move_dict[move] = 0.0
+    end
+    # random move
+    move_dict[(-1, -1)] = 0.0
+    # cycle
+    move_dict[(-2, -2)] = 0.0
+    # modulate probabilities by their depths
+    p_excl = 0
+    for or_node in keys(dict)
+        #if or_node[2] == (-1, -1)
+            #move_dict[or_node[2]] += dict[or_node]
+        if or_node[2] ∉ excl_moves
+            if !move_blocks_red(board, or_node[2])
+                move_dict[or_node[2]] += dict[or_node]
+            else
+                move_dict[or_node[2]] += μ_block * dict[or_node]
+                p_excl += (1-μ_block) * dict[or_node]
+            end
+        else
+            if !move_blocks_red(board, or_node[2])
+                move_dict[or_node[2]] += μ_same * dict[or_node]
+                p_excl += (1-μ_same) * dict[or_node]
+            else
+                move_dict[or_node[2]] += μ_block * μ_same * dict[or_node]
+                p_excl += (1-μ_block) * μ_same * dict[or_node]
+                p_excl += (1-μ_same) * dict[or_node]
+            end
+        end
+    end
+    # CHANGED
+    move_dict[(-2, -2)] += p_excl
+    # vectorize move probabilities
+    for move in all_moves
+        push!(ps, move_dict[move])
+    end
+    # repeating because of cycle
+    sp = sum(ps) + move_dict[(-1, -1)]
+    if sp > 0
+        p_cycle = move_dict[(-2, -2)]
+        for i in eachindex(ps)
+            ps[i] += p_cycle*(ps[i]/sp)
+        end
+        move_dict[(-1, -1)] += p_cycle*(move_dict[(-1, -1)]/sp) 
+    else
+        throw(DomainError("how is sum for cycle probability 0?"))
+    end
+    # random move in case of stopping early
+    N = sum(ps .== 0)
+    ps .+= move_dict[(-1, -1)]/length(ps)
+    return ps, move_dict[(-1, -1)], N
+end
+
+function process_dict2(x, all_moves, dict)
+    ps = []
+    move_dict = Dict{Tuple{Int, Int}, Any}()
+    # add all possible moves
+    for move in all_moves
+        move_dict[move] = 0.0
+    end
+    # random move
+    move_dict[(-1, -1)] = 0.0
+    # cycle
+    move_dict[(-2, -2)] = 0.0
+    # modulate probabilities by their depths
+    for or_node in keys(dict)
+        move = or_node[2]
+        p = dict[or_node]
+        d = or_node[3]
+        #modulator = 1.0
+        #modulator = 1 - cdf(Weibull(x[1], x[2]), d)
+        #modulator = 1 - cdf(LogNormal(x[1], x[2]), d)
+        #modulator = 1 - cdf(Chisq(x[1]), d)
+        #modulator = 1 - cdf(Gamma(x[1], x[2]), d)
+        #modulator = 1 - cdf(InverseGamma(x[1], x[2]), d)
+        #modulator = 1 - cdf(truncated(Normal(x[1], x[2]), lower=0), d)
+        #modulator = 1-bin_cdf(round(Int, x[1]), x[2], d)
+        move_dict[move] += p#*modulator
+        #move_dict[(-1, -1)] += p*(1-modulator)
+    end
+    # vectorize move probabilities
+    for move in all_moves
+        push!(ps, move_dict[move])
+    end
+    # repeating because of cycle
+    sp = sum(ps) + move_dict[(-1, -1)]
+    if sp > 0
+        p_cycle = move_dict[(-2, -2)]
+        for i in eachindex(ps)
+            ps[i] += p_cycle*(ps[i]/sp)
+        end
+        move_dict[(-1, -1)] += p_cycle*(move_dict[(-1, -1)]/sp) 
+    else
+        throw(DomainError("how is sum for cycle probability 0?"))
+    end
+    # random move in case of stopping early
+    ps .+= move_dict[(-1, -1)]/length(ps)
+
+    # μ = x[end-1]
+    # idx = Int[]
+    # for n in eachindex(all_moves)
+    #     if all_moves[n][1] == 9
+    #         push!(idx, n)
+    #     end
+    # end
+    # ps[idx] = μ/length(idx) .+ (1-μ)*ps[idx]
+    λ = x[end]
+    ps = λ/length(ps) .+ (1-λ)*ps
+    return ps
+end
+
+function only_gamma_dict(dict, γ)
+    # AND-OR tree node type
+    s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
+    # action type
+    a_type = Tuple{Int, Int}
+    # AND node type
+    and_type = Tuple{s_type, Int}
+    # OR node type
+    or_type = Tuple{s_type, a_type, Int}
+    new_dict = Dict{or_type, Any}()
+    factor = 1 / sum(values(dict) .> 0)
+    for (k, v) in dict
+        if v > 0
+            new_dict[k] = v*(1-γ)^(k[3]-0)#
+        end
+    end
+    new_dict[((-1, (-1,)), (-1, -1), 0)] = 1 - sum(values(new_dict))
+    return new_dict
+end
+
+function logit_lookup_table(β, c; max_d=30)
+    look_up_table = Dict{Int, Any}()
+    for d in 0:max_d
+        factor = 1 - (1 / (1 + exp(-β*(d-c))))
+        if d == 0
+            look_up_table[d] = factor
+        else
+            look_up_table[d] = factor * look_up_table[d-1]
+        end
+    end
+    return look_up_table
+end
+
+#function logit_dict(dict, look_up_table)
+function logit_dict(dict, β, c)
+    # AND-OR tree node type
+    s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
+    # action type
+    a_type = Tuple{Int, Int}
+    # AND node type
+    and_type = Tuple{s_type, Int}
+    # OR node type
+    or_type = Tuple{s_type, a_type, Int}
+    new_dict = Dict{or_type, Any}()
+    for (k, v) in dict
+        if v > 0
+            new_dict[k] = v / (1 + exp(-β * (k[3] - c)))#look_up_table[k[3]]#(1-γ)^(k[3]-0)
+        end
+    end
+    new_dict[((-1, (-1,)), (-1, -1), 0)] = round(1000000000*(1 - sum(values(new_dict))))/1000000000#1 - sum(values(new_dict))#
+    return new_dict
+end
+
+function subject_nll(x, dicts, all_all_moves, moves)
+    nll = 0
+    for i in eachindex(moves)
+        move = moves[i]
+        dict = dicts[i]
+        all_moves = all_all_moves[i]
+        ps = process_dict2(x, all_moves, dict)
+        p = ps[findfirst(x->x==move, all_moves)]
+        nll -= log(p)
+    end
+    return nll
+end
+
+function simulate_gamma(x, dicts, all_all_moves; K=1)
+    γ = x
+    moves = []
+    for k in 1:K
+        for i in eachindex(dicts)
+            dict = dicts[i]
+            all_moves = all_all_moves[i]
+            new_dict = only_gamma_dict(dict, γ)
+            ps = process_dict(all_moves, new_dict)
+            # idx = Int[]
+            # for n in eachindex(all_moves)
+            #     if all_moves[n][1] == 9
+            #         push!(idx, n)
+            #     end
+            # end
+            # if !isempty(idx)
+            #     ps[idx] = sum(ps[idx])*μ/length(idx) .+ (1-μ)*ps[idx]
+            # end
+            #ps = λ/length(ps) .+ (1-λ)*ps
+            push!(moves, wsample(all_moves, Float64.(ps)))
+        end
+    end
+    return moves
+end
+
+
+function subject_nll_gamma(x, dicts, all_all_moves, moves, boards)
+    nll = 0
+    γ = x[1]
+    #γ = x
+    #γ = x[1]
+    μ_red = x[2]
+    μ_same = x[3]
+    μ_block = x[4]
+    λ = x[5]
+    for i in eachindex(moves)
+        move = moves[i]
+        board = boards[i]
+        #excl_moves = [i > 1 ? (moves[i-1][1], -moves[i-1][2]) : (0, 0)]
+        excl_moves = i > 1 ? [(moves[i-1][1], j) for j in -4:4] : [(0, 0)]
+        #excl_moves = [(0, 0)]
+        dict = dicts[i]
+        all_moves = all_all_moves[i]
+        new_dict = only_gamma_dict(dict, γ)
+        ps, _, _ = process_dict(all_moves, new_dict, excl_moves, μ_same, μ_block, board)
+        idx = Int[]
+        unblockable = false
+        for n in eachindex(all_moves)
+            if all_moves[n][1] == 9
+                push!(idx, n)
+            end
+            # if all_moves[n] == (9, 3)
+            #     push!(idx, n)
+            #     for k in keys(dict)
+            #         if k[3] == 2 && k[2] != (-1, -1)
+            #             unblockable = true
+            #         end
+            #     end
+            # end
+        end
+        if !isempty(idx)# && !unblockable
+            #ps[idx] = sum(ps[idx])*μ_red/length(idx) .+ (1-μ_red)*ps[idx]
+            ps = μ_red*[ci in idx for (ci, _) in enumerate(ps)]/length(idx) .+ (1-μ_red)*ps
+        end
+        if round(100000*sum(ps))/100000 != 1
+            println("===============")
+            println(sum(ps))
+            println(ps)
+            throw(DomainError("Not a valid probability distribution"))
+        end
+        ps = λ/length(ps) .+ (1-λ)*ps
+        p = ps[findfirst(x->x==move, all_moves)]
+        #p = λ/length(all_moves) + (1-λ)*p
+        if p == 0
+            println("===============")
+            println("Zero probability move")
+            println(i)
+            continue
+        end
+        nll -= log(p)
+    end
+    return nll
+end
+
+function subject_nll_logit(x, dicts, all_all_moves, moves)
+    nll = 0
+    β = x[1]
+    c = x[2]
+    #lookup_table = logit_lookup_table(β, c)
+    for i in eachindex(moves)
+        move = moves[i]
+        dict = dicts[i]
+        all_moves = all_all_moves[i]
+        #new_dict = logit_dict(dict, lookup_table)
+        new_dict = logit_dict(dict, β, c)
+        ps = process_dict(all_moves, new_dict)
+        if round(100000*sum(ps))/100000 != 1
+            println("===============")
+            println(sum(ps))
+            println(ps)
+            println(idx)
+            println("Not a valid probability distribution")
+        end
+        p = ps[findfirst(x->x==move, all_moves)]
+        if p == 0
+            nll += Inf
+        else
+            nll -= log(p)
+        end
+    end
+    return nll
+end
+
+# function fsf(x)
+#     return -cdf(truncated(Normal(4, 10), lower=0), x[1])
+# end
+# @btime optimize(fsf, [0.0], [10.0], [1.0], Fminbox(), Optim.Options(f_tol = 0.01); autodiff=:forward)
+
+function get_all_subj_moves(data)
+    all_subj_moves = Dict{String, Dict{String, Vector{Tuple{Int, Int}}}}()
+    all_subj_states = Dict{String, Dict{String, Vector{BigInt}}}()
+    all_subj_times = Dict{String, Dict{String, Vector{Int}}}()
+    for subj in collect(keys(data))
+        _, tot_moves, tot_states_visited, _, tot_times = analyse_subject(data[subj]);
+        all_subj_moves[subj] = tot_moves
+        all_subj_states[subj] = tot_states_visited
+        all_subj_times[subj] = tot_times
+    end
+    return all_subj_moves, all_subj_states, all_subj_times
+end
+
+function fit_subject(tree_data, x0)
+    tree, dicts, all_all_moves, moves = tree_data
+    res = optimize((x) -> subject_nll(x, dicts, all_all_moves, moves), [0.0, 0.0, 0.0], [20.0, 10.01, 1.0], x0, Fminbox(), Optim.Options(f_tol = 0.1); autodiff=:forward)
+    #res = optimize((x) -> subject_nll(x, dicts, all_all_moves, moves), [0.0, 0.0], [10.0, 1.0], x0, Fminbox(), Optim.Options(f_tol = 1.0); autodiff=:forward)
+    return Optim.minimizer(res), Optim.minimum(res)
+end
+
+function all_subjects_fit(tree_datas, x0)
+    params = zeros(length(tree_datas), length(x0))
+    fitness = zeros(length(tree_datas))
+    subjs = collect(keys(tree_datas))
+    M = length(tree_datas)
+    for m in ProgressBar(1:M)#Threads.@threads 
+        x, nll = fit_subject(tree_datas[subjs[m]], x0)
+        params[m, :] = x
+        fitness[m] = nll
+    end
+    return params, fitness
+end
+
+function get_all_subjects_first_pass(all_subj_moves)
+    tree_datas = Dict{String, Any}()
+    tree_datas_prb = Dict{String, Any}()
+    for subj in ProgressBar(keys(all_subj_moves))
+        tree_data, tree_data_prb = first_pass(all_subj_moves[subj]);
+        tree_datas[subj] = tree_data
+        tree_datas_prb[subj] = tree_data_prb
+    end
+    return tree_datas, tree_datas_prb
+end
+
+function get_all_subjects_QQs(all_subj_moves, all_subj_times, tree_datas_prb)
+    d_goals = load("data/processed_data/d_goals.jld2")["d_goals"];
+    QQs_prb = Dict{String, Any}()
+    RTs_prb = Dict{String, Any}()
+    d_goal_prb = Dict{String, Any}()
+    states_prb = Dict{String, Any}()
+    for subj in ProgressBar(keys(all_subj_moves))
+        QQs, RTs, d_goals_subj, states_subj = get_QQs(all_subj_moves[subj], all_subj_times[subj], tree_datas_prb[subj][3], d_goals);
+        QQs_prb[subj] = QQs
+        RTs_prb[subj] = RTs
+        d_goal_prb[subj] = d_goals_subj
+        states_prb[subj] = states_subj
+    end
+    return QQs_prb, RTs_prb, d_goal_prb, states_prb
+end
+
+function get_all_boards(visited_states)
+    boards_all = Dict{String, Any}()
+    boards_prb_all = Dict{String, Any}()
+    for subj in ProgressBar(keys(visited_states))
+        boards = []
+        boards_prb = DefaultDict{String, Vector{Vector}}([])
+        for prb in keys(visited_states[subj])
+            for r in eachindex(visited_states[subj][prb])
+                push!(boards_prb[prb], [])
+                states = visited_states[subj][prb][r]
+                for state in states
+                    board = arr_to_board(int_to_arr(state))
+                    push!(boards, board)
+                    push!(boards_prb[prb][r], board)
+                end
+            end
+        end
+        boards_all[subj] = boards
+        boards_prb_all[subj] = boards_prb
+    end
+    return boards_all, boards_prb_all
+end
+
+all_subj_moves, all_subj_states, all_subj_times = get_all_subj_moves(data);
+tree_datas, tree_datas_prb = get_all_subjects_first_pass(all_subj_moves);
+boards, boards_prb = get_all_boards(visited_states);
+QQs_prb, RTs_prb, d_goal_prb, states_prb = get_all_subjects_QQs(all_subj_moves, all_subj_times, tree_datas_prb);
+#@save "data/processed_data/tree_datas_gamma=0.jld2" tree_datas
+#save("data/processed_data/tree_datas_gamma=0.jld2", tree_datas)
+#@load "data/processed_data/tree_datas_gamma=0.jld2" tree_datas
+tree_data, tree_data_prb = first_pass(all_subj_moves[subjs[1]]);
+tree, dicts, all_all_moves, moves = tree_data;
+AND_root, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR = tree[1];
+nd = only_gamma_dict(dict, 0.01)
+pd1 = process_dict2([0], all_all_moves[1], nd)
+subject_nll_logit
+params1 = zeros(42)
+fitness1 = zeros(42)
+for m in ProgressBar(1:42)#Threads.@threads 
+    tree_data = tree_datas[subjs[m]]
+    tree, dicts, all_all_moves, moves = tree_data;
+    res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves), 0.0, 1.0)
+    #res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves), [0.0, 0.0], [1.0, 1.0], [0.12, 0.1], Fminbox(), Optim.Options(f_tol = 0.1); autodiff=:forward)
+    params1[m] = Optim.minimizer(res)
+    fitness1[m] = Optim.minimum(res)
+end
+
+#1 only gamma
+#2 QQs
+#3 eureka
+#10 only gamma, no undo
+#11 only gamma, no same car
+#13 gamma, lambda, no same car
+#13 gamma, mu, lambda, no same car
+#14 gamma, new mu, lambda, no same car
+#15 gamma, new mu, lambda
+#16 gamma, specific (9, 3) mu, lambda
+#17 gamma, specific (9, 3) mu, lambda, no same car
+#18 gamma, new mu, lambda, no same car (cycle)
+#19 gamma, new mu, no same car mu (cycle), lambda
+#20 gamma, new mu, no same car mu (cycle), no block red mu (cycle), lambda
+
+
+params20 = zeros(42, 5)
+fitness20 = zeros(42)
+Threads.@threads for m in ProgressBar(1:42)#
+    tree_data = tree_datas[subjs[m]]
+    boards = boards_subj[subjs[m]]
+    tree, dicts, all_all_moves, moves = tree_data;
+    #res = optimize((x) -> subject_nll_logit(x, dicts, all_all_moves, moves), [-10.0, -100.0], [10.0, 100.0], [0.1, 40.0], Fminbox(), Optim.Options(f_tol = 0.1); autodiff=:forward)
+    #res = optimize((x) -> subject_nll_logit(x, dicts, all_all_moves, moves), [-0.5, 6.0], Optim.Options(f_tol = 0.1))#, [-2.0, 0.0], [0.0, 30.0], Fminbox(); autodiff=:forward)
+    #res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves), 0.0, 1.0)
+    res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves, boards), [0.000001, 0.000001, 0.000001, 0.000001, 0.000001], [0.999999, 0.999999, 0.999999, 0.999999, 0.999999], [0.1, 0.1, 0.1, 0.1, 0.1], Fminbox(), Optim.Options(f_tol = 0.1); autodiff=:forward)
+    #P = MinimizationProblem((x) -> subject_nll_logit(x, dicts, all_all_moves, moves), [-2.0, 0.0], [0.0, 20.0])
+    #res = multistart_minimization(TikTak(100), NLoptLocalMethod(NLopt.LN_BOBYQA), P)
+    params20[m, :] = Optim.minimizer(res)
+    fitness20[m] = Optim.minimum(res)
+    #params9[m, :] = res.location
+    #fitness9[m] = res.value
+end
+
+res1 = 0
+res2 = 0
+for m in ProgressBar(1:42)#Threads.@threads 
+    tree_data = tree_datas[subjs[m]]
+    tree, dicts, all_all_moves, moves = tree_data;
+    res1 += subject_nll_gamma(0.12, dicts, all_all_moves, moves)
+    res2 += subject_nll_logit([0.0326, 72], dicts, all_all_moves, moves)
+end
+
+
+
+params1_rec = zeros(42)
+fitness1_rec = zeros(42)
+for m in ProgressBar(1:42)
+    tree_data = tree_datas[subjs[m]]
+    tree, dicts, all_all_moves, moves = tree_data;
+    sim_moves = simulate_gamma(params1[m], dicts, all_all_moves; K=10)
+    res = optimize((x) -> subject_nll_gamma(x, repeat(dicts, 10), repeat(all_all_moves, 10), sim_moves), 0.0, 1.0)
+    #res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves), [0.0, 0.0], [1.0, 1.0], [0.12, 0.1], Fminbox(), Optim.Options(f_tol = 0.1); autodiff=:forward)
+    params1_rec[m] = Optim.minimizer(res)
+    fitness1_rec[m] = Optim.minimum(res)
+end
+
+xxs = []
+yys = []
+for m in ProgressBar(1:42)
+    ys = []
+    xs = []
+    tree_data = tree_datas[subjs[m]]
+    tree, dicts, all_all_moves, moves = tree_data;
+    for x in collect(0.01:0.01:1)
+        push!(xs, x)
+        push!(ys, subject_nll_gamma(x, dicts, all_all_moves, moves))
+    end
+    push!(xxs, xs)
+    push!(yys, ys)
+end
+Y = zeros(42, 100)
+for i in 1:42
+    Y[i, :] = (yys[i] .- mean(yys[i])) ./ std(yys[i])
+end
+
+# nll=3013. eureka 3077
+subject_nll([1.63144, 0, 0, 0, 0, 0, 0.0272332], dicts, all_all_moves, moves)
+
+x0 = [8.0, 2.005, 0.2];
+@time subject_nll(x0, dicts, all_all_moves, moves)
+@time subject_nll1([1.63144, 0, 0, 0, 0, 0, 0.0272332], all_subj_moves[subjs[1]])
+a, b = fit_subject(tree_data, x0)
+params_weibull, fitness_weibull = all_subjects_fit(tree_datas, x0)
+
+#all_moves, AND_root, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR = get_and_or_tree(load_data(prbs[sp[end-1]]));
+all_moves, AND_OR_tree = get_and_or_tree(board);
+dict = propagate_ps(zeros(7), AND_OR_tree)
+p = process_dict2(x0, all_moves, dict)
+
+##########
 
 function bin_cdf(n, p, k)
     function bin_pdf(n, p, kk)
@@ -236,124 +846,6 @@ function bin_cdf(n, p, k)
         end
     end
     return res
-end
-
-function process_dict2(x, all_moves, dict)
-    moves = []
-    ps = []
-    move_dict = Dict{Tuple{Int, Int}, Any}()
-    for move in all_moves
-        move_dict[move] = 0.0
-    end
-    move_dict[(-1, -1)] = 0.0
-    move_dict[(-2, -2)] = 0.0
-    for or_node in keys(dict)
-        move = or_node[2]
-        p = dict[or_node]
-        #d = or_node[3]
-        #modulator = 1.0
-        #modulator = 1 - cdf(Weibull(x[1], x[2]), d)
-        #modulator = 1 - cdf(LogNormal(x[1], x[2]), d)
-        #modulator = 1 - cdf(Chisq(x[1]), d)
-        #modulator = 1 - cdf(Gamma(x[1], x[2]), d)
-        #modulator = 1 - cdf(InverseGamma(x[1], x[2]), d)
-        #modulator = 1 - cdf(truncated(Normal(x[1], x[2]), lower=0), d)
-        #modulator = 1-bin_cdf(round(Int, x[1]), x[2], d)
-        move_dict[move] += p#*modulator
-        #move_dict[(-1, -1)] += p*(1-modulator)
-    end
-    for move in keys(move_dict)
-        if move[1] > 0
-            push!(moves, move)
-            push!(ps, move_dict[move])
-        end
-    end
-    # repeating because of cycle
-    sp = sum(ps) + move_dict[(-1, -1)]
-    if sp > 0
-        p_cycle = move_dict[(-2, -2)]
-        for i in eachindex(ps)
-            ps[i] += p_cycle*(ps[i]/sp)
-        end
-        move_dict[(-1, -1)] += p_cycle*(move_dict[(-1, -1)]/sp) 
-    end
-    # random move in case of stopping early
-    ps .+= move_dict[(-1, -1)]/length(ps)
-
-    μ = x[end-1]
-    λ = x[end]
-    idx = Int[]
-    for n in eachindex(moves)
-        if moves[n][1] == 9
-            push!(idx, n)
-        end
-    end
-    ps[idx] = μ/length(idx) .+ (1-μ)*ps[idx]
-    ps = λ/length(ps) .+ (1-λ)*ps
-    return moves, ps
-end
-
-function subject_nll(x, dicts, all_all_moves, moves)
-    nll = 0
-    for i in eachindex(moves)
-        move = moves[i]
-        dict = dicts[i]
-        all_moves = all_all_moves[i]
-        all_moves, ps = process_dict2(x, all_moves, dict)
-        p = ps[findfirst(x->x==move, all_moves)]
-        nll -= log(p)
-    end
-    return nll
-end
-
-function fit_subject(tree, x0)
-    dicts, all_all_moves, moves = tree
-    #dicts, all_all_moves, moves = first_pass(tot_moves);
-    res = optimize((x) -> subject_nll(x, dicts, all_all_moves, moves), [0.0, 0.0], [50.0, 50.0], x0, Fminbox(), Optim.Options(f_tol = 1.0); autodiff=:forward)
-    return Optim.minimizer(res), Optim.minimum(res)
-end
-
-function all_subjects_fit(trees, x0)
-    params = zeros(length(trees), length(x0))
-    fitness = zeros(length(trees))
-    subjs = collect(keys(trees))
-    M = length(trees)
-    Threads.@threads for m in ProgressBar(1:M)#
-        x, nll = fit_subject(trees[subjs[m]], x0)
-        params[m, :] = x
-        fitness[m] = nll
-    end
-    return params, fitness
-end
-
-function get_all_subjects_first_pass(all_subj_moves)
-    trees = Dict{String, Any}()
-    for subj in ProgressBar(keys(all_subj_moves))
-        trees[subj] = first_pass(all_subj_moves[subj]);
-    end
-    return trees
-end
-
-
-all_subj_moves, all_subj_times = get_all_subj_moves(data);
-trees = get_all_subjects_first_pass(all_subj_moves);
-dicts, all_all_moves, moves = first_pass(all_subj_moves[subjs[1]]);
-x0 = [5.0, 2.5];
-@time subject_nll(x0, dicts, all_all_moves, moves)
-fit_subject(all_subj_moves[subjs[1]], x0)
-params_weibull, fitness_weibull = all_subjects_fit(trees, x0)
-
-#all_moves, AND_root, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR = get_tree_idv(load_data(prbs[sp[end-1]]));
-all_moves, AND_root, AND, OR, idv_AND, idv_OR, parents_moves, parents_AND, parents_OR = get_tree_idv(board);
-dict = propagate_ps(zeros(7), AND_root, AND, OR, idv_AND, idv_OR)
-m, p = process_dict2(x0, all_moves, dict)
-
-
-res = optimize((x) -> f(x), [0.0, 0.0], [10.0, 1.0], [2.0, 0.5], Fminbox(); autodiff=:forward)
-
-function f(x)
-    #tn = Binomial(round(x[1]), x[2])
-    return cdf(truncated(Normal(x[1], x[2]), lower=0), 2)
 end
 
 Base.@assume_effects :terminates_locally function binn(n, k)
@@ -405,7 +897,8 @@ for subj in ProgressBar(subjs)
                 continue
             end
             t = tot_times_prb[i]
-            all_moves, AND_root, AND, OR, idv_AND, idv_OR, parents_moves, _, _ = get_tree_idv(board);
+            all_moves, AND_OR_tree = get_and_or_tree(board)
+            AND_root, AND, OR, idv_AND, idv_OR, parents_moves, _, _ = AND_OR_tree
             #push!(trees, (dict, AND_root, AND, OR, idv_AND, idv_OR, parents_moves))
             dict = propagate_ps(zeros(8), AND_root, AND, OR, idv_AND, idv_OR)
             Ds = []
@@ -479,8 +972,8 @@ for m in ProgressBar(eachindex(subjs))
         end
         #dict = propagate_ps(x0, copy(dict), AND_root, AND, OR, idv_AND, idv_OR)
         dict = propagate_ps(x0, AND_root, AND, OR, idv_AND, idv_OR)
-        all_moves, ps = process_dict2(x0, all_moves, dict)
-        all_moves_chance, ps_chance = process_dict2(chance_x, all_moves, dict)
+        ps = process_dict2(x0, all_moves, dict)
+        ps_chance = process_dict2(chance_x, all_moves, dict)
         for j in 1:1
             mmove = wsample(all_moves, ps)
             if mmove in tree_moves
