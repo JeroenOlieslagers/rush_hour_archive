@@ -259,7 +259,7 @@ function first_pass(tot_moves)
             if check_solved(arr)
                 continue
             end
-            all_moves, AND_OR_tree = get_and_or_tree(board);
+            all_moves, AND_OR_tree = get_and_or_tree(board; backtracking=true);
             push!(trees, AND_OR_tree)
             push!(trees_prb[prb][restart_count], AND_OR_tree)
             push!(all_all_moves, all_moves)
@@ -542,15 +542,16 @@ function simulate_gamma(x, dicts, all_all_moves; K=1)
 end
 
 
-function subject_nll_gamma(x, dicts, all_all_moves, moves, boards)
+function subject_nll_gamma(x, dicts, all_all_moves, moves, boards, tree, first_move)
     nll = 0
-    γ = x[1]
-    #γ = x
     #γ = x[1]
-    μ_red = x[2]
-    μ_same = x[3]
-    μ_block = x[4]
-    λ = x[5]
+    #k = x[2]
+    γ = x
+    #γ = x[1]
+    #μ_red = x[2]
+    # μ_same = x[3]
+    # μ_block = x[4]
+    #λ = x[3]
     for i in eachindex(moves)
         move = moves[i]
         board = boards[i]
@@ -560,33 +561,73 @@ function subject_nll_gamma(x, dicts, all_all_moves, moves, boards)
         dict = dicts[i]
         all_moves = all_all_moves[i]
         new_dict = only_gamma_dict(dict, γ)
-        ps, _, _ = process_dict(all_moves, new_dict, excl_moves, μ_same, μ_block, board)
-        idx = Int[]
-        unblockable = false
-        for n in eachindex(all_moves)
-            if all_moves[n][1] == 9
-                push!(idx, n)
-            end
-            # if all_moves[n] == (9, 3)
-            #     push!(idx, n)
-            #     for k in keys(dict)
-            #         if k[3] == 2 && k[2] != (-1, -1)
-            #             unblockable = true
-            #         end
-            #     end
-            # end
-        end
-        if !isempty(idx)# && !unblockable
-            #ps[idx] = sum(ps[idx])*μ_red/length(idx) .+ (1-μ_red)*ps[idx]
-            ps = μ_red*[ci in idx for (ci, _) in enumerate(ps)]/length(idx) .+ (1-μ_red)*ps
-        end
+        ps, _, _ = process_dict(all_moves, new_dict, excl_moves, 0.0, 1.0, board)
+
+        # ps, _, _ = process_dict(all_moves, new_dict, excl_moves, μ_same, μ_block, board)
+        # idx = Int[]
+        # unblockable = false
+        # move_over = 0
+        # for n in eachindex(all_moves)
+        #     if all_moves[n][1] == 9
+        #         #push!(idx, n)
+        #         if all_moves[n][2] > move_over
+        #             move_over = all_moves[n][2]
+        #             idx = [n]
+        #         end
+        #     end
+        #     # if all_moves[n] == (9, 3)
+        #     #     push!(idx, n)
+        #     #     for k in keys(dict)
+        #     #         if k[3] == 2 && k[2] != (-1, -1)
+        #     #             unblockable = true
+        #     #         end
+        #     #     end
+        #     # end
+        # end
+        # if !isempty(idx)# && !unblockable
+        #     #ps[idx] = sum(ps[idx])*μ_red/length(idx) .+ (1-μ_red)*ps[idx]
+        #     ps = μ_red*[ci in idx for (ci, _) in enumerate(ps)]/length(idx) .+ (1-μ_red)*ps
+        # end
         if round(100000*sum(ps))/100000 != 1
             println("===============")
             println(sum(ps))
             println(ps)
             throw(DomainError("Not a valid probability distribution"))
         end
-        ps = λ/length(ps) .+ (1-λ)*ps
+        #ps = λ/length(ps) .+ (1-λ)*ps
+
+        # AND OR PARENTS SECTION
+        # is_first = first_move[i]
+        # if !is_first
+        #     _, A, O, _, _, parents_moves, parents_AND, parents_OR = tree[i-1]
+        #     prev_move = moves[i-1]
+        #     if prev_move in keys(parents_moves)
+        #         prev_parent_moves = []
+        #         # looks at OR nodes corresponding to previous move
+        #         for OR in parents_moves[prev_move]
+        #             # parent AND nodes of those ORs
+        #             for AND in parents_OR[OR]
+        #                 # possible next moves after
+        #                 for new_OR in parents_AND[AND]
+        #                     possible_move = new_OR[2]
+        #                     if possible_move ∉ prev_parent_moves
+        #                         push!(prev_parent_moves, possible_move)
+        #                     end
+        #                 end
+        #             end
+        #         end
+        #         pss = zeros(length(ps))
+        #         for n in eachindex(all_moves)
+        #             pss[n] = all_moves[n] in prev_parent_moves
+        #         end
+        #         if sum(pss) > 0
+        #             pss ./= sum(pss)
+        #             ps = (k .* pss) .+ ((1-k) .* ps)
+        #         end
+        #     end
+        # end
+
+
         p = ps[findfirst(x->x==move, all_moves)]
         #p = λ/length(all_moves) + (1-λ)*p
         if p == 0
@@ -697,29 +738,40 @@ end
 function get_all_boards(visited_states)
     boards_all = Dict{String, Any}()
     boards_prb_all = Dict{String, Any}()
+    is_first_move = Dict{String, Any}()
     for subj in ProgressBar(keys(visited_states))
         boards = []
         boards_prb = DefaultDict{String, Vector{Vector}}([])
+        first_moves = []
         for prb in keys(visited_states[subj])
             for r in eachindex(visited_states[subj][prb])
                 push!(boards_prb[prb], [])
                 states = visited_states[subj][prb][r]
-                for state in states
+                for (n, state) in enumerate(states)
                     board = arr_to_board(int_to_arr(state))
                     push!(boards, board)
                     push!(boards_prb[prb][r], board)
+                    if n == 1
+                        push!(first_moves, true)
+                    else
+                        push!(first_moves, false)
+                    end
                 end
             end
         end
         boards_all[subj] = boards
         boards_prb_all[subj] = boards_prb
+        is_first_move[subj] = first_moves
     end
-    return boards_all, boards_prb_all
+    return boards_all, boards_prb_all, is_first_move
 end
 
 all_subj_moves, all_subj_states, all_subj_times = get_all_subj_moves(data);
 tree_datas, tree_datas_prb = get_all_subjects_first_pass(all_subj_moves);
-boards, boards_prb = get_all_boards(visited_states);
+full_heur_dict_opt = load("data/processed_data/full_heur_dict_opt.jld2");
+IDV = load("data/processed_data/IDV_OLD.jld2");
+qqs, QQs, visited_states, neighbour_states = get_state_data(data, full_heur_dict_opt, heur=7);
+boards, boards_prb, is_first_move = get_all_boards(visited_states);
 QQs_prb, RTs_prb, d_goal_prb, states_prb = get_all_subjects_QQs(all_subj_moves, all_subj_times, tree_datas_prb);
 #@save "data/processed_data/tree_datas_gamma=0.jld2" tree_datas
 #save("data/processed_data/tree_datas_gamma=0.jld2", tree_datas)
@@ -755,22 +807,31 @@ end
 #18 gamma, new mu, lambda, no same car (cycle)
 #19 gamma, new mu, no same car mu (cycle), lambda
 #20 gamma, new mu, no same car mu (cycle), no block red mu (cycle), lambda
+#21 gamma, new mu slide over, no same car mu (cycle), no block red mu (cycle), lambda
+#22 gamma, k
+#23 gamma, k, lambda
+#24 gamma, k, no same car
+#25
+#26 gamma, new mu slide over, no same car (cycle)
+#27 only gamma, no same car (no log for NLL)
 
 
-params20 = zeros(42, 5)
-fitness20 = zeros(42)
+params27 = zeros(42)
+fitness27 = zeros(42)
 Threads.@threads for m in ProgressBar(1:42)#
     tree_data = tree_datas[subjs[m]]
-    boards = boards_subj[subjs[m]]
+    boards_ = boards[subjs[m]]
+    first_move = is_first_move[subjs[m]]
     tree, dicts, all_all_moves, moves = tree_data;
     #res = optimize((x) -> subject_nll_logit(x, dicts, all_all_moves, moves), [-10.0, -100.0], [10.0, 100.0], [0.1, 40.0], Fminbox(), Optim.Options(f_tol = 0.1); autodiff=:forward)
     #res = optimize((x) -> subject_nll_logit(x, dicts, all_all_moves, moves), [-0.5, 6.0], Optim.Options(f_tol = 0.1))#, [-2.0, 0.0], [0.0, 30.0], Fminbox(); autodiff=:forward)
-    #res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves), 0.0, 1.0)
-    res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves, boards), [0.000001, 0.000001, 0.000001, 0.000001, 0.000001], [0.999999, 0.999999, 0.999999, 0.999999, 0.999999], [0.1, 0.1, 0.1, 0.1, 0.1], Fminbox(), Optim.Options(f_tol = 0.1); autodiff=:forward)
+    res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves, boards_, tree, first_move), 0.000001, 0.999999)
+    #res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves, boards_, tree, first_move), [0.000001, 0.000001, 0.000001, 0.000001, 0.000001], [0.999999, 0.999999, 0.999999, 0.999999, 0.999999], [0.1, 0.1, 0.1, 0.1, 0.1], Fminbox(), Optim.Options(f_tol = 0.1); autodiff=:forward)
+    #res = optimize((x) -> subject_nll_gamma(x, dicts, all_all_moves, moves, boards_, tree, first_move), [0.000001, 0.000001], [0.999999, 0.999999], [0.1, 0.1], Fminbox(), Optim.Options(f_tol = 0.1); autodiff=:forward)
     #P = MinimizationProblem((x) -> subject_nll_logit(x, dicts, all_all_moves, moves), [-2.0, 0.0], [0.0, 20.0])
     #res = multistart_minimization(TikTak(100), NLoptLocalMethod(NLopt.LN_BOBYQA), P)
-    params20[m, :] = Optim.minimizer(res)
-    fitness20[m] = Optim.minimum(res)
+    params27[m] = Optim.minimizer(res)
+    fitness27[m] = Optim.minimum(res)
     #params9[m, :] = res.location
     #fitness9[m] = res.value
 end

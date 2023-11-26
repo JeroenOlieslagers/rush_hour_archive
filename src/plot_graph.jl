@@ -358,10 +358,10 @@ function draw_subject_paths(visited_states, prb, d_goals)
     g = close_graph(g)
     return GraphViz.Graph(g)
 end
-for i in 1:70
-    g = draw_subject_paths(visited_states, prbs[i], d_goals)
-    save_graph(g, "puzzle_"*string(i))
-end
+# for i in 1:70
+#     g = draw_subject_paths(visited_states, prbs[i], d_goals)
+#     save_graph(g, "puzzle_"*string(i))
+# end
 
 function draw_directed_tree(parents; solution_paths=Dict(), all_parents=[], value_map=[], solutions=[], start=nothing)
     """

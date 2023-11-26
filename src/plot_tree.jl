@@ -441,7 +441,7 @@ function draw_one_step_chains(chains)
     return GraphViz.Graph(graph)
 end
 
-function draw_ao_tree(AO, board)
+function draw_ao_tree(AO, board; highlight_ORs=[])
     graph = """digraph{graph [pad="0.2",nodesep="0.15",ranksep="0.3"];layout="dot";"""
     drawn_and = []
     drawn_or = []
@@ -459,7 +459,7 @@ function draw_ao_tree(AO, board)
         if or ∉ drawn_or
             push!(drawn_or, or)
             move = or[2]
-            graph *= """ "$(or)" [fixedsize=shape,shape=diamond,style=filled,fillcolor="$(OR[or][1][1] == (0, (0,)) ? "lime" : "gray75")",label="$(create_move_icon(move, board)[2:end])",height=.5,width=.5,fontsize=14];"""
+            graph *= """ "$(or)" [fixedsize=shape,shape=diamond,style=filled,fillcolor="$(or in highlight_ORs ? "orange" : OR[or][1][1] == (0, (0,)) ? "lime" : "gray75")",label="$(create_move_icon(move, board)[2:end])",height=.5,width=.5,fontsize=14];"""
         end
         for and in OR[or]
             if and[1] == (0, (0,))
