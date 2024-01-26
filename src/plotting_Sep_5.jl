@@ -6,12 +6,14 @@ function ranked_depth_histogram(params1, params2, tree_datas_prb, QQs_prb, state
     ranked_depth_model1 = Dict{String, DefaultDict{Int, Int, Int}}()
     ranked_depth_model2 = Dict{String, DefaultDict{Int, Int, Int}}()
     tot_moves = Dict{String, Int}()
+    N = 11
     for (m, subj) in enumerate(subjs)
         γ = params1[m]
         #γ, μ, λ = params1[m]
-        λ, d_fl = params2[m, :]
-        d = Int(round(d_fl))
+        # λ, d_fl = params2[m, :]
+        # d = Int(round(d_fl))
         #β, c = params2[m, :]
+        γ2 = params2[m]
         ranked_depth_subj = DefaultDict{Int, Int}(0)
         ranked_depth_chance = DefaultDict{Int, Int}(0)
         ranked_depth_optimal = DefaultDict{Int, Int}(0)
@@ -35,13 +37,16 @@ function ranked_depth_histogram(params1, params2, tree_datas_prb, QQs_prb, state
                     opt_move = sample(opt_a[s])
                     new_dict = only_gamma_dict(dicts[prb][r][i], γ)
                     #new_dict2 = logit_dict(dicts[prb][r][i], β, c)
-                    ps1, dropout, N = process_dict(all_moves, new_dict, same_car_moves)
-                    ps2 = lapsed_depth_limited_random(λ, d, QQ[prb][r][i])
+                    ps1, dropout, _ = process_dict(all_moves, new_dict, same_car_moves, 0.0, 1.0, board)
+
+                    new_dict = only_gamma_dict(dicts[prb][r][i], γ2)
+                    ps2, dropout, _ = process_dict(all_moves, new_dict, same_car_moves, 0.0, 1.0, board)
+                    #ps2 = lapsed_depth_limited_random(λ, d, QQ[prb][r][i])
                     #ps2 =  process_dict(all_moves, new_dict2)
                     model1_move = wsample(collect(all_moves), Float64.(ps1))
                     model2_move = wsample(collect(all_moves), Float64.(ps2))
 
-                    tree_moves = collect(keys(move_parents))
+                    tree_moves = [k for k in collect(keys(move_parents)) if !isempty(move_parents[k])]
                     mins = []
                     for tree_move in tree_moves
                         push!(mins, minimum([n[3] for n in move_parents[tree_move]]))
@@ -49,7 +54,7 @@ function ranked_depth_histogram(params1, params2, tree_datas_prb, QQs_prb, state
                     ranks = denserank(mins)
                     ranks_dict = Dict{Tuple{Int, Int}, Int}()
                     for m in all_moves
-                        if m in tree_moves
+                        if m in tree_moves && !isempty(move_parents[m])
                             ranks_dict[m] = mins[findfirst(x->x==m, tree_moves)]
                         else
                             ranks_dict[m] = 1000
@@ -70,24 +75,24 @@ function ranked_depth_histogram(params1, params2, tree_datas_prb, QQs_prb, state
         ranked_depth_model2[subj] = ranked_depth_mod2
         tot_moves[subj] = sum(values(ranked_depth_subj))
     end
-    all_ranked_depth = zeros(Float64, 11, length(subjs))
-    all_ranked_depth_rand = zeros(Float64, 11, length(subjs))
-    all_ranked_depth_opt = zeros(Float64, 11, length(subjs))
-    all_ranked_depth_model1 = zeros(Float64, 11, length(subjs))
-    all_ranked_depth_model2 = zeros(Float64, 11, length(subjs))
+    all_ranked_depth = zeros(Float64, N, length(subjs))
+    all_ranked_depth_rand = zeros(Float64, N, length(subjs))
+    all_ranked_depth_opt = zeros(Float64, N, length(subjs))
+    all_ranked_depth_model1 = zeros(Float64, N, length(subjs))
+    all_ranked_depth_model2 = zeros(Float64, N, length(subjs))
     for (n, subj) in enumerate(subjs)
-        for rd in 1:10
+        for rd in 1:N-1
             all_ranked_depth[rd, n] = ranked_depth[subj][rd+1]/tot_moves[subj]
             all_ranked_depth_rand[rd, n] = ranked_depth_rand[subj][rd+1]/tot_moves[subj]
             all_ranked_depth_opt[rd, n] = ranked_depth_opt[subj][rd+1]/tot_moves[subj]
             all_ranked_depth_model1[rd, n] = ranked_depth_model1[subj][rd+1]/tot_moves[subj]
             all_ranked_depth_model2[rd, n] = ranked_depth_model2[subj][rd+1]/tot_moves[subj]
         end
-        all_ranked_depth[11, n] = ranked_depth[subj][1000]/tot_moves[subj]
-        all_ranked_depth_rand[11, n] = ranked_depth_rand[subj][1000]/tot_moves[subj]
-        all_ranked_depth_opt[11, n] = ranked_depth_opt[subj][1000]/tot_moves[subj]
-        all_ranked_depth_model1[11, n] = ranked_depth_model1[subj][1000]/tot_moves[subj]
-        all_ranked_depth_model2[11, n] = ranked_depth_model2[subj][1000]/tot_moves[subj]
+        all_ranked_depth[N, n] = ranked_depth[subj][1000]/tot_moves[subj]
+        all_ranked_depth_rand[N, n] = ranked_depth_rand[subj][1000]/tot_moves[subj]
+        all_ranked_depth_opt[N, n] = ranked_depth_opt[subj][1000]/tot_moves[subj]
+        all_ranked_depth_model1[N, n] = ranked_depth_model1[subj][1000]/tot_moves[subj]
+        all_ranked_depth_model2[N, n] = ranked_depth_model2[subj][1000]/tot_moves[subj]
     end
     mean_ranked_depth = mean(all_ranked_depth, dims=2)
     sem_ranked_depth = std(all_ranked_depth, dims=2) ./ sqrt(length(subjs))
@@ -96,17 +101,33 @@ function ranked_depth_histogram(params1, params2, tree_datas_prb, QQs_prb, state
     mean_ranked_depth_opt = mean(all_ranked_depth_opt, dims=2)
     sem_ranked_depth_opt = std(all_ranked_depth_opt, dims=2) ./ sqrt(length(subjs))
     mean_ranked_depth_model1 = mean(all_ranked_depth_model1, dims=2)
-    sem_ranked_depth_model1 = std(all_ranked_depth_model1, dims=2) ./ sqrt(length(subjs))
+    sem_ranked_depth_model1 = std(all_ranked_depth_model1, dims=2) ./ sqrt(length(subjs)) 
     mean_ranked_depth_model2 = mean(all_ranked_depth_model2, dims=2)
     sem_ranked_depth_model2 = std(all_ranked_depth_model2, dims=2) ./ sqrt(length(subjs))
-    plot(size=(700, 500), grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:outertop, dpi=300, legend_columns=3, 
-    legendfont=font(18), 
-    xtickfont=font(16), 
-    ytickfont=font(16), 
-    guidefont=font(32), xlabel=latexstring("d_\\textrm{tree}"), ylabel=latexstring("p"), margin=5Plots.mm, xticks=(push!(collect(2:2:11), 13), push!(string.(2:2:11), "not in tree")))
-    #bar!(push!(collect(2:11), 13), mean_ranked_depth_rand, sp=1, yerr=2*sem_ranked_depth_rand, msw=0, c=palette(:default)[1], markerstrokecolor=palette(:default)[1], linecolor=palette(:default)[1], label="Chance", linewidth=4, fillstyle = :/)
-    bar!(push!(collect(2:11), 13), mean_ranked_depth_model1, sp=1, yerr=2*sem_ranked_depth_model1, msw=0, c=palette(:default)[3], markerstrokecolor=palette(:default)[3], linecolor=palette(:default)[3], label="AND/OR", linewidth=4, fillstyle = :\)
-    bar!(push!(collect(2:11), 13), mean_ranked_depth, sp=1, yerr=2*sem_ranked_depth, c=:black, msw=0, label="Subjects", linewidth=5, fillalpha=0)
+
+    l = @layout [a{0.01h}; grid(2, 1)]
+
+    plot(layout=l, size=(350, 450), grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:outertop, dpi=300, legend_columns=3, 
+    legendfont=font(10), 
+    xtickfont=font(10), 
+    ytickfont=font(10), 
+    guidefont=font(14), top_margin=0Plots.mm, bottom_margin=0Plots.mm, left_margin=0Plots.mm, right_margin=10Plots.mm, tick_direction=:out)
+    
+    series = ["Subjects"  "Chance" "AND/OR"]
+    #bar!([0 0 0], c=[:black palette(:default)[1] palette(:default)[3]], fillcolor = [:black nothing nothing], linecolor=[:black palette(:default)[1] palette(:default)[3]], labels=series, legend_columns=length(series), linewidth=2, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:top)
+    plot!([0 0 0], c=[:black palette(:default)[1] palette(:default)[3]], linecolor=[:black palette(:default)[1] palette(:default)[3]], labels=series, legend_columns=length(series), linewidth=4, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:top)
+
+    # bar!(push!(collect(1:N-1), N+1), mean_ranked_depth_rand, sp=1+1, yerr=2*sem_ranked_depth_rand, msw=0, c=palette(:default)[1], markerstrokecolor=palette(:default)[1], linecolor=palette(:default)[1], label=nothing, linewidth=2, fillcolor=nothing)
+    # bar!(push!(collect(1:N-1), N+1), mean_ranked_depth_model1, sp=1+1, yerr=2*sem_ranked_depth_model1, msw=0, c=palette(:default)[3], markerstrokecolor=palette(:default)[3], linecolor=palette(:default)[3], label=nothing, linewidth=2, fillcolor=nothing)
+    #plot!(push!(collect(2:11), 13), mean_ranked_depth_model1, sp=1, ribbon=2*sem_ranked_depth_model1, c=palette(:default)[3], label=nothing, l=nothing)
+    plot!(1:N-1, mean_ranked_depth_rand[1:end-1], sp=1+1, ribbon=2*sem_ranked_depth_rand[1:end-1], c=palette(:default)[1], label=nothing, linewidth=2, l=nothing)
+    plot!([(N+1)-0.3, (N+1)+0.3], [mean_ranked_depth_rand[end], mean_ranked_depth_rand[end]], sp=1+1, ribbon=2*[sem_ranked_depth_rand[end], sem_ranked_depth_rand[end]], c=palette(:default)[1], label=nothing, linewidth=12, l=nothing)
+    plot!(1:N-1, mean_ranked_depth_model1[1:end-1], sp=1+1, ribbon=2*sem_ranked_depth_model1[1:end-1], c=palette(:default)[3], label=nothing, linewidth=2, l=nothing)
+    plot!([(N+1)-0.3, (N+1)+0.3], [mean_ranked_depth_model1[end], mean_ranked_depth_model1[end]], sp=1+1, ribbon=2*[sem_ranked_depth_model1[end], sem_ranked_depth_model1[end]], c=palette(:default)[3], label=nothing, linewidth=12, l=nothing)
+
+    #scatter!(push!(collect(2:11), 13), mean_ranked_depth, sp=1, yerr=2*sem_ranked_depth, c=:black, msw=0, label="Subjects", linewidth=5, fillalpha=0)
+    plot!(push!(collect(1:N-1), N+1), mean_ranked_depth, sp=1+1, yerr=2*sem_ranked_depth, ms=6, l=nothing, c=:black, markershape=:none, label=nothing, linewidth=2, msw=2)
+    plot!(push!(collect(1:N-1), N+1), mean_ranked_depth, sp=1+1, yerr=2*sem_ranked_depth, c=:transparent, msw=2, label=nothing, linewidth=2, xticks=(push!(collect(1:2:N-1), N+1), push!(string.(2:2:N), "not in tree")), xlabel=latexstring("d_\\textrm{tree}"), ylabel=latexstring("p"))
 
     #plot(ylim=(0.0, 0.5), grid=false, ylabel="Proportion of all moves", xlabel="Depth of move", dpi=300, fg_legend = :transparent, size=(400, 500))
     #bar!(x1, y1, yerr=y1s ./ sqrt(length(subjs)), xticks=(push!(collect(1:6), 7), push!(string.(1:6), "not in tree")), label="Data", linecolor=:match, color=:gray, fillstyle = :/, bar_width=0.4, markerstrokecolor=:gray)
@@ -118,32 +139,55 @@ function ranked_depth_histogram(params1, params2, tree_datas_prb, QQs_prb, state
     #bar!(1:7, mean_ranked_depth_model2, yerr=2*sem_ranked_depth_model2, label="Eureka", linecolor=:orange, color=nothing, bar_width=0.4, markerstrokecolor=:orange)
     display(plot!())
 end
-ranked_depth_histogram(params11, params3, tree_datas_prb, QQs_prb, states_prb, optimal_act, d_goals)
+ranked_depth_histogram(params11, params25, tree_datas_prb, QQs_prb, states_prb, optimal_act, d_goals)
 
-function quantile_binning(subj_data; bins=7, bounds=false)
+function quantile_binning(subj_data; bins=7, bounds=false, x=nothing)
     new_subj_data = Dict{String, Array{Any, 1}}()
     bin_bounds = Dict{String, Array{Any, 1}}()
     lens = [length(subj_data[subj]) for subj in keys(subj_data)]
     lim = maximum(lens)
-    if lim != minimum(lens)
-        throw(ErrorException("lim are different for different subjects"))
-    end
+    # if lim != minimum(lens)
+    #     throw(ErrorException("lim are different for different subjects"))
+    # end
     for subj in keys(subj_data)
-        ls = []
-        for i in 1:lim
-            push!(ls, [i for j in 1:length(subj_data[subj][i])]...)
-        end
         new_subj_data[subj] = [[] for _ in 1:bins]
         bin_bounds[subj] = [[] for _ in 1:bins]
-        for bin in 1:bins
-            l = Int(ceil(quantile(ls, (bin-1)/bins)))
-            u = Int(floor(quantile(ls, bin/bins))) - 1
-            if bin == bins
-                u += 1
+        if x === nothing
+            ls = []
+            for i in 1:lim
+                push!(ls, [i for j in 1:length(subj_data[subj][i])]...)
             end
-            for i in l:u
-                push!(new_subj_data[subj][bin], subj_data[subj][i]...)
-                push!(bin_bounds[subj][bin], (ones(length(subj_data[subj][i]))*i)...)
+            for bin in 1:bins
+                l = Int(ceil(quantile(ls, (bin-1)/bins)))
+                u = Int(floor(quantile(ls, bin/bins))) - 1
+                if bin == bins
+                    u += 1
+                end
+                for i in l:u
+                    push!(new_subj_data[subj][bin], subj_data[subj][i]...)
+                    push!(bin_bounds[subj][bin], (ones(length(subj_data[subj][i]))*i)...)
+                end
+            end
+        else
+            x_subj = x[subj]
+            sp = sortperm(x_subj)
+            ls = x_subj[sp]
+            for bin in 1:bins
+                l = quantile(ls, (bin-1)/bins)
+                u = quantile(ls, bin/bins)
+                for i in eachindex(x_subj)
+                    if bin == bins
+                        if x_subj[i] >= l && x_subj[i] < u
+                            push!(new_subj_data[subj][bin], subj_data[subj][i])
+                            push!(bin_bounds[subj][bin], x_subj[i])
+                        end
+                    else
+                        if x_subj[i] >= l && x_subj[i] <= u
+                            push!(new_subj_data[subj][bin], subj_data[subj][i])
+                            push!(bin_bounds[subj][bin], x_subj[i])
+                        end
+                    end
+                end
             end
         end
     end
@@ -192,19 +236,20 @@ end
 
 function depth_tree_progress(params1, params2, tree_datas_prb, QQs_prb, states_prb, boards_prb, optimal_act, d_goals; bins1=10, bins2=10)
     subjs = collect(keys(tree_datas_prb))
-    depth = Dict{String, Vector{Float64}}([])
-    depth_rand = Dict{String, Vector{Float64}}([])
-    depth_opt = Dict{String, Vector{Float64}}([])
-    depth_model1 = Dict{String, Vector{Float64}}([])
-    depth_model2 = Dict{String, Vector{Float64}}([])
-    progress = Dict{String, Vector{Float64}}([])
-    subs = 6
+    subs = 4
     max_X = 35#367
-    depth_d_goal = [Dict{String, Vector{Vector{Float64}}}([]) for i in 1:subs]
-    depth_rand_d_goal = [Dict{String, Vector{Vector{Float64}}}([]) for i in 1:subs]
-    depth_opt_d_goal = [Dict{String, Vector{Vector{Float64}}}([]) for i in 1:subs]
-    depth_model1_d_goal = [Dict{String, Vector{Vector{Float64}}}([]) for i in 1:subs]
-    depth_model2_d_goal = [Dict{String, Vector{Vector{Float64}}}([]) for i in 1:subs]
+    depth = [DefaultDict{String, Vector{Float64}}([]) for i in 1:subs]
+    depth_rand = [DefaultDict{String, Vector{Float64}}([]) for i in 1:subs]
+    depth_opt = [DefaultDict{String, Vector{Float64}}([]) for i in 1:subs]
+    depth_model1 = [DefaultDict{String, Vector{Float64}}([]) for i in 1:subs]
+    depth_model2 = [DefaultDict{String, Vector{Float64}}([]) for i in 1:subs]
+    progress = [DefaultDict{String, Vector{Float64}}([]) for i in 1:subs]
+
+    depth_d_goal = [Dict{String, Vector{Vector{Float64}}}() for i in 1:subs]
+    depth_rand_d_goal = [Dict{String, Vector{Vector{Float64}}}() for i in 1:subs]
+    depth_opt_d_goal = [Dict{String, Vector{Vector{Float64}}}() for i in 1:subs]
+    depth_model1_d_goal = [Dict{String, Vector{Vector{Float64}}}() for i in 1:subs]
+    depth_model2_d_goal = [Dict{String, Vector{Vector{Float64}}}() for i in 1:subs]
     X1 = []
     X2 = []
     for (m, subj) in enumerate(subjs)
@@ -216,12 +261,12 @@ function depth_tree_progress(params1, params2, tree_datas_prb, QQs_prb, states_p
         #λ, d_fl = params2[m, :]
         #d = Int(round(d_fl))
         #β, c = params2[m, :]
-        depth_subj = Vector{Float64}()
-        depth_chance = Vector{Float64}()
-        depth_optimal = Vector{Float64}()
-        depth_mod1 = Vector{Float64}()
-        depth_mod2 = Vector{Float64}()
-        progress_subj = Vector{Float64}()
+        # depth_subj = Vector{Float64}()
+        # depth_chance = Vector{Float64}()
+        # depth_optimal = Vector{Float64}()
+        # depth_mod1 = Vector{Float64}()
+        # depth_mod2 = Vector{Float64}()
+        # progress_subj = Vector{Float64}()
         depth_subj_d_goal = [[Float64[] for i in 1:max_X] for j in 1:subs]
         depth_rand_subj_d_goal = [[Float64[] for i in 1:max_X] for j in 1:subs]
         depth_opt_subj_d_goal = [[Float64[] for i in 1:max_X] for j in 1:subs]
@@ -349,15 +394,27 @@ function depth_tree_progress(params1, params2, tree_datas_prb, QQs_prb, states_p
                     # end
 
                     X = d_goals[s]
-                    A = tree[prb][r][i][2]
-                    O = tree[prb][r][i][3]
-                    ao_nodes = length(A) + length(O)
-                    XX = ao_nodes
-                    if X == 1 && XX > 50
-                        return (A, O, board)
-                    end
-                    push!(X1, X)
-                    push!(X2, XX)
+                    # A = tree[prb][r][i][2]
+                    # O = tree[prb][r][i][3]
+                    # a_nodes = length(A)
+                    # o_nodes = length(O)
+                    # leafs = reduce(vcat, collect(values(move_parents)))
+                    # ao_leafs = length(leafs)
+                    # ao_actions = length(move_parents)
+                    # all_actions = length(all_moves)
+                    # ao_max_depth = maximum([leaf[3] for leaf in leafs])
+                    # ao_min_depth = minimum([leaf[3] for leaf in leafs])
+                    # ands = reduce(vcat, values(O))
+                    # ao_cycles = length(unique([and for and in ands if (and ∉ keys(A) && and[1] != (0, (0,)))]))
+                    # ao_branching = (sum(length.(values(A)))+sum(length.(values(O)))) / (length(A)+length(O))
+                    # properties = [a_nodes, o_nodes, ao_branching, ao_max_depth, ao_leafs, ao_min_depth, ao_actions, all_actions, ao_cycles]
+
+                    # XX = ao_nodes
+                    # if X == 1 && XX > 50
+                    #     return (A, O, board)
+                    # end
+                    # push!(X1, X)
+                    # push!(X2, XX)
                     target0 = keys(move_parents)#opt_a[s]#
                     target1 = [all_moves[j] for j in eachindex(all_moves) if QQ[prb][r][i][j] < d_goals[s]]
                     target2 = [all_moves[j] for j in eachindex(all_moves) if QQ[prb][r][i][j] == d_goals[s]]
@@ -366,73 +423,79 @@ function depth_tree_progress(params1, params2, tree_datas_prb, QQs_prb, states_p
                     target5 = same_car_moves
                     target6 = [move]
                     target7 = [all_moves[j] for j in eachindex(all_moves) if (QQ[prb][r][i][j] < d_goals[s] && all_moves[j] ∉ target0)]
-                    targets = [target1, target2, target3, target4, target5, target0]
+                    #targets = [target1, target2, target3]#, target4, target5, target0]
+                    targets = [target0, target4, target5, target6]
                     #targets = [target6]
-                    # if move in keys(move_parents)
-                    #     if length(move_parents[move]) > 0
-                    #         dd = mean([n[3] for n in move_parents[move]])
-                    #         push!(depth_subj_d_goal[d_goals[s]], dd)
-                    #     end
-                    # end
-                    # if rand_move in keys(move_parents)
-                    #     if length(move_parents[rand_move]) > 0
-                    #         ddr = mean([n[3] for n in move_parents[rand_move]])
-                    #         push!(depth_rand_subj_d_goal[d_goals[s]], ddr)
-                    #     end
-                    # end
-                    # if opt_move in keys(move_parents)
-                    #     if length(move_parents[opt_move]) > 0
-                    #         ddo = mean([n[3] for n in move_parents[opt_move]])
-                    #         push!(depth_opt_subj_d_goal[d_goals[s]], ddo)
-                    #     end
-                    # end
-                    # if model1_move in keys(move_parents)
-                    #     if length(move_parents[model1_move]) > 0
-                    #         ddd1 = mean([n[3] for n in move_parents[model1_move]])
-                    #         push!(depth_model1_subj_d_goal[d_goals[s]], ddd1)
-                    #     end
-                    # end
-                    # if model2_move in keys(move_parents)
-                    #     ddd2 = mean([n[3] for n in move_parents[model2_move]])
-                    #     push!(depth_model2_subj_d_goal[d_goals[s]], ddd2)
-                    # end
-                    for (n, target) in enumerate(targets)
+                    moove = [move, model1_move, rand_move]
+                    for (n, target) in enumerate(targets)#(n, move) in enumerate(moove)#
                         #dd = log(1.0)
+                        #dd = move in target1 ? 1 : 0
                         dd = move in target ? 1 : 0
-                        #ddr = -log(1 / length(all_moves))
+                        # dd = ps1[findfirst(x->x==move, all_moves)]#property
+                        # ddr = ps1[findfirst(x->x==move, all_moves)]#property
+                        # ddo = ps1[findfirst(x->x==move, all_moves)]#property
+                        # ddd1 = ps1[findfirst(x->x==move, all_moves)]#property
+                        # ddd2 = ps1[findfirst(x->x==move, all_moves)]#property
+                        # X = property
+                        #ddr = 1 / length(all_moves)
                         ddr = rand_move in target ? 1 : 0
                         #ddo = move in opt_a[s] ? (1/length(opt_a[s])) : 0
                         ddo = opt_move in target ? 1 : 0
-                        #ddd1 = log(ps1[findfirst(x->x==move, all_moves)])
+                        #ddd1 = ps1[findfirst(x->x==move, all_moves)]
                         #ddd1 = -sum(ps1 .* log.(ps1))
+                        #ddd1 = move in target2 ? 1 : 0
+                        #ddd1 = move in target ? 1 : 0
                         ddd1 = model1_move in target ? 1 : 0
-                        #ddd1 = model1_move in target2 ? 1 : 0
                         #ddd1 = (1-dropout) + dropout*length(move_parents)/length(all_moves)
-                        #ddd2 = log(ps2[findfirst(x->x==move, all_moves)])
+                        #ddd2 = ps2[findfirst(x->x==move, all_moves)]
                         #ddd2 = -sum(ps2 .* log.(ps2))
-                        ddd2 = model2_move in target ? 1 : 0
-                        #ddd2 = model1_move in target3 ? 1 : 0
-                        # push!(depth_subj, dd)
-                        # push!(depth_chance, ddr)
-                        # push!(depth_optimal, ddo)
-                        # push!(depth_mod1, ddd1)
-                        # push!(depth_mod2, ddd2)
-                        # push!(progress_subj, i/length(tree[prb][r]))
-                        push!(depth_subj_d_goal[n][X], dd)
-                        push!(depth_rand_subj_d_goal[n][X], ddr)
-                        push!(depth_opt_subj_d_goal[n][X], ddo)
-                        push!(depth_model1_subj_d_goal[n][X], ddd1)
-                        push!(depth_model2_subj_d_goal[n][X], ddd2)
+                        #ddd2 = move in target3 ? 1 : 0
+                        #ddd2 = move in target ? 1 : 0
+                        ddd2 = model1_move in target ? 1 : 0
+                        if n == 4
+                            if move in keys(move_parents)
+                                dd = mean([n[3] for n in move_parents[move]])
+                                push!(depth_subj_d_goal[n][X], dd)
+                                push!(depth[n][subj], dd)
+                            end
+                            if rand_move in keys(move_parents)
+                                ddr = mean([n[3] for n in move_parents[rand_move]])
+                                push!(depth_rand_subj_d_goal[n][X], ddr)
+                                push!(depth_rand[n][subj], ddr)
+                            end
+                            if opt_move in keys(move_parents)
+                                ddo = mean([n[3] for n in move_parents[opt_move]])
+                                push!(depth_opt_subj_d_goal[n][X], ddo)
+                                push!(depth_opt[n][subj], ddo)
+                            end
+                            if model1_move in keys(move_parents)
+                                ddd1 = mean([n[3] for n in move_parents[model1_move]])
+                                push!(depth_model1_subj_d_goal[n][X], ddd1)
+                                push!(depth_model1[n][subj], ddd1)
+                            end
+                            if model2_move in keys(move_parents)
+                                ddd1 = mean([n[3] for n in move_parents[model2_move]])
+                                push!(depth_model2_subj_d_goal[n][X], ddd2)
+                                push!(depth_model2[n][subj], ddd2)
+                            end
+                        else
+                            push!(depth[n][subj], dd)
+                            push!(depth_rand[n][subj], ddr)
+                            push!(depth_opt[n][subj], ddo)
+                            push!(depth_model1[n][subj], ddd1)
+                            push!(depth_model2[n][subj], ddd2)
+                            push!(progress[n][subj], X)#i/length(tree[prb][r])
+
+                            push!(depth_subj_d_goal[n][X], dd)
+                            push!(depth_rand_subj_d_goal[n][X], ddr)
+                            push!(depth_opt_subj_d_goal[n][X], ddo)
+                            push!(depth_model1_subj_d_goal[n][X], ddd1)
+                            push!(depth_model2_subj_d_goal[n][X], ddd2)
+                        end
                     end
                 end
             end
         end
-        # depth[subj] = depth_subj
-        # depth_rand[subj] = depth_chance
-        # depth_opt[subj] = depth_optimal
-        # depth_model1[subj] = depth_mod1
-        # depth_model2[subj] = depth_mod2
-        # progress[subj] = progress_subj
         for n in 1:subs
             depth_d_goal[n][subj] = depth_subj_d_goal[n]
             depth_rand_d_goal[n][subj] = depth_rand_subj_d_goal[n]
@@ -441,11 +504,19 @@ function depth_tree_progress(params1, params2, tree_datas_prb, QQs_prb, states_p
             depth_model2_d_goal[n][subj] = depth_model2_subj_d_goal[n]
         end
     end
-    # in_tree = continuous_bin(progress, depth, bins1)
-    # in_tree_rand = continuous_bin(progress, depth_rand, bins1)
-    # in_tree_opt = continuous_bin(progress, depth_opt, bins1)
-    # in_tree_model1 = continuous_bin(progress, depth_model1, bins1)
-    # in_tree_model2 = continuous_bin(progress, depth_model2, bins1)
+    # cont_subj = [[] for i in 1:subs]
+    # cont_rand = [[] for i in 1:subs]
+    # cont_opt = [[] for i in 1:subs]
+    # cont_model1 = [[] for i in 1:subs]
+    # cont_model2 = [[] for i in 1:subs]
+    # for n in 1:subs
+    #     cont_subj[n] = continuous_bin(progress[n], depth[n], bins1)
+    #     cont_rand[n] = continuous_bin(progress[n], depth_rand[n], bins1)
+    #     cont_opt[n] = continuous_bin(progress[n], depth_opt[n], bins1)
+    #     cont_model1[n] = continuous_bin(progress[n], depth_model1[n], bins1)
+    #     cont_model2[n] = continuous_bin(progress[n], depth_model2[n], bins1)
+    # end
+
     av_bin = [[] for i in 1:subs]
     av_subj = [[] for i in 1:subs]
     sem_subj = [[] for i in 1:subs]
@@ -463,70 +534,100 @@ function depth_tree_progress(params1, params2, tree_datas_prb, QQs_prb, states_p
         _, av_subj_opt[n], sem_subj_opt[n], _ = quantile_binning(depth_opt_d_goal[n]; bins=bins2, bounds=true)
         _, av_subj_model1[n], sem_subj_model1[n], _ = quantile_binning(depth_model1_d_goal[n]; bins=bins2, bounds=true)
         _, av_subj_model2[n], sem_subj_model2[n], _ = quantile_binning(depth_model2_d_goal[n]; bins=bins2, bounds=true)
+        # _, av_subj[n], sem_subj[n], av_bin[n] = quantile_binning(depth[n]; bins=bins2, bounds=true, x=progress[n])
+        # _, av_subj_rand[n], sem_subj_rand[n], _ = quantile_binning(depth_rand[n]; bins=bins2, bounds=true, x=progress[n])
+        # _, av_subj_opt[n], sem_subj_opt[n], _ = quantile_binning(depth_opt[n]; bins=bins2, bounds=true, x=progress[n])
+        # _, av_subj_model1[n], sem_subj_model1[n], _ = quantile_binning(depth_model1[n]; bins=bins2, bounds=true, x=progress[n])
+        # _, av_subj_model2[n], sem_subj_model2[n], _ = quantile_binning(depth_model2[n]; bins=bins2, bounds=true, x=progress[n])
     end
     # plot(layout=grid(2, 1, heights=[0.55, 0.45]), size=(900, 900), grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:outertop, dpi=300, legend_columns=3, 
     # legendfont=font(18), 
     # xtickfont=font(16), 
     # ytickfont=font(16), 
     # guidefont=font(32))
-    l = @layout [a{0.01h}; grid(2, 3)]
+    l = @layout [a{0.01h}; grid(2, 2)]
+    #l = @layout grid(3, 3)
+    #l = @layout [a{0.01h}; grid(1, 3)]
     #l = @layout [a{0.01h}; grid(1, 1)]
-    plot(size=(1600, 900), grid=false, layout=l, dpi=300, 
-    legendfont=font(18), 
-    xtickfont=font(16), 
-    ytickfont=font(16), 
-    guidefont=font(32), margin=10Plots.mm, top_margin=0Plots.mm)
-    labels = [latexstring("p_\\textrm{better}"), latexstring("p_\\textrm{same}"), latexstring("p_\\textrm{worse}"), latexstring("p_\\textrm{undo}"), latexstring("p_\\textrm{same\\_car}"), latexstring("p_\\textrm{in\\_tree}")]
+    plot(size=(500, 450), grid=false, layout=l, dpi=300, #size=(750, 250)
+    legendfont=font(10), 
+    xtickfont=font(10), 
+    ytickfont=font(10), 
+    titlefont=font(10), 
+    guidefont=font(14), right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=0Plots.mm, left_margin=0Plots.mm, fontfamily="helvetica", tick_direction=:out)
+    #labels = [latexstring("p_\\textrm{better}"), latexstring("p_\\textrm{same}"), latexstring("p_\\textrm{worse}"), latexstring("p_\\textrm{undo}"), latexstring("p_\\textrm{same\\_car}"), latexstring("p_\\textrm{in\\_tree}")]
+    labels = [latexstring("p_\\textrm{in\\_tree}"), latexstring("p_\\textrm{undo}"), latexstring("p_\\textrm{same\\_car}"), latexstring("d_\\textrm{tree}")]
     #labels = [latexstring("\\textrm{Entropy}")]#[latexstring("p_\\textrm{move}")]
-    series = ["Subjects"  "Chance" "Fitted" "Manual"]#"Optimal""Subjects" 
-    plot!([0 0 0 0], c=[palette(:default)[1] palette(:default)[3] palette(:default)[4]] , linewidth=10, sp=1, showaxis=false, grid=false, label=series, legend_columns=length(series), background_color_legend=nothing, foreground_color_legend=nothing, legend=:top)
+    #labels = [latexstring("N_\\textrm{AND\\;nodes}"), latexstring("N_\\textrm{OR\\;nodes}"), "Branching factor", "Depth of tree", latexstring("N_\\textrm{leafs}"), latexstring("\\min_{a\\in A_\\textrm{tree}}(d_a)"), latexstring("|A_\\textrm{tree}|"), latexstring("|A|"), latexstring("N_\\textrm{cycles}")]
+    series = ["Subjects" "Chance" "AND/OR model"]#"Subjects"  "Optimal""Subjects" 
+    #series = ["Worse"  "Same" "Better"]#"Optimal""Subjects" 
+    titles = ["Subjects", "AND/OR model", "Chance"]
+    plot!([0 0 0], c=[:black palette(:default)[1] palette(:default)[3]], labels=series, legend_columns=length(series), linewidth=10, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:top)
     for n in 1:subs
         #plot!([], [], yerr=[], sp=1, c=:black, label="Data")
         #plot!(av_bin, av_subj, sp=1, yerr=2*sem_subj, ms=10, l=nothing, markershape=:none, label=nothing, linewidth=4, xflip=true)
-        plot!(av_bin[n], av_subj[n], sp=n+1, yerr=2*sem_subj[n], c=:black, msw=0, label=nothing, xflip=true, linewidth=5)
+        #plot!(av_bin[n], av_subj[n], sp=n+1, yerr=2*sem_subj[n], c=:black, msw=0, label=nothing, xflip=true, linewidth=4)
+        plot!(av_bin[n] .- 1, av_subj[n], sp=n+1, yerr=2*sem_subj[n], c=:white, msw=2, label=nothing, xflip=true, linewidth=2, markershape=:none, ms=6)
+        #plot!([], [], sp=1, yerr=[], c=:black, msw=2, label="Subjects", linewidth=4)
+        #plot!(av_bin[n], av_subj[n], sp=n, yerr=2*sem_subj[n], ms=10, l=nothing, c=:black, markershape=:none, label=nothing, linewidth=5, msw=2)
+        #plot!(av_bin[n], av_subj[n], sp=n, yerr=2*sem_subj[n], c=:black, msw=0, label=nothing, linewidth=4, xlabel=n>6 ? latexstring("d_\\textrm{goal}") : "", xflip=true, ylabel=labels[n])
         # plot!(av_bin, av_subj, sp=1, msw=0, label="Better", xflip=true, linewidth=5)
         # plot!(av_bin, av_subj_model1, sp=1, msw=0, label="Same", xflip=true, linewidth=5)
         # plot!(av_bin, av_subj_model2, sp=1, msw=0, label="Worse", xflip=true, linewidth=5)
-        #areaplot!(av_bin, [av_subj_model2 + av_subj_model1 + av_subj, av_subj_model1 + av_subj, av_subj], xflip=true, linewidth=5, label=["Worse" "Same" "Better"])    
-        plot!(av_bin[n], av_subj_rand[n], sp=n+1, ribbon=2*sem_subj_rand[n], c=palette(:default)[1], label=nothing, linewidth=4, xflip=true)
+        # if n == 1
+        #     areaplot!(av_bin[n] .- 1, [av_subj_model2[n] + av_subj_model1[n] + av_subj[n], av_subj_model1[n] + av_subj[n], av_subj[n]], sp=n+1, xflip=true, linewidth=5, label=nothing, xlabel=latexstring("d_\\textrm{goal}"), ylabel=latexstring("p"), xlim=(0, 15), ylim=(0, 1), title=titles[n], left_margin=5Plots.mm)    
+        # else
+        #     areaplot!(av_bin[n] .- 1, [av_subj_model2[n] + av_subj_model1[n] + av_subj[n], av_subj_model1[n] + av_subj[n], av_subj[n]], sp=n+1, xflip=true, linewidth=5, label=nothing, xlabel=latexstring("d_\\textrm{goal}"), yticks=nothing, ylim=(0, 1), title=titles[n], xlim=(0, 15))    
+        # end
+        plot!(av_bin[n] .- 1, av_subj_rand[n], sp=n+1, ribbon=2*sem_subj_rand[n], c=palette(:default)[1], label=nothing, linewidth=4, xflip=true, l=nothing)
         #plot!(av_bin[n], av_subj_opt[n], sp=n+1, ribbon=2*sem_subj_opt[n], c=palette(:default)[2], label=nothing, linewidth=4, xflip=true)
-        plot!(av_bin[n], av_subj_model1[n], sp=n+1, ribbon=2*sem_subj_model1[n], c=palette(:default)[3], label=nothing, linewidth=4, xflip=true)
-        plot!(av_bin[n], av_subj_model2[n], sp=n+1, ribbon=2*sem_subj_model2[n], c=palette(:default)[4], label=nothing, linewidth=4, xflip=true, ylabel=labels[n], xlabel=n>3 ? latexstring("d_\\textrm{goal}") : "")#, xlabel=latexstring("d_\\textrm{goal}"))
+        if n == 1
+            plot!(av_bin[n] .- 1, av_subj_model1[n], sp=n+1, ribbon=2*sem_subj_model1[n], c=palette(:default)[3], label=nothing, linewidth=4, xflip=true, l=nothing, xlabel=n>2 ? latexstring("d_\\textrm{goal}") : "", ylabel=labels[n], xlim=(0, 15), ylim=(0.195, 1.05))#, ylabel= n%3 == 1 ? latexstring("p_\\textrm{subj\\;move}") : "")
+        elseif n == 2
+            plot!(av_bin[n] .- 1, av_subj_model1[n], sp=n+1, ribbon=2*sem_subj_model1[n], c=palette(:default)[3], label=nothing, linewidth=4, xflip=true, l=nothing, xlabel=n>2 ? latexstring("d_\\textrm{goal}") : "", ylabel=labels[n], xlim=(0, 15), yticks=[0, 0.04, 0.08, 0.12])#, ylabel= n%3 == 1 ? latexstring("p_\\textrm{subj\\;move}") : "")
+        elseif n == 3
+            plot!(av_bin[n] .- 1, av_subj_model1[n], sp=n+1, ribbon=2*sem_subj_model1[n], c=palette(:default)[3], label=nothing, linewidth=4, xflip=true, l=nothing, xlabel=n>2 ? latexstring("d_\\textrm{goal}") : "", ylabel=labels[n], xlim=(0, 15), yticks=[0, 0.1, 0.2, 0.3])#, ylabel= n%3 == 1 ? latexstring("p_\\textrm{subj\\;move}") : "")
+        else
+            plot!(av_bin[n] .- 1, av_subj_model1[n], sp=n+1, ribbon=2*sem_subj_model1[n], c=palette(:default)[3], label=nothing, linewidth=4, xflip=true, l=nothing, xlabel=n>2 ? latexstring("d_\\textrm{goal}") : "", ylabel=labels[n], xlim=(0, 15))#, ylabel= n%3 == 1 ? latexstring("p_\\textrm{subj\\;move}") : "")
+        end
+        #plot!(av_bin[n], av_subj_model2[n], sp=n+1, ribbon=2*sem_subj_model2[n], c=palette(:default)[4], label=nothing, linewidth=4, xflip=true, ylabel=labels[n], xlabel=n>3 ? latexstring("d_\\textrm{goal}") : "")#, xlabel=latexstring("d_\\textrm{goal}"))
     end
     
-    #display(plot!())
+    # for n in 1:subs
+    #     #plot(grid=false, background_color_legend=nothing, foreground_color_legend=nothing, ylabel="In tree proportion", xlabel="Progress", xlim=(0, 1), legend=:bottomleft, dpi=300)
+    #     # y = [mean(b) for b in cont_subj[n]]
+    #     # yerr = [std(b)/sqrt(length(b)) for b in cont_subj[n]]
+    #     # plot!((collect(1:bins1) .- 0.5) ./ bins1, y, sp=n+1, yerr=2*yerr, ms=10, l=nothing, markershape=:none, label=nothing, linewidth=4)
+    #     # plot!((collect(1:bins1) .- 0.5) ./ bins1, y, sp=n+1, yerr=2*yerr, c=:transparent, msw=1, label=nothing)
 
-    #plot(grid=false, background_color_legend=nothing, foreground_color_legend=nothing, ylabel="In tree proportion", xlabel="Progress", xlim=(0, 1), legend=:bottomleft, dpi=300)
-    # y = [mean(b) for b in in_tree]
-    # yerr = [std(b)/sqrt(length(b)) for b in in_tree]
-    # plot!((collect(1:bins1) .- 0.5) ./ bins1, y, sp=2, yerr=2*yerr, ms=10, l=nothing, markershape=:none, label=nothing, linewidth=4)
-    # plot!((collect(1:bins1) .- 0.5) ./ bins1, y, sp=2, yerr=2*yerr, c=:transparent, msw=1, label=nothing)
+    #     # y_rand = [mean(b) for b in cont_rand[n]]
+    #     # yerr_rand = [std(b)/sqrt(length(b)) for b in cont_rand[n]]
+    #     # plot!((collect(1:bins1) .- 0.5) ./ bins1, y_rand, sp=n+1, ribbon=2*yerr_rand, c=palette(:default)[1], label=nothing, linewidth=4)
 
-    # y_rand = [mean(b) for b in in_tree_rand]
-    # yerr_rand = [std(b)/sqrt(length(b)) for b in in_tree_rand]
-    # plot!((collect(1:bins1) .- 0.5) ./ bins1, y_rand, sp=2, ribbon=2*yerr_rand, c=palette(:default)[1], label="Chance", linewidth=4)
+    #     # y_opt = [mean(b) for b in cont_opt[n]]
+    #     # yerr_opt = [std(b)/sqrt(length(b)) for b in cont_opt[n]]
+    #     # plot!((collect(1:bins1) .- 0.5) ./ bins1, y_opt, sp=2, ribbon=2*yerr_opt, c=palette(:default)[2], label="Optimal", linewidth=4)
 
-    # y_opt = [mean(b) for b in in_tree_opt]
-    # yerr_opt = [std(b)/sqrt(length(b)) for b in in_tree_opt]
-    # plot!((collect(1:bins1) .- 0.5) ./ bins1, y_opt, sp=2, ribbon=2*yerr_opt, c=palette(:default)[2], label="Optimal", linewidth=4)
+    #     # y_model1 = [mean(b) for b in cont_model1[n]]
+    #     # yerr_model1 = [std(b)/sqrt(length(b)) for b in cont_model1[n]]
+    #     # plot!((collect(1:bins1) .- 0.5) ./ bins1, y_model1, sp=n+1, ribbon=2*yerr_model1, c=palette(:default)[3], label=nothing, linewidth=4, ylabel=labels[n], xlabel=n>0 ? latexstring("d_\\textrm{goal}") : "", xflip=true)
 
-    # y_model1 = [mean(b) for b in in_tree_model1]
-    # yerr_model1 = [std(b)/sqrt(length(b)) for b in in_tree_model1]
-    # plot!((collect(1:bins1) .- 0.5) ./ bins1, y_model1, sp=2, ribbon=2*yerr_model1, c=palette(:default)[3], label="AND/OR", linewidth=4)
+    #     # y_model2 = [mean(b) for b in cont_model2[n]]
+    #     # yerr_model2 = [std(b)/sqrt(length(b)) for b in cont_model2[n]]
+    #     # plot!((collect(1:bins1) .- 0.5) ./ bins1, y_model2, sp=2, ribbon=2*yerr_model2, c=palette(:default)[4], label="Eureka", linewidth=4, ylabel=latexstring("p_\\textrm{error}"), xlabel="Progress", legend=nothing, xlim=(0, 1))
 
-    # y_model2 = [mean(b) for b in in_tree_model2]
-    # yerr_model2 = [std(b)/sqrt(length(b)) for b in in_tree_model2]
-    # plot!((collect(1:bins1) .- 0.5) ./ bins1, y_model2, sp=2, ribbon=2*yerr_model2, c=palette(:default)[4], label="Eureka", linewidth=4, ylabel=latexstring("p_\\textrm{error}"), xlabel="Progress", legend=nothing, xlim=(0, 1))
-
-    # for j in 1:length(in_tree[1])
-    #     plot!((collect(1:bins1) .- 0.5) ./ bins1, [in_tree[i][j] for i in 1:bins], sp=2, linewidth=1, color=:black, alpha=0.2, label=nothing)
+    #     # for j in 1:length(in_tree[1])
+    #     #     plot!((collect(1:bins1) .- 0.5) ./ bins1, [in_tree[i][j] for i in 1:bins], sp=2, linewidth=1, color=:black, alpha=0.2, label=nothing)
+    #     # end
+    #     # plot!([], [], sp=2, linewidth=1, color=:black, alpha=0.2, label="Subjects")
     # end
-    # plot!([], [], sp=2, linewidth=1, color=:black, alpha=0.2, label="Subjects")
     display(plot!())
-    return X1, X2
+    #return X1, X2
 end
-A, O, board = depth_tree_progress(params11, params25, tree_datas_prb, QQs_prb, states_prb, boards_prb, optimal_act, d_goals; bins2=10);
-    
+depth_tree_progress(params11, params25, tree_datas_prb, QQs_prb, states_prb, boards_prb, optimal_act, d_goals; bins2=10);
+
+
+
 g = draw_ao_tree((A,O), board)
 draw_board(get_board_arr(board))
 

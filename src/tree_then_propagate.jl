@@ -257,7 +257,8 @@ function first_pass(tot_moves)
             end
             arr = get_board_arr(board)
             if check_solved(arr)
-                continue
+                #continue
+                break
             end
             all_moves, AND_OR_tree = get_and_or_tree(board; backtracking=true);
             push!(trees, AND_OR_tree)
@@ -320,7 +321,8 @@ function get_QQs(tot_moves, tot_times, all_all_moves_prb, d_goals)
             arr = get_board_arr(board)
             s = board_to_int(arr, BigInt)
             if check_solved(arr)
-                continue
+                #continue
+                break
             end
             all_moves = all_all_moves_prb[prb][restart_count][length(QQs[prb][restart_count])+1]
             #A = get_all_available_moves(board, arr)
