@@ -1,6 +1,6 @@
 subj = subjs[20]
-prb = prbs[end]
-r = 2
+prb = prbs[1]
+r = 1
 board = load_data(prb)
 
 tree_, _, _, moves_ = tree_datas_prb[subj];
@@ -15,16 +15,33 @@ nA = DefaultDict{and_type, Vector{or_type}}([])
 nO = DefaultDict{or_type, Vector{and_type}}([])
 visited_ORs = Vector{or_type}()
 
+_, sol, _ = a_star(board)
+sol = sol[1:end-1]
+
 for i in eachindex(sol)
     #move = moves[i]
+    #root_AND, A, O, _, _, parents_moves, parents_AND, parents_OR = tree[i];
+
     move = Tuple(sol[i])
     _, tre = get_and_or_tree(board; backtracking=true)
-    make_move!(board, move)
-    #root_AND, A, O, _, _, parents_moves, parents_AND, parents_OR = tree[i];
     root_AND, A, O, _, _, parents_moves, parents_AND, parents_OR = tre;
-    move_ORs = parents_moves[move]
-    if !isempty(move_ORs)
-        start_OR = move_ORs[end]
+    make_move!(board, move)
+    if move in keys(parents_moves)
+        move_ORs = parents_moves[move]
+        if isempty(move_ORs)
+            throw(DomainError("weird empty list"))
+        end
+        start_OR = nothing
+        min_d = 1000000
+        for OR in values(parents_moves[move])
+            if OR[3] < min_d
+                start_OR = OR
+                min_d = OR[3]
+            end
+        end
+        if start_OR === nothing
+            throw(DomainError("weird OR selection"))
+        end
         push!(visited_ORs, start_OR)
         next_ORs, nA, nO = backtrack_chain(nA, nO, start_OR, parents_AND, parents_OR, root_AND);
     else
@@ -36,7 +53,7 @@ for i in eachindex(sol)
     end
 end
 g = draw_ao_tree((nA, nO), board; highlight_ORs=visited_ORs)
-
+draw_board(get_board_arr(board))
 
 # ====== FIRST MOVE ==========
 i = 1

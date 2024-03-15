@@ -95,7 +95,7 @@ function many_move_hist(prbs)
     display(plot!())
 end
 
-function move_hist(p1, p2, actions, move, opt, s, subind, inds)
+function move_hist(p1, p2, ps_prev, actions, move, opt, s, subind, inds)
     N = length(subind)
     plot(layout=grid(N, 2, widths=[0.7, 0.3]), size=(600,200*N), grid=false, dpi=300, legend=false, foreground_color_legend = nothing, yticks=[])
     for i in 1:N
@@ -109,12 +109,17 @@ function move_hist(p1, p2, actions, move, opt, s, subind, inds)
         for mm in opt[inds[subind[i]]]
             push!(optz, create_move_icon(mm, board))
         end
-        bar!(movez, p1[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="AND-OR", legend=true, xticks=:all)
+        if length(p1) > 0
+            bar!(movez, p1[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="AND/OR", legend=true, xticks=:all)
+        end
         if length(p2) > 0
-            bar!(movez, p2[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="Eureka", legend=true)
+            bar!(movez, p2[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.5, label="AND/OR+", legend=true)
         end
         bar!(optz, ones(length(optz)) ./ length(optz), alpha=0.5, sp=1 + (i-1)*2, label="Optimal", bar_width=0.5, legend=true)
         bar!([create_move_icon(move[inds[subind[i]]], board)], [1], sp=1 + (i-1)*2, label="Human", bar_width=0.2, c=:black, legend=true)
+        if length(ps_prev) > 0
+            bar!(movez, ps_prev[inds[subind[i]]], sp=1 + (i-1)*2, alpha=0.2, label="Same car", legend=true)
+        end
         draw_board(arr, sp=2 + (i-1)*2)
         plot!(sp=2 + (i-1)*2, legend=false, xticks=[], yticks=[])
     end
