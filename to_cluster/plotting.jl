@@ -117,7 +117,7 @@ function draw_board(arr; alpha_map=[], sp=nothing)
             idxs = findall(x->x==c, arr)
             l = length(idxs)
             s = sum(idxs)
-            annotate!(s[2]/l, s[1]/l, text(c, :white, 16, "helvetica"), fontfamily="helvetica")
+            annotate!(s[2]/l, s[1]/l, text(c, :white, 20))
         end
     else
         heatmap!(arr, c = cmap, sp=sp, legend = nothing, yflip = true, xmirror=true, framestyle = :box, dpi=300)
@@ -127,7 +127,7 @@ function draw_board(arr; alpha_map=[], sp=nothing)
             idxs = findall(x->x==c, arr)
             l = length(idxs)
             s = sum(idxs)
-            annotate!(s[2]/l, s[1]/l, sp=sp, text(c, :white, 16, "helvetica"), legend=nothing, fontfamily="helvetica")
+            annotate!(s[2]/l, s[1]/l, sp=sp, text(c, :white, 20), legend=nothing)
         end
     end
     plot!()
@@ -135,58 +135,53 @@ end
 
 function summary_stats1_plot(X, Xerr, y, yerr)
     d, MM, bins = size(y)
-    l = @layout [a{0.1h}; grid(2, 2)];
-    plot(size=(500, 350), grid=false, layout=l, dpi=300, xflip=true, #size=(750, 250)
-        legendfont=font(10, "helvetica"), 
-        xtickfont=font(10, "helvetica"), 
-        ytickfont=font(10, "helvetica"), 
-        titlefont=font(10, "helvetica"), 
-        guidefont=font(12, "helvetica"), 
+    l = @layout [a{0.01h}; grid(2, 2)];
+    plot(size=(500, 450), grid=false, layout=l, dpi=300, xflip=true, #size=(750, 250)
+        legendfont=font(10), 
+        xtickfont=font(10), 
+        ytickfont=font(10), 
+        titlefont=font(10), 
+        guidefont=font(14), 
         right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=0Plots.mm, left_margin=0Plots.mm, 
-        fontfamily="helvetica", tick_direction=:out, link=:x, xticks=[], xlim=(0, 15.5));
+        fontfamily="helvetica", tick_direction=:out);
 
-    labels = ["Subjects" "Random" "Eureka model" "AND/OR model"];
-    ylabels = ["Proportion\nin tree" "Proportion\nundos" "Proportion\nsame car" "Depth in tree"]
-    yticks = [[0.4, 0.6, 0.8, 1.0], [0, 0.04, 0.08, 0.12], [0.0, 0.1, 0.2], [2, 3, 4, 5]]
-    ylim = [(0.25, 1.0), (-0.005, 0.14), (0.0, 0.25), (2, 5.1)]
-    # for i in 1:(MM-3)
-    #     labels = hcat(labels, "Model "*string(i))
-    # end
-    plot!(zeros(Int, MM-1)', c=[:black palette(:default)[1] palette(:default)[4] palette(:default)[3]], labels=labels, legend_columns=2, linewidth=10, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:top);
+    labels = ["Subjects" "Random" "Optimal"];
+    for i in 1:(MM-3)
+        labels = hcat(labels, "Model "*string(i))
+    end
+    println(labels)
+    plot!(zeros(Int, MM)', c=[:black palette(:default)[1] palette(:default)[2] palette(:default)[3]], labels=labels, legend_columns=length(labels), linewidth=10, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:top);
     for i in 1:d
         for j in 1:MM
-            if j == 3
-                continue
-            end
+            # if j == 3
+            #     continue
+            # end
             if j == 1
-                plot!(X[i, :], y[i, j, :], yerr=2*yerr[i, j, :], sp=i+1, c=:white, msw=2, label=nothing, xflip=true, linewidth=2, markershape=:none, ms=6, ylabel=ylabels[i], yticks=yticks[i], ylim=ylim[i])
+                plot!(X[i, :], y[i, j, :], yerr=2*yerr[i, j, :], sp=i+1, c=:white, msw=2, label=nothing, xflip=true, linewidth=2, markershape=:none, ms=6)
             else
                 plot!(X[i, :], y[i, j, :], ribbon=2*yerr[i, j, :], sp=i+1, label=nothing, c=palette(:default)[j-1], l=nothing)
             end
         end
     end
-    plot!(xlabel="Distance to goal", sp=4, xticks=[0, 5, 10, 15])
-    plot!(xlabel="Distance to goal", sp=5, xticks=[0, 5, 10, 15])
     display(plot!())
 end
-#summary_stats1_plot(X_1, Xerr_1, y_1, yerr_1)
 
 function summary_stats1_1_plot(X, Xerr, y, yerr)
     d, MM, bins = size(y)
     MM -= 1
     plot(size=(150*MM, 150*d), grid=false, layout=grid(d, MM), dpi=300, xflip=true, link=:both,
-        legendfont=font(10, "helvetica"), 
-        xtickfont=font(10, "helvetica"), 
-        ytickfont=font(10, "helvetica"), 
-        titlefont=font(10, "helvetica"), 
-        guidefont=font(10, "helvetica"), 
+        legendfont=font(10), 
+        xtickfont=font(10), 
+        ytickfont=font(10), 
+        titlefont=font(10), 
+        guidefont=font(14), 
         right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=0Plots.mm, left_margin=0Plots.mm, 
         fontfamily="helvetica", tick_direction=:out, xlim=(0, 16));
 
-    titles = ["Random" "Optimal" "Means end model" "Forward search model" "Eureka model" "AND/OR model"];
+    titles = ["Random" "Optimal" "Eureka model" "AND/OR model"];
     #ylabels = [latexstring("p_\\textrm{in\\_tree}") latexstring("p_\\textrm{undo}") latexstring("p_\\textrm{same\\_car}") latexstring("d_\\textrm{tree}")];
     ylabels = ["Proportion in tree" "Proportion undos" "Proportion same car" "Depth in tree"];
-    order = [2, 3, 7, 6, 5, 4]
+    order = [2, 3, 5, 4]
     ytickss = [[0.4, 0.6, 0.8, 1.0], [0.0, 0.05, 0.1, 0.15], [0.0, 0.1, 0.2, 0.3], [2.0, 3.0, 4.0, 5.0]]
     ylimss = [:native, :native, (0, 0.3), (2, 5.3)]
     for i in 1:d
@@ -198,9 +193,9 @@ function summary_stats1_1_plot(X, Xerr, y, yerr)
             xticks = i == d ? [0, 5, 10, 15] : nothing
             ylims = ylimss[i]
             o = order[j]
-            sp = (i-1)*MM + j
+            sp = (i-1)*4 + j
             plot!(X[i, :], y[i, 1, :], yerr=2*yerr[i, 1, :], sp=sp, c=:white, msw=1.4, label=nothing, xflip=true, linewidth=1.4, markershape=:none, ms=4, xlabel=xlabel, ylabel=ylabel, xticks=xticks, yticks=yticks)
-            if i == 1 && j == 2
+            if i == 1 && j == 4
                 plot!(X[i, :], y[i, o, :], ribbon=2*yerr[i, o, :], sp=sp, label=nothing, c=palette(:default)[o-1], xlabel=xlabel, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
             else
                 plot!(X[i, :], y[i, o, :], ribbon=2*yerr[i, o, :], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing, xlabel=xlabel, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
@@ -209,61 +204,57 @@ function summary_stats1_1_plot(X, Xerr, y, yerr)
     end
     display(plot!())
 end
-summary_stats1_1_plot(X_1, Xerr_1, y_1, yerr_1)
 
 function summary_stats2_plot(y, yerr)
     d, MM, bins = size(y)
     X = 1:size(y)[end]
-    l = @layout [a{0.01h}; grid(2, 1)];
-    plot(size=(300, 350), grid=false, layout=l, dpi=300, xflip=false, #size=(750, 250)
-        legendfont=font(10, "helvetica"), 
-        xtickfont=font(10, "helvetica"), 
-        ytickfont=font(10, "helvetica"), 
-        titlefont=font(10, "helvetica"), 
-        guidefont=font(12, "helvetica"), 
-        right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=0Plots.mm, left_margin=2Plots.mm, 
+    l = @layout [a{0.01h}; grid(1, 2)];
+    plot(size=(500, 250), grid=false, layout=l, dpi=300, xflip=false, #size=(750, 250)
+        legendfont=font(10), 
+        xtickfont=font(10), 
+        ytickfont=font(10), 
+        titlefont=font(10), 
+        guidefont=font(14), 
+        right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=4Plots.mm, left_margin=0Plots.mm, 
         fontfamily="helvetica", tick_direction=:out)
 
-    labels = ["Subjects" "Random" "Eureka model" "AND/OR model"];
+    labels = ["Subjects" "Random" "Optimal"];
+    for i in 1:(MM-3)
+        labels = hcat(labels, "Model "*string(i))
+    end
     xlabels = ["Depth in tree" "Ranked depth"]#[latexstring("d_\\textrm{tree}") "Ranked "*latexstring("d_\\textrm{tree}")]
-    yticks = [[0, 0.1, 0.2], [0, 0.2, 0.4]]
-    xticks = [[2, 4, 6, 8, 10], [1, 2, 3, 4, 5, 6, 7, 8]]
-    plot!(zeros(Int, MM-1)', c=[:black palette(:default)[1] palette(:default)[4] palette(:default)[3]], labels=labels, legend_columns=2, linewidth=10, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:topright)
+    plot!(zeros(Int, MM)', c=[:black palette(:default)[1] palette(:default)[2] palette(:default)[3]], labels=labels, legend_columns=length(labels), linewidth=10, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:top)
     for i in 1:d
         for j in 1:MM
             if j == 3
                 continue
             end
             if j == 1
-                plot!(X, y[i, j, :], yerr=2*yerr[i, j, :], sp=i+1, c=:white, msw=2, label=nothing, linewidth=2, markershape=:none, ms=6, xlabel=xlabels[i], yticks=yticks[i], xticks=xticks[i])
+                plot!(X, y[i, j, :], yerr=2*yerr[i, j, :], sp=i+1, c=:white, msw=2, label=nothing, linewidth=2, markershape=:none, ms=6, xlabel=xlabels[i])
             else
                 plot!(X, y[i, j, :], ribbon=2*yerr[i, j, :], sp=i+1, label=nothing, c=palette(:default)[j-1], l=nothing)
             end
         end
     end
-    plot!(ylabel="Proportion", sp=2, xlim=(1.5, 11.5), bottom_margin=-5Plots.mm)
-    plot!(ylabel="Proportion", sp=3, bottom_margin=-3Plots.mm)
-    plot!(sp=3, xlim=(0.5, 8.5))
     display(plot!())
 end
-#summary_stats2_plot(y_2, yerr_2)
 
 function summary_stats2_1_plot(y, yerr)
     d, MM, bins = size(y)
     MM -= 1
     Xs = [collect(1:bins)[.!(isnan.(y[1, 1, :]))], collect(1:bins)[.!(isnan.(y[2, 1, :]))]]
     plot(size=(150*MM, 150*d), grid=false, layout=grid(d, MM), dpi=300, xflip=false, link=:y,
-        legendfont=font(10, "helvetica"), 
-        xtickfont=font(10, "helvetica"), 
-        ytickfont=font(10, "helvetica"), 
-        titlefont=font(10, "helvetica"), 
-        guidefont=font(10, "helvetica"), 
+        legendfont=font(10), 
+        xtickfont=font(10), 
+        ytickfont=font(10), 
+        titlefont=font(10), 
+        guidefont=font(10), 
         right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=2Plots.mm, left_margin=2Plots.mm, 
         fontfamily="helvetica", tick_direction=:out);
 
-    titles = ["Random" "Optimal" "Means end model" "Forward search model" "Eureka model" "AND/OR model"];
+    titles = ["Random" "Optimal" "Eureka model" "AND/OR model"];
     xlabels = ["Depth in tree" "Ranked depth"]#[latexstring("d_\\textrm{tree}") "Ranked "*latexstring("d_\\textrm{tree}")]
-    order = [2, 3, 7, 6, 5, 4]
+    order = [2, 3, 5, 4]
     ytickss = [[0.0, 0.1, 0.2], [0.0, 0.2, 0.4, 0.6]]
     xtickss = [[2, 4, 6, 8, 10], [1, 2, 3, 4, 5, 6, 7, 8]]
     for i in 1:d
@@ -276,50 +267,47 @@ function summary_stats2_1_plot(y, yerr)
             xticks = xtickss[i]
             #ylims = ylimss[i]
             o = order[j]
-            sp = (i-1)*MM + j
+            sp = (i-1)*4 + j
             plot!(X, y[i, 1, X], yerr=2*yerr[i, 1, X], sp=sp, c=:white, msw=1.4, label=nothing, linewidth=1.4, markershape=:none, ms=4, xlabel=xlabel, title=title, ylabel=ylabel, xticks=xticks, yticks=yticks)
             plot!(X, y[i, o, X], ribbon=2*yerr[i, o, X], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing)
         end
     end
     display(plot!())
 end
-summary_stats2_1_plot(y_2, yerr_2)
 
 function summary_stats3_plot(X, Xerr, y, yerr)
-    l = @layout [a{0.001h}; grid(2, 3)];
-    plot(size=(500, 350), grid=false, layout=l, dpi=300, xflip=true, link=:both,
-        legendfont=font(10, "helvetica"), 
-        xtickfont=font(10, "helvetica"), 
-        ytickfont=font(10, "helvetica"), 
-        titlefont=font(10, "helvetica"), 
-        guidefont=font(10, "helvetica"), 
-        right_margin=1Plots.mm, top_margin=0Plots.mm, bottom_margin=3Plots.mm, left_margin=6Plots.mm, 
+    l = @layout [a{0.01h}; grid(1, 4)];
+    plot(size=(800, 250), grid=false, layout=l, dpi=300, xflip=true, link=:both,
+        legendfont=font(10), 
+        xtickfont=font(10), 
+        ytickfont=font(10), 
+        titlefont=font(10), 
+        guidefont=font(14), 
+        right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=5Plots.mm, left_margin=6Plots.mm, 
         fontfamily="helvetica", tick_direction=:out, xlim=(0, 15), ylim=(0, 1), yticks=nothing)
 
     labels = ["Worse" "Same" "Better"]
     plot!([0 0 0], c=[palette(:default)[1] palette(:default)[2] palette(:default)[3]], labels=labels, legend_columns=length(labels), linewidth=10, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:top);
-    titles = ["Subjects" "AND/OR model" "Eureka model" "Random" "Means end model" "Forward search model"];
-    xlabels = ["" "" "" "Distance to goal" "Distance to goal" "Distance to goal"]
-    ylabels = ["Proportion" "" "" "Proportion" "" ""]#latexstring("p")
-    yticks = [[0, 0.5, 1], [], [], [0, 0.5, 1], [], []]
-    xticks = [[], [], [], [0, 5, 10, 15], [0, 5, 10, 15], [0, 5, 10, 15]]
-    rows = [1, 4, 5, 2, 7, 6]
+    titles = ["Subjects" "Random" "Eureka model" "AND/OR model"]
+    xlabels = ["Distance to goal" "Distance to goal" "Distance to goal" "Distance to goal"]
+    ylabels = ["Proportion" "" "" ""]#latexstring("p")
+    yticks = [[0, 1], [], [], []]
+    rows = [1, 2, 5, 4]
     for i in eachindex(rows)
         row = rows[i]
-        areaplot!(X[1, :] .- 1, [y[1, row, :] + y[2, row, :] + y[3, row, :], y[2, row, :] + y[3, row, :], y[3, row, :]], sp=i+1, xflip=true, label=nothing, xlabel=xlabels[i], ylabel=ylabels[i], title=titles[i], yticks=yticks[i], xticks=xticks[i])    
+        areaplot!(X[1, :] .- 1, [y[1, row, :] + y[2, row, :] + y[3, row, :], y[2, row, :] + y[3, row, :], y[3, row, :]], sp=i+1, xflip=true, label=nothing, xlabel=xlabels[i], ylabel=ylabels[i], title=titles[i], yticks=yticks[i])    
     end
     display(plot!())
 end
-summary_stats3_plot(X_3, Xerr_3, y_3, yerr_3)
 
 function summary_stats4_plot(y, yerr)
     X = 1:size(y)[end]
     plot(size=(300, 300), grid=false, dpi=300, xflip=false, #size=(750, 250)
-        legendfont=font(10, "helvetica"), 
-        xtickfont=font(10, "helvetica"), 
-        ytickfont=font(10, "helvetica"), 
-        titlefont=font(10, "helvetica"), 
-        guidefont=font(12, "helvetica"), 
+        legendfont=font(10), 
+        xtickfont=font(10), 
+        ytickfont=font(10), 
+        titlefont=font(10), 
+        guidefont=font(14), 
         right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=-4Plots.mm, left_margin=0Plots.mm, 
         fontfamily="helvetica", tick_direction=:out, background_color_legend=nothing, foreground_color_legend=nothing)
 
@@ -339,9 +327,8 @@ function summary_stats4_plot(y, yerr)
 end
 
 function model_comparison_plot(fitnesses; iters=1000)
-    #names = ["AND/OR\ntree", "Eureka", "Forward\nsearch", "Means\nends", "Random"];
-    names = ["AND/OR tree", "AND/OR tree ("*latexstring("\\gamma")*"=0)", "Eureka", "Optimal random", "Forward search", "Means-ends analysis", "Random"];
-    Nps = [1, 1, 2, 1, 2, 4, 0];
+    names = ["AND/OR tree", "AND/OR tree lapse", "Eureka", "Optimal lapse", "Random"];
+    Nps = [1, 1, 2, 1, 0];
     Nm = length(fitnesses)
     means = zeros(Nm)
     CIs = zeros(Nm, 2)
@@ -364,38 +351,29 @@ function model_comparison_plot(fitnesses; iters=1000)
         CIs[i, :] = [m - quantile(total, 0.025), quantile(total, 0.975) - m]
     end
     l = @layout [grid(1, 2, widths=(0.47, 0.53)); a{0.001h}];
-    #l = @layout [a{0.001w} [grid(2, 1, heights=(0.47, 0.53))]];
-    plot(size=(400, 300), layout=l, grid=false, dpi=300,
-        legendfont=font(10, "helvetica"), 
-        xtickfont=font(10, "helvetica"), 
-        ytickfont=font(10, "helvetica"), 
-        titlefont=font(10, "helvetica"), 
-        guidefont=font(10, "helvetica"), 
-        right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=0Plots.mm, left_margin=2Plots.mm, 
+    plot(size=(600, 300), layout=l, grid=false, dpi=300, xflip=false, link=:both,
+        legendfont=font(10), 
+        xtickfont=font(10), 
+        ytickfont=font(10), 
+        titlefont=font(10), 
+        guidefont=font(14), 
+        right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=0Plots.mm, left_margin=0Plots.mm, 
         fontfamily="helvetica", tick_direction=:out, background_color_legend=nothing, foreground_color_legend=nothing)
 
-    #bar!(names, means, yerr=(CIs[:, 1], CIs[:, 2]), sp=3, label=nothing, xlim=(0, Nm), ylim=(0, 5500), bar_width=0.8, yticks=([0, 2000, 4000], [0, 2, 4]), markersize=12, linewidth=2)
-    #bar!(names, means, yerr=(CIs[:, 1], CIs[:, 2]), sp=2, label=nothing, xlim=(0, Nm), ylim=(15000, 24000), bar_width=0.8, xticks=[], yticks=([16000, 20000, 24000], [16, 20, 24]), xaxis=false, markersize=12, linewidth=2, linestrokecolor=:none)
-    #plot!(ylabel=latexstring("\\Delta")*"NLL (x1000)", showaxis = false, sp=1, right_margin=-10Plots.mm)
-
-    bar!(names, means, yerr=(CIs[:, 1], CIs[:, 2]), sp=1, xflip=true, label=nothing, xlim=(0, Nm), ylim=(0, 5500), bar_width=0.8, permute=(:x, :y), yticks=([0, 2000, 4000], [0, 2, 4]))
-    bar!(names, means, yerr=(CIs[:, 1], CIs[:, 2]), sp=2, xflip=true, label=nothing, xlim=(0, Nm), ylim=(11000, 24000), bar_width=0.8, permute=(:x, :y), xticks=[], yticks=([12000, 16000, 20000, 24000], [12, 16, 20, 24]), xaxis=false)
+    bar!(names, means, yerr=(CIs[:, 1], CIs[:, 2]), sp=1, xflip=true, label=nothing, xlim=(0, Nm), ylim=(0, 6500), bar_width=0.8, permute=(:x, :y), yticks=([0, 2000, 4000, 6000], [0, 2, 4, 6]))
+    bar!(names, means, yerr=(CIs[:, 1], CIs[:, 2]), sp=2, xflip=true, label=nothing, xlim=(0, Nm), ylim=(17000, 24000), bar_width=0.8, permute=(:x, :y), xticks=[], yticks=([18000, 20000, 22000, 24000], [18, 20, 22, 24]), xaxis=false)
     plot!(title=latexstring("\\Delta")*"NLL (x1000)", showaxis = false, sp=3, bottom_margin=-10Plots.mm)
     display(plot!())
 end
-#fitnesses = [cv_nll_gamma_only, cv_nll_eureka, cv_nll_rand];
-#fitnesses = [cv_nll_gamma_only, cv_nll_gamma_0, cv_nll_eureka, cv_nll_opt_rand, fitness_forward, cv_nll_means_ends, cv_nll_rand];
-fitnesses = [fitness_gamma_only, fitness_gamma_0, fitness_eureka, fitness_opt_rand, fitness_opt_rand, fitness_means_ends, fitness_rand]
-model_comparison_plot(fitnesses)
 
 function difficulty_d_plot(ds)
     l = @layout [grid(1, 4)];#a{0.01h}; 
     plot(size=(1000, 250), grid=false, layout=l, dpi=300, xflip=false, link=:both,
-        legendfont=font(10, "helvetica"), 
-        xtickfont=font(10, "helvetica"), 
-        ytickfont=font(10, "helvetica"), 
-        titlefont=font(10, "helvetica"), 
-        guidefont=font(12, "helvetica"), 
+        legendfont=font(10), 
+        xtickfont=font(10), 
+        ytickfont=font(10), 
+        titlefont=font(10), 
+        guidefont=font(14), 
         right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=8Plots.mm, left_margin=6Plots.mm, 
         fontfamily="helvetica", tick_direction=:out, xticks=([1, 5, 10, 15, 20], ["1", "5", "10", "15", "20+"]))
 
@@ -426,82 +404,17 @@ y_2, yerr_2 = plot2_data();
 summary_stats2_1_plot(y_2, yerr_2)
 
 X_3, Xerr_3, y_3, yerr_3 = plot3_data();
-summary_stats3_plot(X_3, Xerr_3, y_3, yerr_3)
-# y_34 = y_3[:, 1, :];
-# X_34 = X_3;
-idxs = X_31[3, :] .< 6
-plot(X_31[3, idxs, ], y_31[3, idxs], grid=false, label="L=5", xflip=true)
-idxs = X_32[3, :] .< 6
-plot!(X_32[3, idxs, ], y_32[3, idxs], grid=false, label="L=9", xflip=true)
-idxs = X_33[3, :] .< 6
-plot!(X_33[3, idxs, ], y_33[3, idxs], grid=false, label="L=12", xflip=true)
-idxs = X_34[3, :] .< 6
-plot!(X_34[3, idxs, ], y_34[3, idxs], grid=false, label="L=14", xflip=true, legend=:topleft)
-plot!(xlabel="Distance to goal", ylabel="Proportion of optimal moves")
+summary_stats3_1_plot(X_3, Xerr_3, y_3, yerr_3)
 
 y_4, yerr_4 = plot4_data();
 summary_stats4_plot(y_4, yerr_4)
+
+fitnesses = [cv_nll_gamma_only, cv_nll_gamma_0, cv_nll_eureka, cv_nll_opt_rand, cv_nll_rand];
+model_comparison_plot(fitnesses)
 
 histogram(params_gamma_only[:, 1], label=nothing, grid=false, xlabel=latexstring("\\gamma"), ylabel="Subjects")
 
 ds = plot4_1_data()
 difficulty_d_plot(ds)
 
-difficulty = x -> x == 7 ? 1 : x == 11 ? 2 : x == 14 ? 3 : x == 16 ? 4 : 0
-subj = subjs[9]
-DD = zeros(4, 10, 42)
-TS = zeros(4, 10, 42)
-for (m, subj) in enumerate(subjs)
-    dd = [[[] for _ in 1:10] for _ in 1:4]
-    ts = [[[] for _ in 1:10] for _ in 1:4]
-    for i in 1:length(states[subj])-1
-        d = difficulty(parse(Int, split(problems[subj][i], "_")[2]))
-        move = tree_datas[subj][4][i]
-        all_moves = tree_datas[subj][3][i]
-        subj_move_idx = findfirst(x->x==move, all_moves)
-        next_s = neighs[subj][i][subj_move_idx]
-        d_g = d_goals[states[subj][i]]
-        d_gp = d_goals[next_s]
-        push!(dd[d][d_g > 10 ? 10 : d_g], d_gp < d_g)
-        push!(ts[d][d_g > 10 ? 10 : d_g], times[subj][i])
-    end
-    for i in 1:4
-        idxs = .!(isempty.(dd[i]))
-        DD[i, idxs, m] = mean.(dd[i][idxs])
-        TS[i, idxs, m] = mean.(ts[i][idxs])
-    end
-end
-plot(grid=false, xflip=true, xlabel="Distance to goal", ylabel="Proportion of optimal moves", title="All subjects")
-labels = ["L = 5", "L = 9", "L = 12", "L = 14"]
-for i in 1:4
-    plot!(collect(1:10)[.!(isempty.(dd[i]))], mean.(dd[i][.!(isempty.(dd[i]))]), label=labels[i])
-end
-for i in 1:4
-    plot!(1:10, mean(DD[i, :, :], dims=2), yerr=std(DD[i, :, :], dims=2) ./ sqrt(42), label=labels[i])
-end
-plot!(legend=:topleft)
 
-plot(grid=false, xflip=true, xlabel="Distance to goal", ylabel="RT (ms)", title="All subjects")
-labels = ["L = 5", "L = 9", "L = 12", "L = 14"]
-for i in 1:4
-    plot!(collect(1:10)[.!(isempty.(ts[i]))], mean.(ts[i][.!(isempty.(ts[i]))]), label=labels[i])
-end
-for i in 1:4
-    plot!(1:10, mean(TS[i, :, :], dims=2), yerr=std(TS[i, :, :], dims=2) ./ sqrt(42), label=labels[i])
-end
-plot!(legend=:topleft)
-
-
-times = Dict{String, Vector{Int}}()
-for subj in subjs
-    ls = []
-    for prb in keys(all_subj_states[subj])
-        for i in eachindex(all_subj_states[subj][prb])
-            if all_subj_moves[subj][prb][i] == (-1, 0)
-                continue
-            end
-            push!(ls, all_subj_times[subj][prb][i] - all_subj_times[subj][prb][i-1])
-        end
-    end
-    times[subj] = ls
-end

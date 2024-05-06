@@ -288,7 +288,7 @@ function subject_nll_general(model, x, trees, dicts, states, boards, neighs, pre
         if p == 0
             println("========$(i)========")
             println("Zero probability move")
-            p = 0.00000001
+            continue
         end
         if high_res
             nll[i] = -log(p)
@@ -299,14 +299,14 @@ function subject_nll_general(model, x, trees, dicts, states, boards, neighs, pre
     return nll
 end
 
-function fit_model(model, lb, ub, x0, data_for_fitting, d_goals)#, plb, pub
+function fit_model(model, lb, ub, plb, pub, x0, data_for_fitting, d_goals)
     tree_datas, states, boards, neighs, prev_moves, features = data_for_fitting
     M = length(tree_datas)
     N = length(x0)
     params = zeros(M, N)
     fitness = zeros(M)
     #fitness = [[] for _ in 1:M]
-    Threads.@threads for m in ProgressBar(1:M)#
+    for m in ProgressBar(1:1)#Threads.@threads 
         tree_data = tree_datas[subjs[m]]
         states_subj = states[subjs[m]]
         boards_subj = boards[subjs[m]]
@@ -318,21 +318,21 @@ function fit_model(model, lb, ub, x0, data_for_fitting, d_goals)#, plb, pub
             res = optimize((x) -> subject_nll_general(model, x, trees, dicts, states_subj, boards_subj, neighs_subj, prev_moves_subj, all_all_moves, moves, features_subj, d_goals), lb, ub)
             params[m, 1] = Optim.minimizer(res)
         else
-            #bads_target = (x) -> subject_nll_general(model, x, trees, dicts, states_subj, boards_subj, neighs_subj, prev_moves_subj, all_all_moves, moves, features_subj, d_goals)
-            #options = Dict("tolfun"=> 1, "max_fun_evals"=>50, "display"=>"iter");
-            #bads = BADS(bads_target, x0, lb, ub, plb, pub, options=options)
-            #res = bads.optimize();
-            #params[m, :] = pyconvert(Vector, res["x"])
-            #fitness[m] = pyconvert(Float64, res["fval"])
-            res = optimize((x) -> subject_nll_general(model, x, trees, dicts, states_subj, boards_subj, neighs_subj, prev_moves_subj, all_all_moves, moves, features_subj, d_goals), lb, ub, x0, Fminbox(), Optim.Options(f_tol = 0.000001, f_calls_limit=100); autodiff=:forward)
-            params[m, :] = Optim.minimizer(res)
+            bads_target = (x) -> subject_nll_general(model, x, trees, dicts, states_subj, boards_subj, neighs_subj, prev_moves_subj, all_all_moves, moves, features_subj, d_goals)
+            options = Dict("tolfun"=> 1, "max_fun_evals"=>100, "display"=>"iter");
+            bads = BADS(bads_target, x0, lb, ub, plb, pub, options=options)
+            res = bads.optimize();
+            params[m, :] = pyconvert(Vector, res["x"])
+            fitness[m] = pyconvert(Float64, res["fval"])
+            #res = optimize((x) -> subject_nll_general(model, x, trees, dicts, states_subj, boards_subj, neighs_subj, prev_moves_subj, all_all_moves, moves, features_subj, d_goals), lb, ub, x0, Fminbox(), Optim.Options(f_tol = 0.000001, f_calls_limit=100); autodiff=:forward)
+            #params[m, :] = Optim.minimizer(res)
         end
-        #fitness[m] = subject_nll_general(model, Optim.minimizer(res), trees, dicts, states_subj, boards_subj, neighs_subj, prev_moves_subj, all_all_moves, moves, features_subj, d_goals; high_res=true)
-        fitness[m] = Optim.minimum(res)
+        #fitness[m] = subject_nll_general(model, Optim.minimizer(res), dicts, states_subj, boards_subj, neighs_subj, prev_moves_subj, all_all_moves, moves, d_goals; high_res=true)
+        #fitness[m] = Optim.minimum(res)
     end
     return params, fitness
 end
-#params_forwardd, fitness_forwardd = fit_model(forward_search, [0.0, 0.0], [10.0, 30.0], [1.0, 3.0], [8.0, 20.0], [3.0, 7.0], data_for_fitting, d_goals)
+params_forward, fitness_forward = fit_model(forward_search, [0.0, 0.0], [100.0, 100.0], [1.0, 1.0], [10.0, 10.0], [2.0, 3.0], data_for_fitting, d_goals)
 
 
 function testll(model, lb, ub, x0, data_for_fitting, d_goals)
@@ -348,11 +348,11 @@ function testll(model, lb, ub, x0, data_for_fitting, d_goals)
     ll = subject_nll_general(model, x0, trees, dicts, states_subj, boards_subj, neighs_subj, prev_moves_subj, all_all_moves, moves, features_subj, d_goals)
     return ll
 end
-# ll = testll(forward_search, [0.0, 0.0], [1.0, 10.0], [0.1, 3.0], data_for_fitting, d_goals)
-# ll = testll(eureka_model, [0.0, 0.0], [1.0, 10.0], [0.1, 3.0], data_for_fitting, d_goals)
+ll = testll(forward_search, [0.0, 0.0], [1.0, 10.0], [0.1, 3.0], data_for_fitting, d_goals)
+ll = testll(eureka_model, [0.0, 0.0], [1.0, 10.0], [0.1, 3.0], data_for_fitting, d_goals)
 
-# tree = tree_datas[subjs[1]][1][1202]
-# dict = propagate_ps(0.2, tree)
+tree = tree_datas[subjs[1]][1][1202]
+dict = propagate_ps(0.2, tree)
 
 
 
@@ -397,7 +397,6 @@ params_gamma_0, fitness_gamma_0 = fit_model(gamma_0_model, 0.000001, 0.999999, 0
 params_gamma_mus, fitness_gamma_mus = fit_model(gamma_mus_model, [0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [0.1, 0.2, 0.8], data_for_fitting, d_goals)
 params_rand, fitness_rand = fit_model(random_model, 0, 1, 0, data_for_fitting, d_goals)
 
-cv_nll_means_ends = cross_validate(means_end_model, [-10.0, -10.0, -10.0, 0.0], [10.0, 10.0, 10.0, 20.0], [1.0, -1.0, -1.0, 1.0], data_for_fitting, d_goals)
 cv_nll_gamma_only = cross_validate(gamma_only_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
 cv_nll_eureka = cross_validate(eureka_model, [0.0, 0.0], [25.0, 1.0], [10.0, 0.1], data_for_fitting, d_goals)
 cv_nll_opt_rand = cross_validate(opt_rand_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
@@ -421,48 +420,11 @@ data_for_fitting2 = [tree_datass, states, boards, neighs, prev_moves, features];
 opt_act = load("optimal_act.jld2")
 opt_act = merge(values(opt_act)...);
 
-fitness_loose = zeros(42)
-ids = 1:42#[1, 3, 5, 6, 8, 16, 20, 21, 22, 24, 25, 26, 27, 30, 31, 33, 39, 41, 42]
-for i in ids
-    if i in [10, 11]
-        continue
-    end
-    fitness_loose[i] = load("fitness/fitness"*string(i)*".jld2")["fitness_forward"][i]
-end
 
-ms = [10, 11]
-for m in ms
-    tree_data = tree_datas[subjs[m]];
-    states_subj = states[subjs[m]];
-    boards_subj = boards[subjs[m]];
-    neighs_subj = neighs[subjs[m]];
-    prev_moves_subj = prev_moves[subjs[m]];
-    features_subj = features[subjs[m]];
-    trees, dicts, all_all_moves, moves = tree_data;
-    a = subject_nll_general(forward_search, [1.65975  1378.43], trees, dicts, states_subj, boards_subj, neighs_subj, prev_moves_subj, all_all_moves, moves, features_subj, d_goals)
-    println("RESULT IS: ")
-    println(a)
-end
 
-params_loose = zeros(42, 2)
-for i in ids
-    if i in [10, 11]
-        continue
-    end
-    params_loose[i, :] = load("params/params"*string(i)*".jld2")["params_forward"][i, :]
-end
 
-diffs = []
-for i in ids
-    push!(diffs, fitness_forward[i] - fitness_loose[i])
-    #push!(diffs, params_forward[i, :] - params_loose[i, :])
-end
-
-# @save "params_means_ends.jld2" params_means_ends
-# @save "fitness_means_ends.jld2" fitness_means_ends
-
-params_forward = load("params_forward_high_bounds.jld2")["params_loose"]
-fitness_forward = load("fitness_forward_high_bounds.jld2")["fitness_loose"]
+# # @save "params_model1.jld2" params
+# # @save "fitness_model1.jld2" fitness
 
 d_goals = load("d_goals.jld2")["d_goals"];
 params_gamma = load("params_model1.jld2")["params"]

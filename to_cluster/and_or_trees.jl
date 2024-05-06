@@ -58,8 +58,8 @@ function get_and_or_tree(board; backtracking=false, idv=false, max_iter=100)
     return all_moves, AND_OR_tree
 end
 # board = load_data("chain_cycle");
-# _, tree2 = get_and_or_tree(board);
-# _, AND, OR, _, _, _, _, _ = tree2;
+# _, tree = get_and_or_tree(board);
+# _, AND, OR, _, _, _, _, _ = tree;
 # draw_ao_tree((AND, OR), board)
 # draw_board(get_board_arr(board))
 

@@ -4,7 +4,7 @@ using Random
 include("model.jl");
 
 function X_histogram(tree, all_moves, d_goal)
-    return 1
+    return 0
 end
 
 function X_d_goal(tree, all_moves, d_goal)
@@ -102,79 +102,66 @@ function random_model(params, tree, dict, all_moves, board, prev_move, neigh, d_
 end
 
 function means_end_model(params, tree, dict, all_moves, board, prev_move, neigh, d_goal, fs, d_goals)
-    b0, b1, b2, β = params
+    b1, b2, β = params
     f1 = fs[:, 1]
     f2 = fs[:, 2]
-    ex = exp.((b0 .+ b1 .* f1 .+ b2 .* f2) ./ β)
+    ex = exp.((1 + b1*f1 + b2*f2) / β)
     return ex ./ sum(ex)
 end
 
 function forward_search(params, tree, dict, all_moves, board, prev_move, neigh, d_goal, fs, d_goals)
     function rollout(board, γ; max_iter=10000)
-        first_move = nothing
+        first_move_idx = nothing
         prev_move = [0, 0]
         for n in 1:max_iter
-            if rand() > γ || n == 1
+            if rand() > γ
                 arr = get_board_arr(board)
                 # Check if complete
                 if check_solved(arr)
-                    return true, first_move
+                    return true, first_move_idx
                 end
                 # Expand current node by getting all available moves
                 available_moves = get_all_available_moves(board, arr)
                 filter!(e -> e[1] != prev_move[1], available_moves)
-                if isempty(available_moves)
-                    available_moves = get_all_available_moves(board, arr)
-                end
                 # Randomly choose a move
                 selected_move_idx = rand(1:length(available_moves))
                 prev_move = available_moves[selected_move_idx]
                 # Make move
                 make_move!(board, prev_move)
                 if n == 1
-                    first_move = prev_move
+                    first_move_idx = selected_move_idx
                 end
             else
-                return false, first_move
+                return false, first_move_idx
             end
         end
-        return false, first_move
+        return false, first_move_idx
     end
-    logγ, k = params
-    γ = exp(-logγ)
-    k = round(Int, k)
+    γ, k = params
     N = length(neigh)
     ps = zeros(N)
-    N_REPEATS = 100
-    array = get_board_arr(board)
+    N_REPEATS = 1000
     for n in 1:N_REPEATS
-        f_move = nothing
+        move_index = nothing
         for i in 1:k
-            solved, first_move = rollout(arr_to_board(array), γ)
+            b = copy(board)
+            solved, first_move_idx = rollout(b, γ)
             if solved
-                f_move = first_move
+                move_index = first_move_idx
                 break
             end
         end
-        if f_move === nothing
+        if move_index === nothing
             ps .+= 1/N
         else
-            move_index = findfirst(x->x==Tuple(f_move), all_moves)
             ps[move_index] += 1
         end
     end
     return ps ./= N_REPEATS
 end
-# ff = (x) -> forward_search(x, tree_datas[subjs[3]][1][138], tree_datas[subjs[3]][2][138],  tree_datas[subjs[3]][3][138], boards[subjs[3]][138], prev_moves[subjs[3]][138], neighs[subjs[3]][138], 3, features[subjs[3]][138], d_goals)[findfirst(x->x==tree_datas[subjs[3]][4][138], tree_datas[subjs[3]][3][138])]
-# a=[[ff([ii, jj]) for ii in 1:0.5:4] for jj in 100:100:2000]
-# ff([1.0, 1000])
-# options = Dict("tolfun"=> 0.01, "max_fun_evals"=>100, "display"=>"iter");
-# bads = BADS(ff, [2.0, 100.0], [0.0, 0.0], [10.0, 2000.0], [1.0, 50.0], [5.0, 1000.0], options=options)
-# ress = bads.optimize();
 
 function gamma_k_model(params, tree, dict, all_moves, board, prev_move, neigh, d_goal, fs, d_goals)
     γ = params
-    # EXPENSIVE
     dict = propagate_ps(γ, tree)
     same_car_moves = prev_move == (0, 0) ? [(0, 0)] : [(prev_move[1], j) for j in -4:4]
     # modulate depths by (1-γ)^d
@@ -237,7 +224,7 @@ function opt_rand_model(params, tree, dict, all_moves, board, prev_move, neigh, 
     return ps
 end
 
-function summary_stats_per_subj(models, params, independent, dependent, tree_data, states, boards, neighs, prev_moves, features, d_goals, problems; seed=nothing, N_repeats=1000)
+function summary_stats_per_subj(models, params, independent, dependent, tree_data, states, boards, neighs, first_moves, d_goals, problems_subj; seed=nothing, N_repeats=1000)
     if seed !== nothing
         Random.seed!(seed)
     end
@@ -252,13 +239,11 @@ function summary_stats_per_subj(models, params, independent, dependent, tree_dat
         # if split(prb, "_")[2] != "16"
         #     continue
         # end
-        # if i > 100
-        #     break
-        # end
         tree, dict, all_moves, move = trees[i], dicts[i], all_all_moves[i], moves[i]
-        s, board, neigh, prev_move, fs = states[i], boards[i], neighs[i], prev_moves[i], features[i]
+        s, board, neigh, first_move = states[i], boards[i], neighs[i], first_moves[i]
         d_goal = d_goals[s]
         n_A = length(all_moves)
+        prev_move = first_move ? (0, 0) : moves[i-1]
         # subj move
         ps_subj = zeros(n_A)
         subj_move_idx = findfirst(x->x==move, all_moves)
@@ -271,7 +256,7 @@ function summary_stats_per_subj(models, params, independent, dependent, tree_dat
         ps = [ps_subj, ps_rand, ps_opt]
         # model probabilities
         for (n, model) in enumerate(models)
-            ps_model = model(params[n], tree, dict, all_moves, board, prev_move, neigh, d_goal, fs, d_goals)
+            ps_model = model(params[n], tree, dict, all_moves, board, prev_move, neigh, d_goal, d_goals)
             push!(ps, ps_model)
         end
         # summary stats
@@ -307,7 +292,7 @@ function quantile_binning(x, y; bins=10)
     return binned_x, binned_y
 end
 
-function across_subject_summary_stats(independent, dependent, models, params, tree_datas, states, boards, neighs, prev_moves, features, d_goals, problems; bins=10, seed=nothing)
+function across_subject_summary_stats(independent, dependent, models, params, tree_datas, states, boards, neighs, first_moves, d_goals, problems; bins=10, seed=nothing)
     subjs = collect(keys(tree_datas))
     M = length(subjs)
     MM = length(models) + 3
@@ -315,9 +300,9 @@ function across_subject_summary_stats(independent, dependent, models, params, tr
     for (m, subj) in ProgressBar(enumerate(subjs))
         param = params[m]
         tree_data = tree_datas[subj]
-        states_, boards_, neighs_, prev_moves_, features_, problems_ = states[subj], boards[subj], neighs[subj], prev_moves[subj], features[subj], problems[subj]
+        states_, boards_, neighs_, first_moves_, problems_ = states[subj], boards[subj], neighs[subj], first_moves[subj], problems[subj]
         # calculate summary statistics
-        X, y, lik = summary_stats_per_subj(models, param, independent, dependent, tree_data, states_, boards_, neighs_, prev_moves_, features_, d_goals, problems_; seed=seed)
+        X, y, lik = summary_stats_per_subj(models, param, independent, dependent, tree_data, states_, boards_, neighs_, first_moves_, d_goals, problems_; seed=seed)
         for j in 1:MM
             # quantile binning
             if isempty(X)
@@ -364,16 +349,16 @@ function across_subject_summary_stats(independent, dependent, models, params, tr
     return x_mean, x_sem, y_mean, y_sem
 end
 
-function across_subject_histogram(dependent, models, params, tree_datas, states, boards, neighs, prev_moves, features, d_goals, problems; bins=10)
+function across_subject_histogram(dependent, models, params, tree_datas, states, boards, neighs, first_moves, d_goals; bins=10)
     subjs = collect(keys(tree_datas))
     MM = length(models) + 3
     hist = [[[] for _ in 1:bins] for _ in 1:MM]
     for (m, subj) in ProgressBar(enumerate(subjs))
         param = params[m]
         tree_data = tree_datas[subj]
-        states_, boards_, neighs_, prev_moves_, features_, problems_ = states[subj], boards[subj], neighs[subj], prev_moves[subj], features[subj], problems[subj]
+        states_, boards_, neighs_, first_moves_ = states[subj], boards[subj], neighs[subj], first_moves[subj]
         # calculate summary statistics
-        _, y, _ = summary_stats_per_subj(models, param, X_histogram, dependent, tree_data, states_, boards_, neighs_, prev_moves_, features_, d_goals, problems_; N_repeats=1)
+        _, y, _ = summary_stats_per_subj(models, param, X_histogram, dependent, tree_data, states_, boards_, neighs_, first_moves_, d_goals; N_repeats=1)
         for j in 1:MM
             # histogram counting
             hist_subj = countmap(y[j, :])
@@ -414,8 +399,8 @@ end
 function plot1_data(;bins=10)
     M = 42
     #params = [[params_gamma[m]] for m in 1:M]
-    params = [[params_gamma_only[m], params_eureka[m, :], params_opt_rand[m], params_means_ends[m, :]] for m in 1:M]
-    models = [gamma_only_model, eureka_model, opt_rand_model, means_end_model]
+    params = [[params_gamma[m], params_eureka[m, :]] for m in 1:M]
+    models = [gamma_only_model, eureka_model]
     independent = X_d_goal
     dependents = [y_p_in_tree, y_p_undo, y_p_same_car, y_d_tree]
     d = length(dependents)
@@ -423,9 +408,7 @@ function plot1_data(;bins=10)
     MM = length(models) + 3
     X, Xerr, y, yerr = zeros(d, bins), zeros(d, bins), zeros(d, MM, bins), zeros(d, MM, bins)
     for i in 1:d
-        println("Doing $(i) plot")
-        flush(stdout)
-        X[i, :], Xerr[i, :], y[i, :, :], yerr[i, :, :] = across_subject_summary_stats(independent, dependents[i], models, params, tree_datas, states, boards, neighs, prev_moves, features, d_goals, problems; bins=bins);
+        X[i, :], Xerr[i, :], y[i, :, :], yerr[i, :, :] = across_subject_summary_stats(independent, dependents[i], models, params, tree_datas, states, boards, neighs, first_moves, d_goals; bins=bins);
     end
     return X, Xerr, y, yerr
 end
@@ -433,16 +416,14 @@ end
 function plot2_data(;bins=12)
     M = 42
     #params = [[params_gamma[m]] for m in 1:M]
-    params = [[params_gamma_only[m], params_eureka[m, :], params_opt_rand[m], params_means_ends[m, :]] for m in 1:M]
-    models = [gamma_only_model, eureka_model, opt_rand_model, means_end_model]
+    params = [[params_gamma[m], params_eureka[m, :]] for m in 1:M]
+    models = [gamma_only_model, eureka_model]
     dependents = [y_d_tree, y_d_tree_ranked]
     d = length(dependents)
     MM = length(models) + 3
     y, yerr = zeros(d, MM, bins), zeros(d, MM, bins)
     for i in 1:d
-        println("Doing $(i) plot")
-        flush(stdout)
-        y[i, :, :], yerr[i, :, :] = across_subject_histogram(dependents[i], models, params, tree_datas, states, boards, neighs, prev_moves, features, d_goals, problems; bins=bins)
+        y[i, :, :], yerr[i, :, :] = across_subject_histogram(dependents[i], models, params, tree_datas, states, boards, neighs, first_moves, d_goals; bins=bins)
     end
     return y, yerr
 end
@@ -450,17 +431,15 @@ end
 function plot3_data(;bins=10)
     M = 42
     #params = [[params_gamma[m]] for m in 1:M]
-    params = [[params_gamma_only[m], params_eureka[m, :], params_opt_rand[m], params_means_ends[m, :]] for m in 1:M]
-    models = [gamma_only_model, eureka_model, opt_rand_model, means_end_model]
+    params = [[params_gamma[m], params_eureka[m, :]] for m in 1:M]
+    models = [gamma_only_model, eureka_model]
     independent = X_d_goal
     dependents = [y_p_worse, y_p_same, y_p_better]
     d = length(dependents)
     MM = length(models) + 3
     X, Xerr, y, yerr = zeros(d, bins), zeros(d, bins), zeros(d, MM, bins), zeros(d, MM, bins)
     for i in 1:d
-        println("Doing $(i) plot")
-        flush(stdout)
-        X[i, :], Xerr[i, :], y[i, :, :], yerr[i, :, :] = across_subject_summary_stats(independent, dependents[i], models, params, tree_datas, states, boards, neighs, prev_moves, features, d_goals, problems; bins=bins);
+        X[i, :], Xerr[i, :], y[i, :, :], yerr[i, :, :] = across_subject_summary_stats(independent, dependents[i], models, params, tree_datas, states, boards, neighs, first_moves, d_goals, problems; bins=bins);
     end
     return X, Xerr, y, yerr
 end
@@ -475,7 +454,7 @@ function plot4_data(;bins=20)
     MM = length(models) + 3
     y, yerr = zeros(d, MM, bins), zeros(d, MM, bins)
     for i in 1:d
-        y[i, :, :], yerr[i, :, :] = across_subject_histogram(dependents[i], models, params, tree_datas, states, boards, neighs, prev_moves, features, d_goals, problems; bins=bins)
+        y[i, :, :], yerr[i, :, :] = across_subject_histogram(dependents[i], models, params, tree_datas, states, boards, neighs, first_moves, d_goals; bins=bins)
     end
     return y, yerr
 end
