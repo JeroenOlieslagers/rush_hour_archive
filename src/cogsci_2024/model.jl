@@ -1,6 +1,6 @@
 using ProgressBars
 using Optim
-using MLDataUtils
+using MLUtils
 include("and_or_trees.jl")
 include("pre_process.jl")
 
@@ -32,6 +32,12 @@ function propagate_ps(x, AND_OR_tree)
                 dict[((-2, (-2,)), (-2, -2), OR_node[3])] += p_and
                 continue
             end
+            ############
+            # if OR_node[2] in visited || !haskey(OR, OR_node)
+            #     dict[((-2, (-2,)), (-2, -2), OR_node[3])] += p_and
+            #     continue
+            # end
+            ###########
             N_or = length(OR[OR_node])
             # Rule 3: OR HEURISTICS
             #mat_or = idv_OR[OR_node]
@@ -54,8 +60,9 @@ function propagate_ps(x, AND_OR_tree)
                     ## CHANGED
                     cv = copy(visited)
                     push!(cv, OR_node[1])
+                    #push!(cv, OR_node[2])
                     # recurse
-                    propagate!(x, pp, visited, dict, AND_next, AND, OR)#, idv_AND, idv_OR)
+                    propagate!(x, pp, cv, dict, AND_next, AND, OR)#, idv_AND, idv_OR)
                 end
             end
         end
@@ -68,8 +75,12 @@ function propagate_ps(x, AND_OR_tree)
     or_type = Tuple{s_type, a_type, Int}
     dict = DefaultDict{or_type, Any}(0.0)
     # keeps track of current AO nodes visited
+    ## CHANGED
     visited = Set{s_type}()
-    propagate!(x, 1.0, visited, dict, AND_root, AND, OR)#, idv_AND, idv_OR)
+    #visited = Set{a_type}()
+    γ = x
+    dict[((-1, (-1,)), (-1, -1), AND_root[3])] += γ
+    propagate!(x, 1.0-γ, visited, dict, AND_root, AND, OR)#, idv_AND, idv_OR)
     return dict
 end
 
@@ -275,6 +286,9 @@ function subject_nll_general(model, x, trees, dicts, states, boards, neighs, pre
         move = moves[i]
         all_moves = all_all_moves[i]
         s, board, neigh, prev_move, fs = states[i], boards[i], neighs[i], prev_moves[i], features[i]
+        if sum(values(dict)) == 0
+            println(board)
+        end
         d_goal = d_goals[s]
         ps = model(x, tree, dict, all_moves, board, prev_move, neigh, d_goal, fs, d_goals)
         if round(100000*sum(ps))/100000 != 1
@@ -306,7 +320,7 @@ function fit_model(model, lb, ub, x0, data_for_fitting, d_goals)#, plb, pub
     params = zeros(M, N)
     fitness = zeros(M)
     #fitness = [[] for _ in 1:M]
-    Threads.@threads for m in ProgressBar(1:M)#
+    for m in ProgressBar(1:M)#Threads.@threads 
         tree_data = tree_datas[subjs[m]]
         states_subj = states[subjs[m]]
         boards_subj = boards[subjs[m]]
@@ -335,9 +349,8 @@ end
 #params_forwardd, fitness_forwardd = fit_model(forward_search, [0.0, 0.0], [10.0, 30.0], [1.0, 3.0], [8.0, 20.0], [3.0, 7.0], data_for_fitting, d_goals)
 
 
-function testll(model, lb, ub, x0, data_for_fitting, d_goals)
+function testll(model, lb, ub, x0, data_for_fitting, d_goals; m=1)
     tree_datas, states, boards, neighs, prev_moves, features = data_for_fitting
-    m = 1
     tree_data = tree_datas[subjs[m]]
     states_subj = states[subjs[m]]
     boards_subj = boards[subjs[m]]
@@ -354,6 +367,26 @@ end
 # tree = tree_datas[subjs[1]][1][1202]
 # dict = propagate_ps(0.2, tree)
 
+gammas = range(-2, 0, 200);
+
+lls = Vector{Float64}[];
+for m in ProgressBar(1:42)
+    ls = Float64[]
+    for i in eachindex(gammas)
+        push!(ls, testll(gamma_only_model, 0, 1, 10^(gammas[i]), data_for_fitting, d_goals; m=m))
+    end
+    push!(lls, ls)
+end
+
+plot([], [], grid=false, c=:black, label="NLL surface", xlabel=latexstring("\\gamma"), ylabel="z-scored NLL", size=(300, 200))
+for (n, ls) in enumerate(lls)
+    plot!(10 .^(gammas), zscore(ls), label=nothing, c=:black, alpha=0.15)
+    #vline!([gammas[argmin(ls)]], c=:red, alpha=0.1, label=nothing)
+    vline!([params_gamma_only[n]], c=:red, alpha=0.3, label=nothing)
+end
+#histogram!(params_gamma_only, bins=gammas, label=nothing)
+plot!([], [], xscale=:log10, xticks=[0.01, 0.1, 1.0], xlim=(0.01, 1.0), c=:red, label="Minimum", background_color_legend=nothing, foreground_color_legend=nothing)
+#histogram!(params_gamma_only, bins=10 .^(range(-2, 0, 50)), inset=(1, bbox(0, 0, 1.0, 0.9, :bottom, :right)), subplot=2, ticks=nothing, bg_inside=nothing, label=nothing, c=:transparent, xaxis=(:log10, (0.01, 1)), linealpha=0.5)
 
 
 function cross_validate(model, lb, ub, x0, data_for_fitting, d_goals)
@@ -370,7 +403,7 @@ function cross_validate(model, lb, ub, x0, data_for_fitting, d_goals)
         features_subj = features[subjs[m]]
         trees, dicts, all_all_moves, moves = tree_data;
         n = length(states_subj)
-        folds = kfolds(shuffle(collect(1:n)), 5)
+        folds = collect(kfolds(shuffle(collect(1:n)), 5))
         for i in 1:5
             train, test = folds[i]
             if N == 1
@@ -384,30 +417,35 @@ function cross_validate(model, lb, ub, x0, data_for_fitting, d_goals)
     return fitness
 end
 a=1
-tree_datass, states, boards, neighs, first_moves = get_all_subjects_first_pass(all_subj_moves);
+tree_datasss, states, boards, neighs, first_moves = get_all_subjects_first_pass(all_subj_moves);
 
 params_gamma_k, fitness_gamma_k = fit_model(gamma_k_model, 0.000001, 0.999999, 0.2, data_for_fitting2, d_goals)
 params_means_ends, fitness_means_ends = fit_model(means_end_model, [-10.0, -10.0, -10.0, 0.0], [10.0, 10.0, 10.0, 20.0], [1.0, -1.0, -1.0, 1.0], data_for_fitting, d_goals)
+params_means_ends_plus, fitness_means_ends_plus = fit_model(means_end_model, [-10.0, -10.0, -10.0, -1.0, 0.0], [10.0, 10.0, 10.0, 1.0, 20.0], [0.0, -5.0, 0.0, -0.1, 5.0], data_for_fitting, d_goals)
 params_forward, fitness_forward = fit_model(forward_search, [0.0, 0.0], [1.0, 10.0], [0.1, 3.0], data_for_fitting, d_goals)
 
 params_gamma_only, fitness_gamma_only = fit_model(gamma_only_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
 params_eureka, fitness_eureka = fit_model(eureka_model, [0.0, 0.0], [25.0, 1.0], [10.0, 0.1], data_for_fitting, d_goals)
 params_opt_rand, fitness_opt_rand = fit_model(opt_rand_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
 params_gamma_0, fitness_gamma_0 = fit_model(gamma_0_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
+params_gamma_no_same, fitness_gamma_no_same = fit_model(gamma_no_same_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
 params_gamma_mus, fitness_gamma_mus = fit_model(gamma_mus_model, [0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [0.1, 0.2, 0.8], data_for_fitting, d_goals)
 params_rand, fitness_rand = fit_model(random_model, 0, 1, 0, data_for_fitting, d_goals)
 
-cv_nll_means_ends = cross_validate(means_end_model, [-10.0, -10.0, -10.0, 0.0], [10.0, 10.0, 10.0, 20.0], [1.0, -1.0, -1.0, 1.0], data_for_fitting, d_goals)
+cv_nll_means_ends = cross_validate(means_end_model, [-10.0, -10.0, -10.0, 0.1], [10.0, 10.0, 10.0, 20.0], [1.0, -1.0, -1.0, 1.0], data_for_fitting, d_goals)
+cv_nll_means_ends_plus = cross_validate(means_end_model, [-10.0, -10.0, -10.0, -1.0, 0.0], [10.0, 10.0, 10.0, 1.0, 20.0], [0.0, -5.0, 0.0, -0.1, 5.0], data_for_fitting, d_goals)
 cv_nll_gamma_only = cross_validate(gamma_only_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
 cv_nll_eureka = cross_validate(eureka_model, [0.0, 0.0], [25.0, 1.0], [10.0, 0.1], data_for_fitting, d_goals)
 cv_nll_opt_rand = cross_validate(opt_rand_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
 cv_nll_gamma_0 = cross_validate(gamma_0_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
+cv_nll_gamma_no_same = cross_validate(gamma_no_same_model, 0.000001, 0.999999, 0.2, data_for_fitting, d_goals)
 cv_nll_gamma_mus = cross_validate(gamma_mus_model, [0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [0.1, 0.2, 0.8], data_for_fitting, d_goals)
 cv_nll_rand = cross_validate(random_model, 0, 1, 0, data_for_fitting, d_goals)
 
 
-# save("features.jld2", features)
+#save("tree_datass.jld2", tree_datass)
 tree_datas = load("tree_datas.jld2")
+tree_datass = load("tree_datass.jld2")
 states = load("states.jld2")
 boards = load("boards.jld2")
 neighs = load("neighs.jld2")
@@ -417,7 +455,7 @@ times = load("times.jld2")
 features = load("features.jld2")
 state_spaces_prb = load("state_spaces_prb.jld2")["state_spaces_prb"]
 data_for_fitting = [tree_datas, states, boards, neighs, prev_moves, features];
-data_for_fitting2 = [tree_datass, states, boards, neighs, prev_moves, features];
+data_for_fitting2 = [tree_datasss, states, boards, neighs, prev_moves, features];
 opt_act = load("optimal_act.jld2")
 opt_act = merge(values(opt_act)...);
 
@@ -464,9 +502,8 @@ end
 params_forward = load("params_forward_high_bounds.jld2")["params_loose"]
 fitness_forward = load("fitness_forward_high_bounds.jld2")["fitness_loose"]
 
-d_goals = load("d_goals.jld2")["d_goals"];
-params_gamma = load("params_model1.jld2")["params"]
-fitness_gamma = load("fitness_model1.jld2")["fitness"]
+params_gamma = load("params_n_stuff/params_model1.jld2")["params"]
+fitness_gamma = load("params_n_stuff/fitness_model1.jld2")["fitness"]
 
 # trees = tree_datas[subjs[1]][1];
 # moves = tree_datas[subjs[1]][4];

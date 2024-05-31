@@ -403,3 +403,35 @@ function arr_to_board(arr)
     end
     return Board(cars, "_")
 end
+
+"""
+    red_distance(board, arr)
+
+Calculate how many vehicles block the red car
+"""
+function red_distance(arr)
+    # Get row with red car on it
+    row = arr[3, :]
+    # Split row/col
+    idx = findfirst(x -> x == maximum(arr), row)
+    # Get forward moves
+    f = row[idx+2:end]
+    # Return unique cars
+    u = unique(f)
+    # Remove zeros
+    deleteat!(u, u .== 0)
+    return length(u)
+end
+
+"""
+    red_pos(arr)
+
+Calculate how close the red car is to the exit
+"""
+function red_pos(arr)
+    # Get row with red car on it
+    row = arr[3, :]
+    # Find position of red car
+    idx = findfirst(x -> x == maximum(arr), row) + 1
+    return 6 - idx
+end

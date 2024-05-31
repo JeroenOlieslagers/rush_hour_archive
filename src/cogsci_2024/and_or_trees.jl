@@ -15,8 +15,8 @@ function get_and_or_tree(board; backtracking=false, idv=false, max_iter=100)
     or_type = Tuple{s_type, a_type, Int}
     # keeps track of current AO nodes visited
     ### CHANGED
-    #visited = Vector{s_type}()
-    visited = Vector{a_type}()
+    visited = Vector{s_type}()
+    #visited = Vector{a_type}()
     # keeps track of parents for backtracking
     parents_AND = DefaultDict{and_type, Vector{or_type}}([])
     parents_OR = DefaultDict{or_type, Vector{and_type}}([])
@@ -35,10 +35,11 @@ function get_and_or_tree(board; backtracking=false, idv=false, max_iter=100)
     # base for root AND & OR node
     ao_root = (length(board.cars), (m_init,))
     ### CHANGED
-    #push!(visited, ao_root)
-    for mm in 1:m_init
-        push!(visited, (length(board.cars), mm))
-    end
+    push!(visited, ao_root)
+    #push!(visited, (length(board.cars), m_init))
+    # for mm in 1:m_init
+    #     push!(visited, (length(board.cars), mm))
+    # end
     # Root AND
     AND_root = (ao_root, 1)
     push!(parents_AND[AND_root], ((0, (0,)), (0, 0), 0))
@@ -100,13 +101,13 @@ function forward!(prev_OR, child_nodes, visited, AND_OR_tree, board, arr, recurs
             push!(OR[prev_OR], and_node)
         end
         ### CHANGED
-        # if node in visited
-        #     # and_cycle = ((-2, (-2,)), d+1)
-        #     # if and_cycle ∉ OR[prev_OR]
-        #     #     push!(OR[prev_OR], and_cycle)
-        #     # end
-        #     continue
-        # end
+        if node in visited
+            # and_cycle = ((-2, (-2,)), d+1)
+            # if and_cycle ∉ OR[prev_OR]
+            #     push!(OR[prev_OR], and_cycle)
+            # end
+            continue
+        end
         ######
         if backtracking
             if prev_OR ∉ parents_AND[and_node]
@@ -154,17 +155,19 @@ function forward!(prev_OR, child_nodes, visited, AND_OR_tree, board, arr, recurs
             # we copy because we dont want the same nodes in a chain,
             # but across same chain (at different depths) we can have the same node repeat
             ### CHANGED
-            #cv = copy(visited)
-            #push!(cv, node)
-            if next_move ∉ visited
-                ########
-                cv = copy(visited)
-                for mm in 1:abs(m)
-                    push!(cv, (node[1], sign(m)*mm))
-                end
-                ########
-                forward!(or_node, childs[j], cv, AND_OR_tree, board, arr, recursion_depth + 1, max_iter; backtracking=backtracking, idv=idv)
-            end
+            cv = copy(visited)
+            push!(cv, node)
+            forward!(or_node, childs[j], cv, AND_OR_tree, board, arr, recursion_depth + 1, max_iter; backtracking=backtracking, idv=idv)
+            # if next_move ∉ visited
+            #     ########
+            #     cv = copy(visited)
+            #     push!(cv, (node[1], m))
+            #     # for mm in 1:abs(m)
+            #     #     push!(cv, (node[1], sign(m)*mm))
+            #     # end
+            #     ########
+            #     forward!(or_node, childs[j], cv, AND_OR_tree, board, arr, recursion_depth + 1, max_iter; backtracking=backtracking, idv=idv)
+            # end
         end
     end
     return nothing

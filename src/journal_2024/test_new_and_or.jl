@@ -67,15 +67,28 @@ function propagate_ps(x, AND_OR_tree)
     return dict
 end
 
+b = arr_to_board(int_to_arr(709022709010066610044880333000005550))
 
 board = load_data(prbs[41]);
-board = load_data(prbs[68]);
 make_move!(board, (6, -1))
-_, tree = get_and_or_tree(b);
+board = load_data(prbs[68]);
+board = load_data(prbs[1]);
+_, tree = get_and_or_tree(board);
 s, AND, OR, p, _, _, _, _ = tree;
 draw_ao_tree((AND, OR), board)
 draw_ao_tree((a, o), b)
 draw_board(get_board_arr(b))
 
 tree = (s, AND, OR, p);
-@btime propagate_ps(0, tree)
+dict = propagate_ps(0, tree)
+
+b = []
+for subj in subjs
+    for i in eachindex(tree_datass[subj][1])
+        if length(tree_datass[subj][1][i][2])+length(tree_datass[subj][1][i][3]) > 500
+            b = boards[subj][i]
+            break
+        end
+    end
+end
+

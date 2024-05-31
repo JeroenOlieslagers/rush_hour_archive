@@ -103,9 +103,12 @@ end
 
 function means_end_model(params, tree, dict, all_moves, board, prev_move, neigh, d_goal, fs, d_goals)
     b0, b1, b2, β = params
+    #b0, b1, b2, b3, β = params
     f1 = fs[:, 1]
     f2 = fs[:, 2]
-    ex = exp.((b0 .+ b1 .* f1 .+ b2 .* f2) ./ β)
+    #f3 = fs[:, 3]
+    ex = exp.((b0 .+ (b1 .* f1) .+ (b2 .* f2)))# ./ β)
+    #ex = exp.((b0 .+ (b1 .* f1) .+ (b2 .* f2) .+ (b3 .* f3)) ./ β)
     return ex ./ sum(ex)
 end
 
@@ -210,6 +213,16 @@ function gamma_0_model(params, tree, dict, all_moves, board, prev_move, neigh, d
     # turn dict into probability over actions
     ps, dropout, N = process_dict(all_moves, dict, same_car_moves, 0.0, 1.0, board)
     ps = λ/length(ps) .+ (1-λ) * ps
+    return ps
+end
+
+function gamma_no_same_model(params, tree, dict, all_moves, board, prev_move, neigh, d_goal, fs, d_goals)
+    γ = params
+    same_car_moves = [(0, 0)]
+    # modulate depths by (1-γ)^d
+    new_dict = apply_gamma(dict, γ)
+    # turn dict into probability over actions
+    ps, dropout, N = process_dict(all_moves, new_dict, same_car_moves, 0.0, 1.0, board)
     return ps
 end
 
@@ -413,9 +426,10 @@ end
 
 function plot1_data(;bins=10)
     M = 42
-    #params = [[params_gamma[m]] for m in 1:M]
-    params = [[params_gamma_only[m], params_eureka[m, :], params_opt_rand[m], params_means_ends[m, :]] for m in 1:M]
-    models = [gamma_only_model, eureka_model, opt_rand_model, means_end_model]
+    params = [[params_gamma_only[m], params_gamma_0[m], params_gamma_no_same[m], params_opt_rand[m]] for m in 1:M]
+    models = [gamma_only_model, gamma_0_model, gamma_no_same_model, opt_rand_model]
+    #params = [[params_gamma_only[m], params_eureka[m, :], params_opt_rand[m], params_means_ends[m, :]] for m in 1:M]
+    #models = [gamma_only_model, eureka_model, opt_rand_model, means_end_model]
     independent = X_d_goal
     dependents = [y_p_in_tree, y_p_undo, y_p_same_car, y_d_tree]
     d = length(dependents)
@@ -432,9 +446,10 @@ end
 
 function plot2_data(;bins=12)
     M = 42
-    #params = [[params_gamma[m]] for m in 1:M]
-    params = [[params_gamma_only[m], params_eureka[m, :], params_opt_rand[m], params_means_ends[m, :]] for m in 1:M]
-    models = [gamma_only_model, eureka_model, opt_rand_model, means_end_model]
+    params = [[params_gamma_only[m], params_gamma_0[m], params_gamma_no_same[m], params_opt_rand[m]] for m in 1:M]
+    models = [gamma_only_model, gamma_0_model, gamma_no_same_model, opt_rand_model]
+    # params = [[params_gamma_only[m], params_eureka[m, :], params_opt_rand[m], params_means_ends[m, :]] for m in 1:M]
+    # models = [gamma_only_model, eureka_model, opt_rand_model, means_end_model]
     dependents = [y_d_tree, y_d_tree_ranked]
     d = length(dependents)
     MM = length(models) + 3
@@ -449,9 +464,10 @@ end
 
 function plot3_data(;bins=10)
     M = 42
-    #params = [[params_gamma[m]] for m in 1:M]
-    params = [[params_gamma_only[m], params_eureka[m, :], params_opt_rand[m], params_means_ends[m, :]] for m in 1:M]
-    models = [gamma_only_model, eureka_model, opt_rand_model, means_end_model]
+    params = [[params_gamma_only[m], params_gamma_0[m], params_gamma_no_same[m], params_opt_rand[m]] for m in 1:M]
+    models = [gamma_only_model, gamma_0_model, gamma_no_same_model, opt_rand_model]
+    # params = [[params_gamma_only[m], params_eureka[m, :], params_opt_rand[m], params_means_ends[m, :]] for m in 1:M]
+    # models = [gamma_only_model, eureka_model, opt_rand_model, means_end_model]
     independent = X_d_goal
     dependents = [y_p_worse, y_p_same, y_p_better]
     d = length(dependents)
@@ -480,7 +496,7 @@ function plot4_data(;bins=20)
     return y, yerr
 end
 
-function plot4_1_data(;bins=20)
+function plot4_1_data(;bins=21)
     M = length(all_subj_states)
     ds = zeros(4, bins, M)
     difficulty = x -> x == 7 ? 1 : x == 11 ? 2 : x == 14 ? 3 : x == 16 ? 4 : 0
@@ -497,12 +513,12 @@ function plot4_1_data(;bins=20)
                 if d > 20
                     d = 20
                 end
+                ds[idx, d+1, m] += 1
+                Ts[idx] += 1
                 if d == 0
                     break
-                else
-                    ds[idx, d, m] += 1
-                    Ts[idx] += 1
                 end
+                #end
             end
         end
         for i in 1:4

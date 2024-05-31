@@ -397,7 +397,7 @@ function filter_subjects(data)
         tt = (data[subject].t)./(1000*60)
         tt .-= first(tt)
         # Get negative time points (BONUS_FAIL/BONUS_SUCCESS)
-        negs = findall(x->x<0, tt)
+        negs = findall(x -> x < 0, tt)
         # Remove negative time points
         deleteat!(tt, negs)
         # Calculate intervals between interactions
@@ -406,9 +406,9 @@ function filter_subjects(data)
         if last(tt) - first(tt) < 30
             counter += 1
             continue
-        elseif (last(tt) - first(tt) < 45) && maximum(intervals) > 5
-            counter += 1
-            continue
+        # elseif (last(tt) - first(tt) < 45) && maximum(intervals) > 5
+        #     counter += 1
+        #     continue
         elseif (last(tt) - first(tt) < 60) && maximum(intervals) > 10
             counter += 1
             continue
@@ -422,16 +422,17 @@ function filter_subjects(data)
             continue
         end
         # Exclude subject that complete less than 10 puzzles
-        if length(uniq) < 10
-            counter += 1
-            continue
-        end
+        # if length(uniq) < 10
+        #     counter += 1
+        #     continue
+        # end
         # Add subject that meets criteria
         filtered_data[subject] = deepcopy(data[subject])
     end
     println("Rejection ratio: " * string(counter) * "/" * string(length(data)))
     return filtered_data
 end
+dd = filter_subjects(d);
 
 """
     boxplot_figure(data)

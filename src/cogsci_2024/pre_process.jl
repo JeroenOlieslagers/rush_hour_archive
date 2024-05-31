@@ -174,3 +174,56 @@ data = load("data/processed_data/filtered_data.jld2")["data"];
 all_subj_moves, all_subj_states, all_subj_times, Ls = get_all_subj_moves(data);
 prbs = collect(keys(Ls))[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in keys(Ls)])];
 subjs = collect(keys(data));
+
+d_goals = load("d_goals.jld2")["d_goals"];
+
+board = load_data(prbs[41])
+make_move!(board, (6, -1))
+
+mvs = [(4, -2), (2, -2), (3, 2), (5, 3), (9, 1), (6, -3), (9, -1), (5, -3), (3, -3), (5, 3), (2, 2), (4, 3)];
+
+for (n, mv) in enumerate(mvs)
+    make_move!(board, mv)
+    draw_board(get_board_arr(board))
+    savefig("move$(n).svg")
+end
+
+
+
+attempted = DefaultDict{String, Int64}(0)
+as = []
+
+for subj in subjs
+    a = 0
+    for prb in unique(data[subj].instance)
+        if prb in prbs
+            attempted[prb] += 1
+            a += 1
+        end
+    end
+    push!(as, length(keys(all_subj_moves[subj]))/a)
+end
+
+y1 = [[], [], [], []];
+y2 = [[], [], [], []];
+y3 = [[], [], [], []];
+diffs = Dict(6 => 1, 10 => 2, 13 => 3, 15 => 4)
+
+for prb in prbs
+    diff = parse(Int64, split(prb, "_")[2])-1
+    push!(y1[diffs[diff]], mean(Ls[prb] .== diff))
+    push!(y2[diffs[diff]], attempted[prb]/length(subjs))
+    push!(y3[diffs[diff]], length(Ls[prb])/attempted[prb])
+end
+
+plot(layout=grid(1, 3), size=(372*2, 300), grid=false, dpi=300,         
+    legendfont=font(14, "helvetica"), 
+    xtickfont=font(12, "helvetica"), 
+    ytickfont=font(12, "helvetica"), 
+    titlefont=font(14, "helvetica"), 
+    guidefont=font(14, "helvetica"),
+    right_margin=0Plots.mm, top_margin=1Plots.mm, bottom_margin=6Plots.mm, left_margin=4Plots.mm, 
+    fontfamily="helvetica", tick_direction=:out)
+bar!(string.(sort(collect(keys(diffs)))), mean.(values(y1)), yerr=sem.(values(y1)), sp=1, label=nothing, xlabel="", ylabel="Proportion optimal", ylim=(0, 0.32), c=:transparent, ms=10)
+bar!(string.(sort(collect(keys(diffs)))), mean.(values(y2)), yerr=sem.(values(y2)), sp=2, label=nothing, xlabel="Length", ylabel="Attempt rate", ylim=(0, 1), c=:transparent, ms=10)
+bar!(string.(sort(collect(keys(diffs)))), mean.(values(y3)), yerr=sem.(values(y3)), sp=3, label=nothing, xlabel="", ylabel="Completion rate", ylim=(0, 1), c=:transparent, ms=10)
