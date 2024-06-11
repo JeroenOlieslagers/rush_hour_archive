@@ -1,14 +1,3 @@
-using JSON
-using StaticArrays
-using BenchmarkTools
-using DataStructures
-using DataFrames
-using CSV
-include("representations.jl")
-include("visualization.jl")
-include("and_or_trees.jl")
-include("search.jl")
-
 prbs = ["prb29232_7", "prb10206_7", "prb11647_7", "prb2834_7", "prb14651_7", "prb32695_7", "prb12604_7", "prb21272_7", "prb26567_7", "prb32795_7", "prb20059_7", "prb1707_7", "prb14047_7", "prb15290_7", "prb13171_7", "prb28111_7", "prb8786_7", "prb23259_7", "prb79230_11", "prb54081_11", "prb3217_11", "prb29414_11", "prb33509_11", "prb31907_11", "prb42959_11", "prb68910_11", "prb62015_11", "prb14898_11", "prb9718_11", "prb38526_11", "prb717_11", "prb62222_11", "prb34092_11", "prb12715_11", "prb22436_11", "prb46224_11", "prb23404_14", "prb34551_14", "prb19279_14", "prb55384_14", "prb6671_14", "prb20888_14", "prb343_14", "prb29585_14", "prb65535_14", "prb3203_14", "prb47495_14", "prb29600_14", "prb14485_14", "prb68514_14", "prb33117_14", "prb72800_14", "prb38725_14", "prb44171_16", "prb58853_16", "prb15595_16", "prb48146_16", "prb45893_16", "prb78361_16", "prb57223_16", "prb24227_16", "prb1267_16", "prb25861_16", "prb10166_16", "prb24406_16", "prb25604_16", "prb46580_16", "prb29027_16", "prb46639_16", "prb54506_16"]
 L = 9
 
@@ -59,6 +48,12 @@ end
 # s = load_data(prbs[1])
 # s_free, s_fixed = s
 # arr = board_to_arr(s)
+
+function make_move(s_free::s_free_type, a::a_type)::s_free_type
+    s_free_copy = copy(s_free)
+    s_free_copy[a[1]] += a[2]
+    return s_free_copy
+end
 
 function make_move!(s_free::s_free_type, a::a_type)::Nothing
     s_free[a[1]] += a[2]
@@ -270,8 +265,8 @@ function unblocking_moves!(move_amounts::move_amounts_type, a::a_type, id2::Int8
             end
         else
             # check if enough squares in front
-            if (s_free[id1]+s_fixed[id1].len-1+m) - s_free[id1] < f
-                for i in (s_free[id1]+s_fixed[id1].len-1+m) - s_free[id1] + 1:f
+            if (s_free[id1]+s_fixed[id1].len-1+m) - s_free[id2] < f
+                for i in (s_free[id1]+s_fixed[id1].len-1+m) - s_free[id2] + 1:f
                     iter += 1
                     move_amounts[iter] = i
                 end
@@ -295,5 +290,5 @@ function unblocking_moves!(move_amounts::move_amounts_type, a::a_type, id2::Int8
     end
     return nothing
 end
-move_amounts = zeros(move_amounts_type)
-#@btime unblocking_moves!(move_amounts, (Int8(1), Int8(4)), Int8(7), s)
+# move_amounts = zeros(move_amounts_type)
+# unblocking_moves!(move_amounts, (Int8(2), Int8(1)), Int8(4), s)

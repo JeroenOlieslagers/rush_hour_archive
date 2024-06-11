@@ -1,5 +1,3 @@
-using Plots
-using GraphViz
 
 function create_move_icon(move, s)
     s_free, s_fixed = s

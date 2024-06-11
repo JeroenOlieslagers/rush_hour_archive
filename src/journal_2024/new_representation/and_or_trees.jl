@@ -21,10 +21,10 @@ function get_and_or_tree(s::s_type; max_iter=100, backtracking=false, idv=false)
     first_thought = MVector{5, Int8}(1, m_init, 0, 0, 0)
     push!(train_of_thought, first_thought)
     # Root OR
-    OR_root = (Int8(0), first_thought)
+    OR_root = (Int8(1), first_thought)
     #push!(parents_OR[OR_root], ((0, (0,)), (0, 0), 0))
     # Root AND
-    AND_root = (Int8(0), root_move)
+    AND_root = (Int8(1), root_move)
     #push!(parents_AND[AND_root], OR_root)
     push!(OR[OR_root], AND_root)
     #idv_OR[OR_root] = [[0]'; [0]']'

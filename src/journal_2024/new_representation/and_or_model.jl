@@ -16,16 +16,16 @@ function propagate_ps(x::Float64, AND_OR_tree)::Dict{and_type, Float64}
         for (n, OR_node) in enumerate(AND[AND_current])
             p_or = p_ors[n]
             # CYCLE PROBABILITY
-            if OR_node[2] in train_of_thought
+            if OR_node[2] in train_of_thought || OR_node ∉ keys(OR)
                 dict[(OR_node[1], (-2, -2))] += (1-γ)*p_or
                 dict[(OR_node[1], (-1, -1))] += γ*p_or
                 continue
             end
+            push!(train_of_thought, OR_node[2])
             # Rule 1a: don't stop
             pp = (1-γ)*p_or
             # Rule 1b: stop
             dict[(OR_node[1], (-1, -1))] += γ*p_or
-
             N_and = length(OR[OR_node])
             # Rule 3: AND HEURISTICS
             #mat_or = idv_OR[OR_node]
@@ -42,7 +42,7 @@ function propagate_ps(x::Float64, AND_OR_tree)::Dict{and_type, Float64}
                 else
                     # chain of thought
                     new_train_of_thought = copy(train_of_thought)
-                    push!(new_train_of_thought, OR_node[2])
+                    # push!(new_train_of_thought, OR_node[2])
                     # recurse
                     propagate!(x, p_and, new_train_of_thought, dict, AND_next, AND, OR)#, idv_AND, idv_OR)
                 end
@@ -50,23 +50,25 @@ function propagate_ps(x::Float64, AND_OR_tree)::Dict{and_type, Float64}
         end
         return nothing
     end
-    OR_root, AND, OR, parents_moves = AND_OR_tree#, idv_AND, idv_OR, parents_AND, parents_OR
+    AND_root, AND, OR, parents_moves = AND_OR_tree#, idv_AND, idv_OR, parents_AND, parents_OR
     dict = DefaultDict{and_type, Float64}(0.0)
     # keeps track of current train of thought nodes visited
     train_of_thought = Vector{thought_type}()
-    propagate!(x, 1.0, train_of_thought, dict, OR_root, AND, OR)#, idv_AND, idv_OR)
+    push!(train_of_thought, MVector{5, Int8}([AND_root[2][1], AND_root[2][2], 0, 0, 0]))
+    propagate!(x, 1.0, train_of_thought, dict, AND_root, AND, OR)#, idv_AND, idv_OR)
     return Dict(dict)
 end
 
-s = load_data(prbs[41])
-all_moves = possible_moves(s, board_to_arr(s))
-a = get_and_or_tree(s; max_iter=100);
-draw_ao_tree(a[2], a[3], s)
-dict = propagate_ps(0.0, a);
-new_dict = apply_gamma(dict, 0.1);
-ps = process_dict(all_moves, new_dict, [(Int8(0), Int8(0))])
+# dict = propagate_ps(0.0, tree)
 
-# TODO BELOW
+
+# s = load_data(prbs[41])
+# all_moves = possible_moves(s, board_to_arr(s))
+# a = get_and_or_tree(s; max_iter=100);
+# draw_ao_tree(a[2], a[3], s)
+# dict = propagate_ps(0.0, a);
+# new_dict = apply_gamma(dict, 0.1);
+# ps = process_dict(all_moves, new_dict, [(Int8(0), Int8(0))])
 
 function apply_gamma(dict::Dict{and_type, Float64}, γ::Float64)::Dict{and_type, Any}
     # updated dict
@@ -81,7 +83,7 @@ function apply_gamma(dict::Dict{and_type, Float64}, γ::Float64)::Dict{and_type,
     return new_dict
 end
 
-function process_dict(all_moves::moves_type, dict::Dict{and_type, Any}, excl_moves::Vector{a_type})::Vector{Float64}
+function process_dict(all_moves, dict, excl_moves::Vector{a_type})::Vector{Float64}
     # probability distribution over moves
     ps = Vector{Float64}()
     move_dict = Dict{a_type, Any}()
@@ -130,112 +132,64 @@ function process_dict(all_moves::moves_type, dict::Dict{and_type, Any}, excl_mov
     return ps
 end
 
-function first_pass(tot_moves)
-    # AND-OR tree base node type
-    s_type = Tuple{Int, Tuple{Vararg{Int, T}} where T}
-    # action type
-    a_type = Tuple{Int, Int}
-    # AND node type
-    and_type = Tuple{s_type, Int}
-    # OR node type
-    or_type = Tuple{s_type, a_type, Int}
-    # forward pass
-    dicts = Vector{Dict{or_type, Any}}()
-    all_all_moves = Vector{Vector{a_type}}()
-    # AND = DefaultDict{and_type, Vector{or_type}}
-    # OR = DefaultDict{or_type, Vector{and_type}}
-    # idv_AND = Dict{and_type, Matrix}
-    # idv_OR = Dict{or_type, Matrix}
-    # trees = Vector{Tuple{dict, and_type, AND, OR, idv_AND, idv_OR}}()
-    trees = []
-    moves = Vector{a_type}()
-    states = Vector{BigInt}()
-    boards = Vector{Board}()
-    neighs = Vector{Vector{BigInt}}()
-    first_moves = Vector{Bool}()
+function calculate_features(s::s_type, blocked_cars::blocked_cars_type)::Matrix{Int}
+    s_free, s_fixed = s
+    arr = board_to_arr(s)
+    m = 6 - (s_free[1]+s_fixed[1].len-1)
+    move_blocked_by!(blocked_cars, (Int8(1), Int8(m)), s, arr)
+    return [sum(blocked_cars .> 0) m]
+end
 
-    # dicts_prb = DefaultDict{String, Vector{Vector}}([])
-    # all_all_moves_prb = DefaultDict{String, Vector{Vector}}([])
-    # trees_prb = DefaultDict{String, Vector{Vector}}([])
-    # moves_prb = DefaultDict{String, Vector{Vector}}([])
-    for prb in collect(keys(tot_moves))
-        # init puzzle
-        board = load_data(prb)
-        tot_moves_prb = tot_moves[prb]
-        restart_count = 0
-        first_ = false
-        for move in tot_moves_prb
-            # if restart, reload and push new list for new attempt
-            if move == (-1, 0)
-                board = load_data(prb)
-                restart_count += 1
-                # push!(dicts_prb[prb], [])
-                # push!(all_all_moves_prb[prb], [])
-                # push!(trees_prb[prb], [])
-                # push!(moves_prb[prb], [])
-                push!(first_moves, true)
-                first_ = true
-                continue
-            end
-            arr = get_board_arr(board)
-            # stop if solved
-            if check_solved(arr)
-                #continue
+
+
+function first_pass(df)
+    stuff = Dict{String, Any}()
+    trees = []
+    dicts = Dict[]
+    all_moves = Vector{a_type}[]
+    neighs = Vector{Int32}[]
+    features = Matrix{Float64}[]
+    blocked_cars = zeros(blocked_cars_type)
+    for row in ProgressBar(eachrow(df))
+        if row.event != "move"
+            push!(trees, [])
+            push!(dicts, Dict())
+            push!(all_moves, a_type[])
+            push!(neighs, s_free_type[])
+            push!(features, zeros(0, 0))
+            continue
+        end
+        s = (row.s_free, row.s_fixed)
+        arr = board_to_arr(s)
+        tree = get_and_or_tree(s)
+        dict = propagate_ps(0.0, tree)
+        moves_ = possible_moves(s, arr)
+        neigh = Int32[]
+        moves = a_type[]
+        fs = []
+        for move in moves_
+            if move[1] == 0
                 break
             end
-            # get AND/OR tree
-            all_moves, AND_OR_tree = get_and_or_tree(board; backtracking=false, idv=false);
-            # Propagate without stopping
-            dict = propagate_ps(0, AND_OR_tree)
-            # save
-            push!(trees, AND_OR_tree[1:4])
-            #push!(trees_prb[prb][restart_count], AND_OR_tree[1:4])
-            push!(all_all_moves, all_moves)
-            #push!(all_all_moves_prb[prb][restart_count], all_moves)
-            push!(dicts, dict)
-            #push!(dicts_prb[prb][restart_count], dict)
+            sp = make_move(row.s_free, move)
+            push!(neigh, board_to_int32(sp))
             push!(moves, move)
-            #push!(moves_prb[prb][restart_count], move)
-            push!(states, board_to_int(arr, BigInt))
-            push!(boards, arr_to_board(arr))
-            neighs_ = []
-            for move_ in all_moves
-                make_move!(board, move_)
-                push!(neighs_, board_to_int(get_board_arr(board), BigInt))
-                undo_moves!(board, [move_])
-            end
-            push!(neighs, neighs_)
-            if first_
-                first_ = false
-            else
-                push!(first_moves, false)
-            end
-            # next move
-            make_move!(board, move)
+            push!(fs, calculate_features((sp, row.s_fixed), blocked_cars))
         end
+
+        push!(trees, tree)
+        push!(dicts, dict)
+        push!(all_moves, moves)
+        push!(neighs, neigh)
+        push!(features, Float64.(reduce(vcat, fs)))
     end
-    tree_data = [trees, dicts, all_all_moves, moves]
-    #tree_data_prb = [trees_prb, dicts_prb, all_all_moves_prb, moves_prb]
-    return tree_data, states, boards, neighs, first_moves#tree_data_prb
+    stuff["trees"] = trees
+    stuff["dicts"] = dicts
+    stuff["all_moves"] = all_moves
+    stuff["neighs"] = neighs
+    stuff["features"] = features
+    return stuff
 end
 
 
-function get_all_subjects_first_pass(all_subj_moves)
-    tree_datas = Dict{String, Any}()
-    states = Dict{String, Any}()
-    boards = Dict{String, Any}()
-    neighs = Dict{String, Any}()
-    first_moves = Dict{String, Any}()
-    #tree_datas_prb = Dict{String, Any}()
-    for subj in ProgressBar(keys(all_subj_moves))
-        tree_data, states_, boards_, neighs_, first_moves_ = first_pass(all_subj_moves[subj]);#tree_data_prb
-        tree_datas[subj] = tree_data
-        states[subj] = states_
-        boards[subj] = boards_
-        neighs[subj] = neighs_
-        first_moves[subj] = first_moves_
-        #tree_datas_prb[subj] = tree_data_prb
-    end
-    return tree_datas, states, boards, neighs, first_moves#, tree_datas_prb
-end
 

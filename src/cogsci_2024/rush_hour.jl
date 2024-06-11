@@ -45,7 +45,7 @@ function convert_dict_to_car(dict, id)
     return Car(1 + x, 1 + y, dict["length"], id, dict["orientation"] == "horizontal")
 end
 
-function load_data(js)
+function load_data(js::String)
     """
     Returns Board class from json file
     """

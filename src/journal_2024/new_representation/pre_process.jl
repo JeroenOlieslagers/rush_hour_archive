@@ -1,40 +1,4 @@
 
-# LOAD RAW DATA
-data = load_messy_raw_data()
-df = load_raw_data();
-ndf = filter_subjects(df);
-nndf = pre_process(ndf);
-
-a = ndf[ndf.subject .== subj .&& ndf.instance .== "prb12715_11" .&& ndf.event .∈ Ref(["start", "drag_end", "win"]), :]
-b = ndf[ndf.instance .== "prb42959_11", :]
-c = a[a.instance .== unique(a.instance)[2], :]
-
-nndf[nndf.subject .== subj .&& nndf.puzzle .== "prb12715_11", :]
-for subj in unique(nndf.subject)
-    a = nndf[nndf.subject .== subj, :]
-    if length(states[subj]) != sum(a.event .== "move")
-        println(subj)
-    end
-end
-
-subj = "A1N1EF0MIRSEZZ:3R5F3LQFV3SKIB1AENMWM1BICT5OZB"
-prb = "prb14898_11"
-sum(problems[subj] .== prb)
-c = a[a.puzzle .== prb, :]
-ndf[ndf.subject .== subj .&& ndf.instance .== prb, :]
-aa = []
-for subj in unique(ndf.subject)
-    ss = ndf[ndf.subject .== subj, :]
-    for prb in unique(ss.instance)
-        a = ss[ss.instance .== prb, :][end, :event]
-        push!(aa, a)
-    end
-end
-a = nndf[nndf.event .== "move", :]
-a = ndf[ndf.subject .== subj, :]
-c = a[a.instance .== prb, :]
-
-
 function load_raw_data()
     df = CSV.read("data/raw_data/all_subjects.csv", DataFrame)
     return df
@@ -51,7 +15,7 @@ function filter_subjects(df)
     filtered_data = DataFrame()
     # Count how many subjects get rejected
     counter = 0
-    for subject in keys(data)
+    for subject in unique(df.subject)
         # Get problem sets
         subj_data = df[df.subject .== subject, :]#data[subject]
         probs = subj_data.instance
@@ -65,20 +29,26 @@ function filter_subjects(df)
         deleteat!(tt, negs)
         # Calculate intervals between interactions
         intervals = tt[2:end] - tt[1:end-1]
-        # Exclude subjects based on total length and breaks
-        if last(tt) - first(tt) < 30
-            counter += 1
-            continue
-        # elseif (last(tt) - first(tt) < 45) && maximum(intervals) > 5
-        #     counter += 1
-        #     continue
-        elseif (last(tt) - first(tt) < 60) && maximum(intervals) > 10
-            counter += 1
-            continue
-        elseif maximum(intervals) > 15
+        ##
+        if (!(last(tt) - first(tt) >= 60 || length(unique(subj_data.instance)) == 70)) || ("win" ∉ subj_data.event)
             counter += 1
             continue
         end
+        ##
+        # Exclude subjects based on total length and breaks
+        # if last(tt) - first(tt) < 30
+        #     counter += 1
+        #     continue
+        # # elseif (last(tt) - first(tt) < 45) && maximum(intervals) > 5
+        # #     counter += 1
+        # #     continue
+        # elseif (last(tt) - first(tt) < 60) && maximum(intervals) > 10
+        #     counter += 1
+        #     continue
+        # elseif maximum(intervals) > 15
+        #     counter += 1
+        #     continue
+        # end
         # Excluse negative interval subjects
         if minimum(intervals) < 0
             counter += 1
@@ -93,7 +63,7 @@ function filter_subjects(df)
         #filtered_data[subject] = deepcopy(data[subject])
         filtered_data = vcat(filtered_data, subj_data)
     end
-    println("Rejection ratio: " * string(counter) * "/" * string(length(data)))
+    println("Rejection ratio: " * string(counter) * "/" * string(length(unique(df.subject))))
     return filtered_data
 end
 
@@ -101,10 +71,10 @@ end
     pre_process(df)
 
 Take in DataFrame of subject data, filter it and return DataFrame where colums are 
-subject ID, puzzle ID, move, state, time stamp, attempt
+subject ID, puzzle ID, move, state, distance to goal, difficulty of puzzle, time stamp, attempt
 """
-function pre_process(df)
-    new_df = DataFrame(subject=String[], puzzle=String[], event=String[], move=a_type[], state=s_type[], attempt=Int[], RT=Int[], timestamp=Int[])
+function pre_process(df, d_goals_prbs)
+    new_df = DataFrame(subject=String[], puzzle=String[], event=String[], move=a_type[], prev_move=a_type[], s_free=s_free_type[], s_fixed=s_fixed_type[], d_goal=Int[], Lopt=Int[], attempt=Int[], RT=Int[], timestamp=Int[])
     for subj in unique(df.subject)
         subj_df = df[df.subject .== subj .&& df.event .∈ Ref(["start", "restart", "drag_end", "win"]), :]
         for prb in unique(subj_df.instance)
@@ -112,6 +82,8 @@ function pre_process(df)
             s_free, s_fixed = load_data(prb)
             attempt = 0
             prev_t = first(prb_df).t
+            prev_move = (Int8(0), Int8(0))
+            Lopt = parse(Int, prb[end-1] == '_' ? prb[end] : prb[end-1:end]) - 2
             # Don't consider puzzles that are not solved
             # if "win" ∉ prb_df.event
             #     continue
@@ -121,22 +93,29 @@ function pre_process(df)
             end
             for (n, row) in enumerate(eachrow(prb_df))
                 # Start of trial / after restart
+                d_goal = d_goals_prbs[prb][board_to_int32((s_free, s_fixed))[2]]
                 if row.event == "start"
                     attempt += 1
-                    s_free, _ = load_data(prb)
                     if attempt == 1
-                        push!(new_df, [subj, prb, "start", (0, 0), (copy(s_free), s_fixed), attempt, row.t - prev_t, row.t])
+                        s_free, _ = load_data(prb)
+                        push!(new_df, [subj, prb, "start", (0, 0), prev_move, copy(s_free), s_fixed, d_goal, Lopt, attempt, row.t - prev_t, row.t])
                     else
-                        push!(new_df, [subj, prb, "restart", (0, 0), (copy(s_free), s_fixed), attempt, row.t - prev_t, row.t])
+                        if last(new_df).event !== "restart" && last(new_df).event !== "start"
+                            push!(new_df, [subj, prb, "restart", (0, 0), prev_move, copy(s_free), s_fixed, d_goal, Lopt, attempt-1, row.t - prev_t, row.t])
+                        else
+                            attempt -= 1
+                        end
+                        s_free, _ = load_data(prb)
                     end
                     prev_t = row.t
+                    prev_move = (Int8(0), Int8(0))
                     continue
                 elseif row.event == "win" || row.event == "restart"
                     continue
                 end
                 # End if puzzle solved
                 if check_solved((s_free, s_fixed))
-                    push!(new_df, [subj, prb, "win", (0, 0), (copy(s_free), s_fixed), attempt, 0, prev_t])
+                    push!(new_df, [subj, prb, "win", (0, 0), prev_move, copy(s_free), s_fixed, d_goal, Lopt, attempt, 0, prev_t])
                     break
                 end
                 # Skip if car is not moved
@@ -152,9 +131,10 @@ function pre_process(df)
                     m = 1 + (row.target ÷ 6) - s_free[car_id]
                 end
                 move = (Int8(car_id), Int8(m))
-                push!(new_df, [subj, prb, "move", move, (copy(s_free), s_fixed), attempt, row.t - prev_t, row.t])
+                push!(new_df, [subj, prb, "move", move, prev_move, copy(s_free), s_fixed, d_goal, Lopt, attempt, row.t - prev_t, row.t])
                 make_move!(s_free, move)
                 prev_t = row.t
+                prev_move = move
             end
         end
     end
@@ -241,99 +221,3 @@ function process_messy_data(csv)
     end
     return data
 end
-
-"""
-    get_all_subj_moves(data)
-
-Return four dictionaries with structure 
-{subj:
-  {prb: 
-    [
-      [values for first attempt]
-      [values for second attempt]
-      ...
-    ]
-  }
-}
-where values are lists of: 
-- moves (Tuple{Int, Int})
-- states (BigInt)
-- times (Int)
-"""
-function get_all_subj_moves(data)
-    all_subj_moves = Dict{String, Dict{String, Vector{Tuple{Int, Int}}}}()
-    all_subj_states = Dict{String, Dict{String, Vector{BigInt}}}()
-    all_subj_times = Dict{String, Dict{String, Vector{Int}}}()
-    Ls = DefaultDict{String, Array{Int}}([])
-    for subj in collect(keys(data))
-        tot_moves, tot_states_visited, tot_times, attempts = analyse_subject(data[subj]);
-        all_subj_moves[subj] = tot_moves
-        all_subj_states[subj] = tot_states_visited
-        all_subj_times[subj] = tot_times
-        for prb in keys(attempts)
-            push!(Ls[prb], attempts[prb])
-        end
-    end
-    return all_subj_moves, all_subj_states, all_subj_times, Ls
-end
-
-
-
-
-
-all_subj_moves, all_subj_states, all_subj_times, Ls = get_all_subj_moves(data);
-prbs = collect(keys(Ls))[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in keys(Ls)])];
-subjs = collect(keys(data));
-
-d_goals = load("d_goals.jld2")["d_goals"];
-
-board = load_data(prbs[41])
-make_move!(board, (6, -1))
-
-mvs = [(4, -2), (2, -2), (3, 2), (5, 3), (9, 1), (6, -3), (9, -1), (5, -3), (3, -3), (5, 3), (2, 2), (4, 3)];
-
-for (n, mv) in enumerate(mvs)
-    make_move!(board, mv)
-    draw_board(get_board_arr(board))
-    savefig("move$(n).svg")
-end
-
-
-
-attempted = DefaultDict{String, Int64}(0)
-as = []
-
-for subj in subjs
-    a = 0
-    for prb in unique(data[subj].instance)
-        if prb in prbs
-            attempted[prb] += 1
-            a += 1
-        end
-    end
-    push!(as, length(keys(all_subj_moves[subj]))/a)
-end
-
-y1 = [[], [], [], []];
-y2 = [[], [], [], []];
-y3 = [[], [], [], []];
-diffs = Dict(6 => 1, 10 => 2, 13 => 3, 15 => 4)
-
-for prb in prbs
-    diff = parse(Int64, split(prb, "_")[2])-1
-    push!(y1[diffs[diff]], mean(Ls[prb] .== diff))
-    push!(y2[diffs[diff]], attempted[prb]/length(subjs))
-    push!(y3[diffs[diff]], length(Ls[prb])/attempted[prb])
-end
-
-plot(layout=grid(1, 3), size=(372*2, 300), grid=false, dpi=300,         
-    legendfont=font(14, "helvetica"), 
-    xtickfont=font(12, "helvetica"), 
-    ytickfont=font(12, "helvetica"), 
-    titlefont=font(14, "helvetica"), 
-    guidefont=font(14, "helvetica"),
-    right_margin=0Plots.mm, top_margin=1Plots.mm, bottom_margin=6Plots.mm, left_margin=4Plots.mm, 
-    fontfamily="helvetica", tick_direction=:out)
-bar!(string.(sort(collect(keys(diffs)))), mean.(values(y1)), yerr=sem.(values(y1)), sp=1, label=nothing, xlabel="", ylabel="Proportion optimal", ylim=(0, 0.32), c=:transparent, ms=10)
-bar!(string.(sort(collect(keys(diffs)))), mean.(values(y2)), yerr=sem.(values(y2)), sp=2, label=nothing, xlabel="Length", ylabel="Attempt rate", ylim=(0, 1), c=:transparent, ms=10)
-bar!(string.(sort(collect(keys(diffs)))), mean.(values(y3)), yerr=sem.(values(y3)), sp=3, label=nothing, xlabel="", ylabel="Completion rate", ylim=(0, 1), c=:transparent, ms=10)

@@ -193,3 +193,15 @@ function get_blocking_nodes(board, arr, move)
     return ls
 end
 
+# board = Board([
+#     Car(4, 1, 2, 1, true),
+#     Car(3, 1, 2, 2, false),
+#     Car(6, 1, 3, 3, false),
+#     Car(4, 3, 2, 4, false),
+#     Car(5, 4, 3, 5, false),
+#     Car(1, 4, 3, 6, true),
+#     Car(1, 1, 2, 7, false),
+#     Car(5, 2, 2, 8, false),
+#     Car(2, 3, 2, 9, true)], "")
+
+# a, t = get_and_or_tree(board)
