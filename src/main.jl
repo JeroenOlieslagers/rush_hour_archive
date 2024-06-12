@@ -1,101 +1,99 @@
-include("engine.jl")
-include("solvers.jl")
-include("plot_graph.jl")
+begin
+using JSON
+using StaticArrays
+using BenchmarkTools
+using DataStructures
+using DataFrames
+using CSV
+using JLD2
+using StatsPlots
+using StatsBase
+using ProgressBars
+using Random
+using MLUtils
 using Plots
-using Colors
-
-
-PROBLEM_DIR = "data/problems"
-jsons = readdir(PROBLEM_DIR)[1:5084];
-
-function heuristic_analysis(jsons, heurs)
-    hs = [Array{Array{Int, 1}, 1}() for _ in 1:6]
-    for (n, js) in enumerate(jsons)
-        board = load_data(PROBLEM_DIR*"/"*js);
-        arr, moves, exp = a_star(board);
-        for (m, heur) in enumerate(heurs)
-            push!(hs[m], calculate_heur(board, moves, heur))
-        end
-        if length(hs[6][end]) > 5
-            if hs[6][end][end-5] > 5
-                println(js)
-            end
-        end
-        if n % 100 == 0
-            println(n)
-        end
-    end
-    return hs
+using GraphViz
+using LaTeXStrings
+using Optim
+using LinearAlgebra
+using SparseArrays
+include("representations.jl")
+include("rush_hour.jl")
+include("visualization.jl")
+include("search.jl")
+include("pre_process.jl")
+include("data_analysis.jl")
+include("and_or_trees.jl")
+include("and_or_model.jl")
+include("models.jl")
+include("model_fitting.jl")
+include("model_validation.jl")
+include("plotting.jl")
 end
 
-function plot_heurs(hs, heurs)
-    ps = []
-    for (n, heur) in enumerate(heurs)
-        if n == 6
-            p = plot(legend=false, title=string(heur), grid=false, left_margin = 10Plots.mm, ylabel="Heuristic value", xlabel="Moves from goal")
-        else
-            p = plot(legend=false, title=string(heur), grid=false, left_margin = 10Plots.mm, ylabel="Heuristic value")
-        end
-        push!(ps, p)
-        for h in hs[n]
-            plot!(-length(h)+1:0, h, linealpha=0.05, color="black", legend = false)
-        end
-    end
-    plot(ps..., layout = (6, 1), size=(1000,1500))
-end
+d_goals_prbs = load("data/processed_data/d_goals_prbs.jld2")
 
-function solution_analysis(jsons)
-    heurs = [zer, red_distance, red_pos, calculate_blocked_moves, mag_size_layers, mag_size_nodes]
-    ts = [Array{Float64, 1}() for _ in 1:6]
-    exps = [Array{Int, 1}() for _ in 1:6]
-    for (n, js) in enumerate(jsons)
-        for (m, heur) in enumerate(heurs)
-            board = load_data(PROBLEM_DIR*"/"*js);
-            data = @timed a_star(board, heur);
-            push!(ts[m], data.time)
-            arr, moves, exp = data.value
-            push!(exps[m], exp)
-        end
-        if n % 10 == 0
-            println(n)
-        end
-    end
-    return ts, exps
-end
+# LOAD RAW DATA
+#messy_data = load_messy_raw_data();
+df_raw = load_raw_data();
+df_filtered = filter_subjects(df_raw);
+df = pre_process(df_filtered, d_goals_prbs);
+#prbs = ["prb29232_7", "prb10206_7", "prb11647_7", "prb2834_7", "prb14651_7", "prb32695_7", "prb12604_7", "prb21272_7", "prb26567_7", "prb32795_7", "prb20059_7", "prb1707_7", "prb14047_7", "prb15290_7", "prb13171_7", "prb28111_7", "prb8786_7", "prb23259_7", "prb79230_11", "prb54081_11", "prb3217_11", "prb29414_11", "prb33509_11", "prb31907_11", "prb42959_11", "prb68910_11", "prb62015_11", "prb14898_11", "prb9718_11", "prb38526_11", "prb717_11", "prb62222_11", "prb34092_11", "prb12715_11", "prb22436_11", "prb46224_11", "prb23404_14", "prb34551_14", "prb19279_14", "prb55384_14", "prb6671_14", "prb20888_14", "prb343_14", "prb29585_14", "prb65535_14", "prb3203_14", "prb47495_14", "prb29600_14", "prb14485_14", "prb68514_14", "prb33117_14", "prb72800_14", "prb38725_14", "prb44171_16", "prb58853_16", "prb15595_16", "prb48146_16", "prb45893_16", "prb78361_16", "prb57223_16", "prb24227_16", "prb1267_16", "prb25861_16", "prb10166_16", "prb24406_16", "prb25604_16", "prb46580_16", "prb29027_16", "prb46639_16", "prb54506_16"]
+prbs = unique(df.puzzle)[sortperm([parse(Int, x[end-1] == '_' ? x[end] : x[end-1:end]) for x in unique(df.puzzle)])];
+subjs = unique(df.subject);
 
-for i in 1:length(arrs)
-    anim = @animate for arr ∈ arrs[i]
-        draw_board(arr)
-    end
-    gif(anim, "anim_" * string(i) * ".gif", fps = 1)
-end
 
-#ts, exps = solution_analysis(jsons)
+#stuff = first_pass(df);
+#save("data/processed_data/stuff.jld2", stuff)
 
-heurs = [red_distance, calculate_blocked_moves, mag_size_layers, mag_size_nodes, multi_mag_size_layers, multi_mag_size_nodes]
+stuff = load("data/processed_data/stuff.jld2");
 
-hs = heuristic_analysis(jsons, heurs);
+df[!, :tree] = stuff["trees"];
+df[!, :dict] = stuff["dicts"];
+df[!, :all_moves] = stuff["all_moves"];
+df[!, :neighs] = stuff["neighs"];
+df[!, :features] = stuff["features"];
 
-plot_heurs(hs, heurs)
 
-savefig("multi_mag_heuristic_analysis.png")
+#df_models, params = fit_all_models(df, d_goals_prbs)
+#CSV.write("data/processed_data/df_models.csv", df_models)
+#save("data/processed_data/params.jld2", "params", params)
 
-heur = hs[5]
+df_models = CSV.read("data/processed_data/df_models.csv", DataFrame);
+params = load("data/processed_data/params.jld2")["params"];
 
-for (n, h) in enumerate(heur)
-    if length(h) > 7
-        if h[end-6] > 7
-            println(h, n)
-        end
-    end
-end
+df_models[!, :params] = params;
 
-arrs = []
-for move in pm
-    make_move!(board, move)
-    push!(arrs, get_board_arr(board))
-end
-anim = @animate for arr ∈ arrs
-    draw_board(arr)
-end
-gif(anim, "hard_puzzle_40_optimal.gif", fps = 5)
+
+#df_stats = calculate_summary_statistics(df, df_models, d_goals_prbs)
+#CSV.write("data/processed_data/df_stats.csv", df_stats)
+
+#binned_stats = bin_stats(df_stats, :X_d_goal)
+#CSV.write("data/processed_data/binned_stats.csv", binned_stats)
+
+df_stats = CSV.read("data/processed_data/df_stats.csv", DataFrame)
+binned_stats = CSV.read("data/processed_data/binned_stats.csv", DataFrame)
+
+
+fig2D(df)
+fig4(df_models)
+fig5(binned_stats)
+fig6(df_stats)
+fig7(binned_stats)
+
+supplement_fig2(df, messy_data)
+supplement_fig4(df)
+supplement_fig5(df)
+
+
+
+#include("markov_chains.jl")
+
+# dict = get_QR_dict(prbs)
+# save("data/processed_data/dict.jld2", dict)
+
+dict = load("data/processed_data/dict.jld2")
+
+
+
+

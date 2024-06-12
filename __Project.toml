@@ -1,6 +1,6 @@
 name = "RushHour"
 uuid = "ab4d6a7e-3342-4f70-99d7-d1c2b2aab356"
-authors = ["JeroenOlieslagers <jo2229@nyu.edu>"]
+authors = ["Jeroen Olieslagers <jeroen@nyu.edu>"]
 version = "0.1.0"
 
 [deps]
