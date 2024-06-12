@@ -3,6 +3,9 @@ uuid = "ab4d6a7e-3342-4f70-99d7-d1c2b2aab356"
 authors = ["Jeroen Olieslagers <jeroen@nyu.edu>"]
 version = "0.1.0"
 
+[compat]
+julia = "1.8.5"
+
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
