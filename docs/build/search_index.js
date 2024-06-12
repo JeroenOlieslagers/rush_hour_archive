@@ -1,3 +1,0 @@
-var documenterSearchIndex = {"docs":
-[{"location":"#Example.jl-Documentation","page":"Example.jl Documentation","title":"Example.jl Documentation","text":"","category":"section"},{"location":"","page":"Example.jl Documentation","title":"Example.jl Documentation","text":"CurrentModule = RushHour","category":"page"},{"location":"","page":"Example.jl Documentation","title":"Example.jl Documentation","text":"softmax(β, a, A)","category":"page"},{"location":"#RushHour.softmax-Tuple{Any, Any, Any}","page":"Example.jl Documentation","title":"RushHour.softmax","text":"softmax(β, a, A)\n\nfrace^βasum_a_iAe^βa_i\n\n\n\n\n\n","category":"method"}]
-}
