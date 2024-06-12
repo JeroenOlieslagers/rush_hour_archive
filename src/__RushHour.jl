@@ -1,3 +1,0 @@
-module RushHour
-
-end # module
