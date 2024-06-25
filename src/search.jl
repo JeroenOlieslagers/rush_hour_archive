@@ -60,6 +60,6 @@ function get_d_goals(prbs)
         end
         d_goals_prbs[prb] = d_goals_prb
     end
-    save("data/processed_data/d_goals_prbs.jld2", d_goals_prbs)
+    return d_goals_prbs
 end
 

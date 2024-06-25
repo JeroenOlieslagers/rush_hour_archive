@@ -92,7 +92,7 @@ function y_p_better(move, row, d_goals)
     return d_goal_sampled < row.d_goal
 end
 
-function calculate_summary_statistics(df, df_models, d_goals_prbs; iters=100)
+function calculate_summary_statistics(df, df_models, d_goals_prbs, mc_dict, dict; iters=100)
     summary_stats = [X_d_goal, X_n_A, X_diff, y_d_goal, y_p_in_tree, y_p_undo, y_p_same_car, y_d_tree, y_d_tree_ranked, y_p_worse, y_p_same, y_p_better, y_d_tree, y_d_tree_ranked]
     N_stats = length(summary_stats)
     models = [random_model, optimal_model, gamma_only_model, gamma_0_model, gamma_no_same_model, eureka_model, forward_search, opt_rand_model, hill_climbing_model]
@@ -114,7 +114,7 @@ function calculate_summary_statistics(df, df_models, d_goals_prbs; iters=100)
         # model simulations
         for model in models
             stats = [row.subject, row.puzzle, string(model)]
-            if model == optimal_model || model == forward_search
+            if model == optimal_model# || model == forward_search
                 params = 0
             else
                 params = df_models[df_models.subject .== row.subject .&& df_models.model .== string(model), :params][1]
@@ -125,7 +125,9 @@ function calculate_summary_statistics(df, df_models, d_goals_prbs; iters=100)
             s = zeros(N_stats - 2, iters)
             for i in 1:iters
                 if model == forward_search
-                    ps = random_model(params, row, d_goals_prbs)
+                    F = mc_dict[row.puzzle]
+                    state_to_idx = dict[row.puzzle][3]
+                    ps = forward_search(params, row, d_goals, F, state_to_idx)
                 else
                     ps = model(params, row, d_goals_prbs)
                 end
@@ -139,7 +141,9 @@ function calculate_summary_statistics(df, df_models, d_goals_prbs; iters=100)
             end
             stats = vcat(stats, [mean(ss[ss .< 1000]) for ss in eachrow(s)])
             if model == forward_search
-                first_ps = random_model(params, row, d_goals_prbs)
+                F = mc_dict[row.puzzle]
+                state_to_idx = dict[row.puzzle][3]
+                first_ps = forward_search(params, row, d_goals, F, state_to_idx)
             else
                 first_ps = model(params, row, d_goals_prbs)
             end

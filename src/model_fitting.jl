@@ -24,7 +24,7 @@ function subject_nll_general(model, x, df, d_goals_prbs)
     return nll
 end
 
-function fit_model(model, lb, ub, x0, df, d_goals_prbs; plb=[], pub=[])
+function fit_model(model, lb, ub, x0, df, d_goals_prbs, dict)
     subjs = unique(df.subject)
     M = length(subjs)
     N = length(x0)
@@ -34,14 +34,16 @@ function fit_model(model, lb, ub, x0, df, d_goals_prbs; plb=[], pub=[])
         subj = subjs[m]
         df_subj = df[df.subject .== subj .&& df.event .== "move", :]
         if model == forward_search
-            pybads = pyimport("pybads")
-            BADS = pybads.BADS
-            bads_target = (x) -> subject_nll_general(model, x, df_subj, d_goals_prbs)
-            options = Dict("tolfun"=> 1, "max_fun_evals"=>50, "display"=>"iter");
-            bads = BADS(bads_target, x0, lb, ub, plb, pub, options=options)
-            res = bads.optimize();
-            params[m, :] = pyconvert(Vector, res["x"])
-            fitness[m] = pyconvert(Float64, res["fval"])
+            ks = unique(Int.(floor.(10 .^ (range(lb[2], ub[2], 1000)))))
+            neighs_dict, moves_dict, all_moves_dict = df_to_dict(df_subj)
+
+            target = (x) -> subj_nll_mc(x, neighs_dict, moves_dict, all_moves_dict, dict, ks)
+            res = optimize(target, lb[1], ub[1], Brent(); rel_tol=0.001, show_trace=true, extended_trace=true, show_every=1)
+
+            params[m, 1] = Optim.minimizer(res)
+            nlls = subj_nll_mc(params[m, 1], neighs_dict, moves_dict, all_moves_dict, dict, ks; return_all=true)
+            params[m, 2] = ks[argmin(nlls)]
+            fitness[m] = nlls[argmin(nlls)]
         elseif N == 1
             res = optimize((x) -> subject_nll_general(model, x, df_subj, d_goals_prbs), lb, ub)
             params[m, 1] = Optim.minimizer(res)
@@ -55,7 +57,7 @@ function fit_model(model, lb, ub, x0, df, d_goals_prbs; plb=[], pub=[])
     return params, fitness
 end
 
-function cross_validate(model, lb, ub, x0, df, d_goals_prbs)
+function cross_validate(model, lb, ub, x0, df, d_goals_prbs, dict)
     subjs = unique(df.subject)
     M = length(subjs)
     N = length(x0)
@@ -69,13 +71,17 @@ function cross_validate(model, lb, ub, x0, df, d_goals_prbs)
             df_train = df_subj[train, :]
             df_test = df_subj[test, :]
             if model == forward_search
-                pybads = pyimport("pybads")
-                BADS = pybads.BADS
-                bads_target = (x) -> subject_nll_general(model, x, df_subj, d_goals_prbs)
-                options = Dict("tolfun"=> 1, "max_fun_evals"=>50, "display"=>"iter");
-                bads = BADS(bads_target, x0, lb, ub, plb, pub, options=options)
-                res = bads.optimize();
-                fitness[m] += subject_nll_general(model, pyconvert(Vector, res["x"]), df_test, d_goals_prbs)
+                ks = unique(Int.(floor.(10 .^ (range(lb[2], ub[2], 1000)))))
+                neighs_dict, moves_dict, all_moves_dict = df_to_dict(df_train)
+    
+                target = (x) -> subj_nll_mc(x, neighs_dict, moves_dict, all_moves_dict, dict, ks)
+                res = optimize(target, lb[1], ub[1], Brent(); rel_tol=0.001, show_trace=true, extended_trace=true, show_every=1)
+                log_gamma = Optim.minimizer(res)
+                nlls_train = subj_nll_mc(log_gamma, neighs_dict, moves_dict, all_moves_dict, dict, ks; return_all=true)
+
+                neighs_dict, moves_dict, all_moves_dict = df_to_dict(df_test)
+                nlls_test = subj_nll_mc(log_gamma, neighs_dict, moves_dict, all_moves_dict, dict, ks; return_all=true)
+                fitness[m] += nlls_test[argmin(nlls_train)]
             elseif N == 1
                 res = optimize((x) -> subject_nll_general(model, x, df_train, d_goals_prbs), lb, ub)
                 fitness[m] += subject_nll_general(model, Optim.minimizer(res), df_test, d_goals_prbs)
@@ -88,21 +94,24 @@ function cross_validate(model, lb, ub, x0, df, d_goals_prbs)
     return fitness
 end
 
-function fit_all_models(df, d_goals_prbs)
-    models = [gamma_only_model, gamma_0_model, gamma_no_same_model, eureka_model, opt_rand_model, hill_climbing_model, random_model]
-    lbs = [0.000001, 0.000001, 0.000001, [0.0, 0.0], 0.000001, [-10.0, -10.0, -10.0, 0.0], 0.0]
-    ubs = [0.999999, 0.999999, 0.999999, [25.0, 1.0], 0.999999, [10.0, 10.0, 10.0, 20.0], 1.0]
-    x0s = [0.2, 0.2, 0.2, [10.0, 0.1], 0.2, [1.0, -1.0, -1.0, 1.0], 0.0]
+function fit_all_models(df, d_goals_prbs, dict)
+    models = [gamma_only_model, gamma_0_model, gamma_no_same_model, eureka_model, forward_search, opt_rand_model, hill_climbing_model, random_model]
+    lbs = [0.000001, 0.000001, 0.000001, [0.0, 0.0], [0.0, 0.0], 0.000001, [-10.0, -10.0, -10.0, 0.0], 0.0]
+    ubs = [0.999999, 0.999999, 0.999999, [25.0, 1.0], [10.0, 10.0], 0.999999, [10.0, 10.0, 10.0, 20.0], 1.0]
+    x0s = [0.2, 0.2, 0.2, [10.0, 0.1], [2.0, 2.0], 0.2, [1.0, -1.0, -1.0, 1.0], 0.0]
     df_models = DataFrame(subject=String[], model=String[], nll=Float64[], cv_nll=Float64[])
     subjs = unique(df.subject)
     ps = []
     for i in eachindex(models)
         model = models[i]
+        if model != forward_search
+            continue
+        end
         lb, ub, x0 = lbs[i], ubs[i], x0s[i]
         println("---fitting $(string(model)) ($(Threads.nthreads()) threads available) ---")
-        p, f = fit_model(model, lb, ub, x0, df, d_goals_prbs)
+        p, f = fit_model(model, lb, ub, x0, df, d_goals_prbs, dict)
         println("---5-fold cross validation $(string(model)) ($(Threads.nthreads()) threads available) ---")
-        cv = cross_validate(model, lb, ub, x0, df, d_goals_prbs)
+        cv = cross_validate(model, lb, ub, x0, df, d_goals_prbs, dict)
         for m in eachindex(f)
             push!(df_models, [subjs[m], string(model), f[m], cv[m]])
             push!(ps, p[m, :])
@@ -114,4 +123,6 @@ function fit_all_models(df, d_goals_prbs)
     #p, f = fit_model(forward_search, [0.0, 0.0], [5.0, 2000.0], [0.5, 50.0], df, d_goals_prbs; pub=[3.5, 1500.0], plb=[1.8, 500.0]);
     return df_models, ps
 end
+
+#df_models, params = fit_all_models(df, d_goals_prbs, dict)
 

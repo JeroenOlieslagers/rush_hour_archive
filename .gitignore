@@ -1,2 +1,4 @@
 archive
 data/processed_data
+**/.DS_Store
+.vscode

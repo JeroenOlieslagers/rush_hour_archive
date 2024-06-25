@@ -1,5 +1,3 @@
-
-
 function get_QR(prb, states)
     t = typeof(first(states))
     s_free, s_fixed = load_data(prb)
@@ -21,7 +19,7 @@ function get_QR(prb, states)
         state_to_idx[s_int] = n
     end
     for (n, s_int) in enumerate(absorbing_states)
-        state_to_idx[s_int] = n
+        state_to_idx[s_int] = -n
     end
     Q = zeros(N_t, N_t)
     R = zeros(N_t, N_a)
@@ -43,7 +41,7 @@ function get_QR(prb, states)
             sp = board_to_int32(s_free)
             id_to = state_to_idx[sp]
             if sp in absorbing_states
-                R[id_from, id_to] += 1
+                R[id_from, -id_to] += 1
             else
                 Q[id_from, id_to] += 1
             end
@@ -56,7 +54,6 @@ function get_QR(prb, states)
     return Q, R, state_to_idx
 end
 
-
 function get_QR_dict(prbs)
     dict = Dict()
     for prb in ProgressBar(prbs)
@@ -68,27 +65,44 @@ function get_QR_dict(prbs)
     return dict
 end
 
-function apply_gamma(Q::SparseMatrixCSC{Float64, Int64}, R::SparseMatrixCSC{Float64, Int64}, γ::Float64)::Vector{Float64}
-    #QQ = Q .* (1-γ)
-    #RR = R .* (1-γ)
-    #RR[:, end] .= γ
-    Rp = γ*ones(size(R, 1))
-    B = (I - (1-γ)*Q)\Rp
-    #B = (I-QQ)\RR
-    return B#sum(B[:, 1:end-1], dims=2), B[:, end]
+function get_mc_dict(df, params, dict)
+    subjs = unique(df.subject)
+    mc_dict = Dict{String, Dict{String, Vector{Float64}}}()
+    for (m, subj) in enumerate(subjs)
+        subj_dict = Dict{String, Vector{Float64}}()
+        log_gamma, k = params[m, :]
+        γ = exp(-log_gamma)
+        subj_df = df[df.subject .== subjs[1] .&& df.event .== "move", :];
+        for prb in unique(subj_df.puzzle)
+            Q, R, state_to_idx = dict[prb]
+            F = apply_gamma(Q, R, γ)
+            subj_dict[prb] = F
+        end
+        mc_dict[subj] = subj_dict
+    end
+    return mc_dict
 end
 
-function p_a(k::Int, ns::Vector{Int32}, F::Vector{Float64}, state_to_idx::Dict{Int32, Int64})::Vector{Float64}
+function apply_gamma(Q::SparseMatrixCSC{Float64, Int64}, R::SparseMatrixCSC{Float64, Int64}, γ::Float64)::Vector{Float64}
+    Rp = γ*ones(size(R, 1))
+    B = (I - (1-γ)*Q)\Rp
+    return B
+end
+
+function p_a(ks::Vector{Int}, ns::Vector{Int32}, F::Vector{Float64}, state_to_idx::Dict{Int32, Int64})::Vector{Vector{Float64}}
     m = length(ns)
     p_success = zeros(m)
-    #p_success = []
     for (n, neigh) in enumerate(ns)
-        p_success[n] = (1 - F[state_to_idx[neigh]]) / m
-        #push!(p_success, 1 - F[state_to_idx[neigh]])
+        idx = state_to_idx[neigh]
+        if idx < 0
+            p_success[n] = 1 / m
+        else
+            p_success[n] = (1 - F[state_to_idx[neigh]]) / m
+        end
     end
     p_fail = 1 - sum(p_success)
-    p_success .+= (p_fail^k)/m
-    return p_success ./ sum(p_success)
+    ps = [(p_success .* (1 - (p_fail .^ k))/(1 - p_fail)) .+ (p_fail .^ k/m) for k in ks]
+    return ps
 end
 
 function df_to_dict(subj_df)
@@ -104,102 +118,105 @@ function df_to_dict(subj_df)
     return Dict(neighs_dict), Dict(moves_dict), Dict(all_moves_dict)
 end
 
-function subj_nll(params, neighs_dict::Dict, moves_dict::Dict, all_moves_dict::Dict, dict::Dict, k::Int)::Float64
-    logγ = params
-    #k = 50
-    #logγ, k = params
-    γ = exp(-logγ)
-    # k = round(Int, k)
-    nll = 0
-    i = 0
-    for prb in keys(moves_dict)#ProgressBar
-        #prb_df = subj_df[subj_df.puzzle .== prb, :]
+function subj_nll_mc(params, neighs_dict::Dict, moves_dict::Dict, all_moves_dict::Dict, dict::Dict, ks::Vector{Int}; return_all=false)#::Float64
+    log_gamma = params
+    γ = exp(-log_gamma)
+    nll = zeros(length(ks))
+    for prb in keys(moves_dict)
         neighs = neighs_dict[prb]
         moves = moves_dict[prb]
         all_moves = all_moves_dict[prb]
         Q, R, state_to_idx = dict[prb]
         F = apply_gamma(Q, R, γ)
-        #for row in eachrow(prb_df)
         for i in eachindex(moves)
-            ps = p_a(k, neighs[i], F, state_to_idx)
-            p = ps[findfirst(x-> x == moves[i], all_moves[i])]
-            nll -= log(p)
+            ps = p_a(ks, neighs[i], F, state_to_idx)
+            idx = findfirst(x-> x == moves[i], all_moves[i])
+            for (n, pps) in enumerate(ps)
+                p = pps[idx]
+                nll[n] -= log(p)
+                # for m in moves[i]
+                #     p = pps[findfirst(x-> x == m, all_moves[i])]
+                #     nll[n] -= log(p)
+                # end
+            end
         end
-        # if i > 0
-        #     break
-        # end
-        i += 1
     end
-    return nll
+    if return_all
+        return nll
+    else
+        return minimum(nll)
+    end
 end
 
-function fit_subjects(df, dict)
-    lb = [0.0, 0.0]
-    plb = [0.5, 1.0]
-    ub = [20.0, 200.0]
-    pub = [3.0, 100.0]
-    x0 = [1.0, 50.0]
+# function fit_subjects(df, dict)
+#     subjs = unique(df.subject)
+#     M = length(subjs)
 
-    subjs = unique(df.subject)
-    M = length(subjs)
-    N = length(x0)
-    params = zeros(M, 2)
-    fitness = zeros(M)
-    ks = 2 .^ (1:2:11)
-    #ks = Int.(sort(vcat(2 .^ (1:10), round.(2 .^ (1.5:10.5)))))
-    for m in 1:M
-        subj_df = df[df.subject .== subjs[m] .&& df.event .== "move", :]
-        neighs_dict, moves_dict, all_moves_dict = df_to_dict(subj_df)
-        # subj_nll(x0, subj_df, dict)
-        # break
-        # pybads = pyimport("pybads")
-        # BADS = pybads.BADS
-        # bads_target = (x) -> subj_nll(x, subj_df, dict, 0)
-        # options = Dict("tolfun"=> 0.00001, "max_fun_evals"=>50, "display"=>"iter");
-        # bads = BADS(bads_target, x0, lb, ub, plb, pub, options=options)
-        # res = bads.optimize();
-        # params[m, :] = pyconvert(Vector, res["x"])
-        # fitness[m] = pyconvert(Float64, res["fval"])
-        # target = (x) -> subj_nll(x, neighs_dict, moves_dict, all_moves_dict, dict)
-        # res = optimize(target, lb, ub, x0, Fminbox(), Optim.Options(f_tol = 0.000001, f_calls_limit=100, show_trace=true, show_every=1); autodiff=:forward)
-        # res = optimize(target, lb, ub, x0, Fminbox(), Optim.Options(f_tol = 0.000001, f_calls_limit=30, show_trace=true, extended_trace=true, show_every=1))
-        gammas = zeros(length(ks))
-        fs = zeros(length(ks))
-        for (n, k) in enumerate(ks)
-            target = (x) -> subj_nll(x, neighs_dict, moves_dict, all_moves_dict, dict, k)
-            res = optimize(target, lb[1], ub[1], Brent(); rel_tol=0.01, show_trace=true, extended_trace=true, show_every=1)
-            gammas[n] = Optim.minimizer(res)
-            fs[n] = Optim.minimum(res)
-        end
-        return ks, gammas, fs
-        ind = argmin(fs)
-        params[m, 1] = gammas[ind]
-        params[m, 2] = ks[ind]
-        fitness[m] = fs[ind]
-        #params[m, 1] = Optim.minimizer(res)
-        #fitness[m] = Optim.minimum(res)
-        break
-    end
-    return params, fitness
-end
+#     params = zeros(M, 2)
+#     fitness = zeros(M)
+#     ks = unique(Int.(floor.(10 .^ (range(0, 10, 1000)))))
+#     for m in 1:M
+#         subj_df = df[df.subject .== subjs[m] .&& df.event .== "move", :]
+#         neighs_dict, moves_dict, all_moves_dict = df_to_dict(subj_df)
+
+#         target = (x) -> subj_nll(x, neighs_dict, moves_dict, all_moves_dict, dict, ks)
+#         res = optimize(target, 0.0, 10.0, Brent();rel_tol=0.001, show_trace=true, extended_trace=true, show_every=1)
+#         params[m, 1] = Optim.minimizer(res)
+#         nlls = subj_nll(params[m, 1], neighs_dict, moves_dict, all_moves_dict, dict, ks; return_all=true)
+#         params[m, 2] = ks[argmin(nlls)]
+#         fitness[m] = nlls[argmin(nlls)]
+#         break
+#     end
+#     return params, fitness
+# end
+
+# Q, R, state_to_idx = dict[prbs[1]];
+# ns = neighs_dict[prbs[1]][1];
+# @time F = apply_gamma(Q, R, exp(-0.1));
+# @time a = p_a(exp(-2.0), ks, ns, F, state_to_idx);
 
 # subj_df = df[df.subject .== subjs[1] .&& df.event .== "move", :];
-# neighs_dict, moves_dict, all_moves_dict = df_to_dict(subj_df);
+# neighs_dict, moves_dict, all_moves_dict, s_dict = df_to_dict(subj_df);
 
-# @time subj_nll(1.0, neighs_dict, moves_dict, all_moves_dict, dict, 20);
+# new_moves_dict = generate_data([3.0, 2000], neighs_dict, moves_dict, all_moves_dict, s_dict, dict; N=5)
+
+# sum(length.(collect(values(moves_dict))))
+
+# ks = unique(Int.(floor.(10 .^ (range(0, 8, 1000)))));
+# lgs = range(log(2), 4, 10);
+
+# landscape = zeros(length(lgs), length(ks));
+# for i in ProgressBar(eachindex(lgs))
+#     a = subj_nll(lgs[i], neighs_dict, new_moves_dict, all_moves_dict, dict, ks; return_all=true);
+#     landscape[i, :] = a
+# end
+# heatmap(log10.(ks), lgs, landscape, cmap=cgrad(:nipy_spectral, rev=true), xlabel="log k", ylabel="-log gamma")#, xscale=:log10)
+
+# fitted_params = []
+# true_params = []
+# for file in readdir("cluster_params/paramss")
+#     if split(file, "_")[1] == "fitted"
+#         push!(fitted_params, load("cluster_params/paramss/"*file)["data"][1, :, 1])
+#     elseif split(file, "_")[1] == "true"
+#         push!(true_params, load("cluster_params/paramss/"*file)["data"][1, :])
+#     end
+# end
+
+# plot(layout=(1, 2), grid=false, aspect_ratio=1)
+# #plot(layout=(1, 1), grid=false, aspect_ratio=1)
+# for i in eachindex(true_params)
+#     tp = true_params[i]
+#     fp = fitted_params[i]
+#     scatter!([tp[1]], [fp[1]], sp=1, c=:red, label=nothing, xlim=(0, 6.2), ylim=(0, 6.2))
+#     scatter!(log10.([tp[2]]), log10.([fp[2]]), sp=2, c=:blue, label=nothing, xlim=(0, 6.2), ylim=(0, 6.2))
+# end
+# plot!([0, 6], [0, 6], sp=1, c=:black, label=nothing, title="log gamma")
+# plot!([0, 6], [0, 6], sp=2, c=:black, label=nothing, title="log k")
+# plot!(xlabel="true", ylabel="fitted")
 
 
-@time kss, gammass, fss = fit_subjects(df, dict);
-@time params, fitness = fit_subjects(df, dict);
 
-prb = "prb32795_7";
-s = load_data(prb)
-visited = bfs(s[1], s[2]; d_goal=false)
 
-Q, R, state_to_idx = get_QR(prb, visited)
-@time F = apply_gamma(Q, R, 0.1)
-
-ps = p_a(1000, ns, F, state_to_idx)
 
 
 

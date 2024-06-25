@@ -64,7 +64,7 @@ function draw_board(s::s_type; sp=nothing, car_ind=[])
         s = sum(idxs)
         annotate!(s[2]/l, s[1]/l, text(c, :white, 16))
     end
-    plot!()
+    plot!(xticks=[], yticks=[])
 end
 
 function draw_ao_tree(AND, OR, s; highlight_ANDs=[])
