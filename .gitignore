@@ -1,4 +1,3 @@
 archive
-data/processed_data
+data/processed_data/stuff.jld2
 **/.DS_Store
-.vscode
