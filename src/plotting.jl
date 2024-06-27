@@ -64,8 +64,9 @@ function fig4(df_models; iters=1000)
         means[n] = mean(total)
         err[n, :] = [mean(total) - quantile(total, 0.025), quantile(total, 0.975) - mean(total)]
     end
-    names = ["AND-OR tree", "AND-OR tree ("*latexstring("\\gamma")*"=0)", "Eureka", "Optimal-random", "Hill climbing", "Random"];#, "AND-OR tree (no same car)", "Forward search"
-    bar!(names, means, yerr=(err[:, 1], err[:, 2]), xflip=true, label=nothing, xlim=(0, N), ylim=(0, 24000), bar_width=0.8, permute=(:x, :y), yticks=([0, 4, 8, 12, 16, 20, 24]*1000, [0, 4, 8, 12, 16, 20, 24]), markersize=5, linewidth=1.4, ylabel="\n"*latexstring("\\Delta")*"NLL (x1000)", c=:transparent)
+    names = ["AND-OR tree", "AND-OR tree ("*latexstring("\\gamma")*"=0)", "Eureka", "Optimal-random", "Forward search", "Hill climbing", "Random"];#, "AND-OR tree (no same car)"
+    switched_order = [1, 2, 3, 5, 4, 6, 7]
+    bar!(names[switched_order], means[switched_order], yerr=(err[switched_order, 1], err[switched_order, 2]), xflip=true, label=nothing, xlim=(0, N), ylim=(0, 24000), bar_width=0.8, permute=(:x, :y), yticks=([0, 4, 8, 12, 16, 20, 24]*1000, [0, 4, 8, 12, 16, 20, 24]), markersize=5, linewidth=1.4, ylabel="\n"*latexstring("\\Delta")*"NLL (x1000)", c=:transparent)
     display(plot!())
 end
 

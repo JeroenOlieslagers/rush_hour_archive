@@ -1,4 +1,3 @@
-prbs = ["prb29232_7", "prb10206_7", "prb11647_7", "prb2834_7", "prb14651_7", "prb32695_7", "prb12604_7", "prb21272_7", "prb26567_7", "prb32795_7", "prb20059_7", "prb1707_7", "prb14047_7", "prb15290_7", "prb13171_7", "prb28111_7", "prb8786_7", "prb23259_7", "prb79230_11", "prb54081_11", "prb3217_11", "prb29414_11", "prb33509_11", "prb31907_11", "prb42959_11", "prb68910_11", "prb62015_11", "prb14898_11", "prb9718_11", "prb38526_11", "prb717_11", "prb62222_11", "prb34092_11", "prb12715_11", "prb22436_11", "prb46224_11", "prb23404_14", "prb34551_14", "prb19279_14", "prb55384_14", "prb6671_14", "prb20888_14", "prb343_14", "prb29585_14", "prb65535_14", "prb3203_14", "prb47495_14", "prb29600_14", "prb14485_14", "prb68514_14", "prb33117_14", "prb72800_14", "prb38725_14", "prb44171_16", "prb58853_16", "prb15595_16", "prb48146_16", "prb45893_16", "prb78361_16", "prb57223_16", "prb24227_16", "prb1267_16", "prb25861_16", "prb10166_16", "prb24406_16", "prb25604_16", "prb46580_16", "prb29027_16", "prb46639_16", "prb54506_16"]
 
 function load_data(prb::String)::s_type
     data = JSON.parsefile("data/raw_data/problems/" * prb * ".json")
@@ -43,10 +42,6 @@ function load_data(prb::String15)::s_type
     end
     return s_free, Tuple(s_fixed)
 end
-
-# s = load_data(prbs[1])
-# s_free, s_fixed = s
-# arr = board_to_arr(s)
 
 function make_move(s_free::s_free_type, a::a_type)::s_free_type
     s_free_copy = copy(s_free)
@@ -122,7 +117,7 @@ function possible_moves!(moves::moves_type, s::s_type, arr::arr_type)::Nothing
     end
     return nothing
 end
-moves = @MVector([(Int8(0), Int8(0)) for _ in 1:(4*L)])
+#moves = @MVector([(Int8(0), Int8(0)) for _ in 1:(4*L)])
 
 function possible_moves_N!(moves::moves_type, s::s_type, arr::arr_type)::Int
     fill!(moves, (0, 0))
@@ -254,8 +249,7 @@ function move_blocked_by!(blocked_cars::blocked_cars_type, a::a_type, s::s_type,
     end
     return nothing
 end
-blocked_cars = zeros(blocked_cars_type)
-#@btime move_blocked_by!(blocked_cars, (Int8(1), Int8(4)), s, arr)
+#blocked_cars = zeros(blocked_cars_type)
 
 function unblocking_moves!(move_amounts::move_amounts_type, a::a_type, id2::Int8, s::s_type)::Nothing
     # ASSUMPTIONS:
@@ -319,4 +313,3 @@ function unblocking_moves!(move_amounts::move_amounts_type, a::a_type, id2::Int8
     return nothing
 end
 # move_amounts = zeros(move_amounts_type)
-# unblocking_moves!(move_amounts, (Int8(2), Int8(1)), Int8(4), s)

@@ -6,19 +6,19 @@ end
 # FOR FIXED SIZE RUSH HOUR PUZZLES
 L = 9
 ######
-s_free_type = MVector{L, Int8}#Vector{Int8}#
-s_fixed_type = NTuple{L, Car}#Tuple{Vararg{Car, T}} where T# 
+s_free_type = MVector{L, Int8}
+s_fixed_type = NTuple{L, Car}
 s_type = Tuple{s_free_type, s_fixed_type}
 a_type = Tuple{Int8, Int8}
-arr_type = Matrix{Int8}#MMatrix{6, 6, Int8}#
+arr_type = Matrix{Int8}
 
 moves_type = MVector{4*L, a_type}
 blocked_cars_type = MVector{4, Int8}
 move_amounts_type = MVector{4, Int8}
 blocking_nodes_type = Matrix{Int8}
 
-thought_type = MVector{5, Int8}#(car, moves that unblock)
-or_type = Tuple{Int8, thought_type}# depth
+thought_type = MVector{5, Int8}# (car, moves that unblock)
+or_type = Tuple{Int8, thought_type}# depth, subgoal
 and_type = Tuple{Int8, a_type}# depth, move
 
 function board_to_arr!(arr::arr_type, s::s_type)::Nothing
@@ -42,7 +42,6 @@ end
 
 function board_to_arr(s::s_type)::arr_type
     s_free, s_fixed = s
-    #arr = zeros(arr_type)
     arr = zeros(6, 6)
     for id in eachindex(s_free)
         car = s_fixed[id]

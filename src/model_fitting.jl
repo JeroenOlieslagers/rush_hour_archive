@@ -4,7 +4,7 @@ function subject_nll_general(model, x, df, d_goals_prbs)
     if unique(df.event) != ["move"]
         throw(DomainError("More than just 'move' in events."))
     end
-    for row in eachrow(df)#ProgressBar(
+    for row in eachrow(df)
         ps = model(x, row, d_goals_prbs)
         if round(100000*sum(ps))/100000 != 1
             println("========$(i)========")
@@ -94,17 +94,18 @@ function cross_validate(model, lb, ub, x0, df, d_goals_prbs, dict)
     return fitness
 end
 
-function fit_all_models(df, d_goals_prbs, dict)
+function fit_all_models(df, d_goals_prbs, dict; m=1)
     models = [gamma_only_model, gamma_0_model, gamma_no_same_model, eureka_model, forward_search, opt_rand_model, hill_climbing_model, random_model]
-    lbs = [0.000001, 0.000001, 0.000001, [0.0, 0.0], [0.0, 0.0], 0.000001, [-10.0, -10.0, -10.0, 0.0], 0.0]
-    ubs = [0.999999, 0.999999, 0.999999, [25.0, 1.0], [10.0, 10.0], 0.999999, [10.0, 10.0, 10.0, 20.0], 1.0]
+    lbs = [0.000001, 0.000001, 0.000001, [0.0, 0.0], [0.0, 0.0], 0.000001, [-10.0, -10.0, -10.0], 0.0]
+    ubs = [0.999999, 0.999999, 0.999999, [25.0, 1.0], [10.0, 10.0], 0.999999, [10.0, 10.0, 10.0], 1.0]
     x0s = [0.2, 0.2, 0.2, [10.0, 0.1], [2.0, 2.0], 0.2, [1.0, -1.0, -1.0, 1.0], 0.0]
     df_models = DataFrame(subject=String[], model=String[], nll=Float64[], cv_nll=Float64[])
     subjs = unique(df.subject)
     ps = []
     for i in eachindex(models)
         model = models[i]
-        if model != forward_search
+        # The forward model is expensive to fit (and cross validate) so we will skip
+        if model == forward_search
             continue
         end
         lb, ub, x0 = lbs[i], ubs[i], x0s[i]
@@ -116,13 +117,7 @@ function fit_all_models(df, d_goals_prbs, dict)
             push!(df_models, [subjs[m], string(model), f[m], cv[m]])
             push!(ps, p[m, :])
         end
+        break
     end
-    
-    # df_subj = df[df.subject .== subjs[2] .&& df.event .== "move", :]
-    # subject_nll_general(forward_search, [0.5, 50.0], df_subj, d_goals_prbs)
-    #p, f = fit_model(forward_search, [0.0, 0.0], [5.0, 2000.0], [0.5, 50.0], df, d_goals_prbs; pub=[3.5, 1500.0], plb=[1.8, 500.0]);
     return df_models, ps
 end
-
-#df_models, params = fit_all_models(df, d_goals_prbs, dict)
-

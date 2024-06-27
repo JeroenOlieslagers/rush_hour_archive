@@ -11,13 +11,12 @@ Remove subjects according to excludion criteria
 """
 function filter_subjects(df)
     # New data object
-    #filtered_data = Dict{String, DataFrame}()
     filtered_data = DataFrame()
     # Count how many subjects get rejected
     counter = 0
     for subject in unique(df.subject)
         # Get problem sets
-        subj_data = df[df.subject .== subject, :]#data[subject]
+        subj_data = df[df.subject .== subject, :]
         probs = subj_data.instance
         uniq = unique(probs)
         # Get timestamps
@@ -29,38 +28,16 @@ function filter_subjects(df)
         deleteat!(tt, negs)
         # Calculate intervals between interactions
         intervals = tt[2:end] - tt[1:end-1]
-        ##
         if (!(last(tt) - first(tt) >= 60 || length(unique(subj_data.instance)) == 70)) || ("win" ∉ subj_data.event)
             counter += 1
             continue
         end
-        ##
-        # Exclude subjects based on total length and breaks
-        # if last(tt) - first(tt) < 30
-        #     counter += 1
-        #     continue
-        # # elseif (last(tt) - first(tt) < 45) && maximum(intervals) > 5
-        # #     counter += 1
-        # #     continue
-        # elseif (last(tt) - first(tt) < 60) && maximum(intervals) > 10
-        #     counter += 1
-        #     continue
-        # elseif maximum(intervals) > 15
-        #     counter += 1
-        #     continue
-        # end
         # Excluse negative interval subjects
         if minimum(intervals) < 0
             counter += 1
             continue
         end
-        # Exclude subject that complete less than 10 puzzles
-        # if length(uniq) < 10
-        #     counter += 1
-        #     continue
-        # end
         # Add subject that meets criteria
-        #filtered_data[subject] = deepcopy(data[subject])
         filtered_data = vcat(filtered_data, subj_data)
     end
     println("Rejection ratio: " * string(counter) * "/" * string(length(unique(df.subject))))
@@ -85,9 +62,6 @@ function pre_process(df, d_goals_prbs)
             prev_move = (Int8(0), Int8(0))
             Lopt = parse(Int, prb[end-1] == '_' ? prb[end] : prb[end-1:end]) - 2
             # Don't consider puzzles that are not solved
-            # if "win" ∉ prb_df.event
-            #     continue
-            # end
             if prb_df[end, :event] != "win"
                 continue
             end

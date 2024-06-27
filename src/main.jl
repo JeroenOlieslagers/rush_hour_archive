@@ -66,35 +66,37 @@ df[!, :neighs] = stuff["neighs"];
 df[!, :features] = stuff["features"];
 
 
-df_models, params = fit_all_models(df, d_goals_prbs, dict)
-CSV.write("data/processed_data/df_modelss.csv", df_models)
-save("data/processed_data/paramss.jld2", "params", params)
+# df_models, params = fit_all_models(df, d_goals_prbs, dict; m=2)
+#CSV.write("data/processed_data/df_modelss.csv", df_models)
+#save("data/processed_data/paramss.jld2", "params", params)
 
-# df_models = CSV.read("data/processed_data/df_models.csv", DataFrame);
-# params = load("data/processed_data/params.jld2")["params"];
+df_models = CSV.read("data/processed_data/df_models.csv", DataFrame);
+params = load("data/processed_data/params.jld2")["params"];
 
-# df_models[!, :params] = params;
+df_models[!, :params] = params;
 
+# fs_params = hcat(df_models[df_models.model .== "forward_search", :params]...)'
+# mc_dict = get_mc_dict(df, fs_params, dict)
+# save("data/processed_data/mc_dict.jld2", mc_dict)
 
-#df_stats = calculate_summary_statistics(df, df_models, d_goals_prbs)
+mc_dict = load("data/processed_data/mc_dict.jld2")
+
+#df_stats = calculate_summary_statistics(df, df_models, d_goals_prbs, mc_dict, dict)
 #CSV.write("data/processed_data/df_stats.csv", df_stats)
 
 #binned_stats = bin_stats(df_stats, :X_d_goal)
 #CSV.write("data/processed_data/binned_stats.csv", binned_stats)
 
-# df_stats = CSV.read("data/processed_data/df_stats.csv", DataFrame)
-# binned_stats = CSV.read("data/processed_data/binned_stats.csv", DataFrame)
+df_stats = CSV.read("data/processed_data/df_stats.csv", DataFrame)
+binned_stats = CSV.read("data/processed_data/binned_stats.csv", DataFrame)
 
 
 # fig2D(df)
 # fig4(df_models)
-# fig5(binned_stats)
-# fig6(df_stats)
-# fig7(binned_stats)
+fig5(binned_stats)
+fig6(df_stats)
+fig7(binned_stats)
 
 # supplement_fig2(df, messy_data)
 # supplement_fig4(df)
 # supplement_fig5(df)
-
-
-

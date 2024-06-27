@@ -12,13 +12,10 @@ function optimal_model(params, row, d_goals)
 end
 
 function hill_climbing_model(params, row, d_goals)
-    b0, b1, b2, β = params
-    #b0, b1, b2, b3, β = params
+    b0, b1, b2 = params
     f1 = row.features[:, 1]
     f2 = row.features[:, 2]
-    #f3 = fs[:, 3]
-    ex = exp.((b0 .+ (b1 .* f1) .+ (b2 .* f2)))# ./ β)
-    #ex = exp.((b0 .+ (b1 .* f1) .+ (b2 .* f2) .+ (b3 .* f3)) ./ β)
+    ex = exp.((b0 .+ (b1 .* f1) .+ (b2 .* f2)))
     return ex ./ sum(ex)
 end
 
@@ -78,5 +75,5 @@ end
 
 function forward_search(params, row, d_goals, F, state_to_idx)
     log_gamma, k = params
-    return p_a([k], row.neighs, F, state_to_idx)[1]
+    return p_a([Int(k)], row.neighs, F, state_to_idx)[1]
 end

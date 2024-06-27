@@ -98,10 +98,10 @@ function calculate_summary_statistics(df, df_models, d_goals_prbs, mc_dict, dict
     models = [random_model, optimal_model, gamma_only_model, gamma_0_model, gamma_no_same_model, eureka_model, forward_search, opt_rand_model, hill_climbing_model]
     df_stats = DataFrame(subject=String[], puzzle=String[], model=String[], X_d_goal=Int[], X_n_A=Int[], X_diff=Int[], y_d_goal=Float64[], y_p_in_tree=Float64[], y_p_undo=Float64[], y_p_same_car=Float64[], y_d_tree=Float64[], y_d_tree_ranked=Float64[], y_p_worse=Float64[], y_p_same=Float64[], y_p_better=Float64[], h_d_tree=Int[], h_d_tree_ranked=Int[])
     df_ = df[df.event .== "move", :]
-    i = 0
+    j = 0
     for row in ProgressBar(eachrow(df_))
-        i += 1
-        # if i > 2000
+        j += 1
+        # if j > 2000
         #     break
         # end
         # subject data
@@ -114,7 +114,7 @@ function calculate_summary_statistics(df, df_models, d_goals_prbs, mc_dict, dict
         # model simulations
         for model in models
             stats = [row.subject, row.puzzle, string(model)]
-            if model == optimal_model# || model == forward_search
+            if model == optimal_model
                 params = 0
             else
                 params = df_models[df_models.subject .== row.subject .&& df_models.model .== string(model), :params][1]
@@ -125,9 +125,9 @@ function calculate_summary_statistics(df, df_models, d_goals_prbs, mc_dict, dict
             s = zeros(N_stats - 2, iters)
             for i in 1:iters
                 if model == forward_search
-                    F = mc_dict[row.puzzle]
+                    F = mc_dict[row.subject][row.puzzle]
                     state_to_idx = dict[row.puzzle][3]
-                    ps = forward_search(params, row, d_goals, F, state_to_idx)
+                    ps = forward_search(params, row, d_goals_prbs, F, state_to_idx)
                 else
                     ps = model(params, row, d_goals_prbs)
                 end
@@ -141,9 +141,9 @@ function calculate_summary_statistics(df, df_models, d_goals_prbs, mc_dict, dict
             end
             stats = vcat(stats, [mean(ss[ss .< 1000]) for ss in eachrow(s)])
             if model == forward_search
-                F = mc_dict[row.puzzle]
+                F = mc_dict[row.subject][row.puzzle]
                 state_to_idx = dict[row.puzzle][3]
-                first_ps = forward_search(params, row, d_goals, F, state_to_idx)
+                first_ps = forward_search(params, row, d_goals_prbs, F, state_to_idx)
             else
                 first_ps = model(params, row, d_goals_prbs)
             end

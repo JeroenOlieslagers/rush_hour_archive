@@ -1,16 +1,10 @@
 
 function propagate_ps(x::Float64, AND_OR_tree)::Dict{and_type, Float64}
-    function propagate!(x::Float64, p::Float64, train_of_thought, dict, AND_current::and_type, AND, OR)::Nothing#, idv_AND, idv_OR)
-        γ = x#0.0
-        # β_AND1 = x[3]
-        # β_AND2 = x[4]
-        # β_OR1 = x[5]
-        # β_OR2 = x[6]
+    function propagate!(x::Float64, p::Float64, train_of_thought, dict, AND_current::and_type, AND, OR)::Nothing
+        γ = x
         # number of children of OR node
         N_or = length(AND[AND_current])
         # Rule 2: OR HEURISTICS
-        #mat_and = idv_AND[AND_current]
-        #p_ands = size(mat_and)[1] == 1 ? p : p*softmax(mat_and, [β_AND1, β_AND2])
         p_ors = p * ones(N_or) / N_or
         # propagate to AND nodes
         for (n, OR_node) in enumerate(AND[AND_current])
@@ -28,8 +22,6 @@ function propagate_ps(x::Float64, AND_OR_tree)::Dict{and_type, Float64}
             dict[(OR_node[1], (-1, -1))] += γ*p_or
             N_and = length(OR[OR_node])
             # Rule 3: AND HEURISTICS
-            #mat_or = idv_OR[OR_node]
-            #p_ors = size(mat_or)[1] == 1 ? p_and : p_and*softmax(mat_or, [β_OR1, β_OR2])
             p_ands = pp * ones(N_and) / N_and
             # propagate to AND nodes
             for (m, AND_next) in enumerate(OR[OR_node])
@@ -37,38 +29,24 @@ function propagate_ps(x::Float64, AND_OR_tree)::Dict{and_type, Float64}
                 # leaf node
                 if AND[AND_next][1][2][1] == 0
                     dict[AND_next] += p_and
-                # elseif AND_next[1] == (-2, (-2,))
-                #     dict[((-2, (-2,)), (-2, -2), OR_node[3])] += p_or
                 else
-                    # chain of thought
+                    # train of thought
                     new_train_of_thought = copy(train_of_thought)
-                    # push!(new_train_of_thought, OR_node[2])
                     # recurse
-                    propagate!(x, p_and, new_train_of_thought, dict, AND_next, AND, OR)#, idv_AND, idv_OR)
+                    propagate!(x, p_and, new_train_of_thought, dict, AND_next, AND, OR)
                 end
             end
         end
         return nothing
     end
-    AND_root, AND, OR, parents_moves = AND_OR_tree#, idv_AND, idv_OR, parents_AND, parents_OR
+    AND_root, AND, OR, parents_moves = AND_OR_tree
     dict = DefaultDict{and_type, Float64}(0.0)
     # keeps track of current train of thought nodes visited
     train_of_thought = Vector{thought_type}()
     push!(train_of_thought, MVector{5, Int8}([AND_root[2][1], AND_root[2][2], 0, 0, 0]))
-    propagate!(x, 1.0, train_of_thought, dict, AND_root, AND, OR)#, idv_AND, idv_OR)
+    propagate!(x, 1.0, train_of_thought, dict, AND_root, AND, OR)
     return Dict(dict)
 end
-
-# dict = propagate_ps(0.0, tree)
-
-
-# s = load_data(prbs[41])
-# all_moves = possible_moves(s, board_to_arr(s))
-# a = get_and_or_tree(s; max_iter=100);
-# draw_ao_tree(a[2], a[3], s)
-# dict = propagate_ps(0.0, a);
-# new_dict = apply_gamma(dict, 0.1);
-# ps = process_dict(all_moves, new_dict, [(Int8(0), Int8(0))])
 
 function apply_gamma(dict::Dict{and_type, Float64}, γ::Float64)::Dict{and_type, Any}
     # updated dict
@@ -139,8 +117,6 @@ function calculate_features(s::s_type, blocked_cars::blocked_cars_type)::Matrix{
     move_blocked_by!(blocked_cars, (Int8(1), Int8(m)), s, arr)
     return [sum(blocked_cars .> 0) m]
 end
-
-
 
 function first_pass(df)
     stuff = Dict{String, Any}()

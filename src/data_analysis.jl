@@ -27,9 +27,8 @@ function puzzle_statistics(df)
         subj_df = df[df.subject .== subj .&& df.event .== "move", :]
         for prb in unique(subj_df.puzzle)
             prb_df = subj_df[subj_df.puzzle .== prb, :]
-            #d = groupby(prb_df, :attempt)
             Lopt = parse(Int, prb[end-1] == '_' ? prb[end] : prb[end-1:end]) - 2
-            push!(puzzle_df, [subj, prb, Lopt, size(prb_df, 1), sum(prb_df.RT)])#size(d[end], 1),
+            push!(puzzle_df, [subj, prb, Lopt, size(prb_df, 1), sum(prb_df.RT)])
         end
     end
     return puzzle_df
@@ -61,41 +60,3 @@ function difficulty_stats(opt, attempted, completed, total)
     completion_rate = completed ./ attempted
     return [(mean(opt_rate), sem(opt_rate), mean(attempt_rate), sem(attempt_rate), mean(completion_rate), sem(completion_rate))]
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# y1 = [[], [], [], []];
-# y2 = [[], [], [], []];
-# y3 = [[], [], [], []];
-
-# attempted = DefaultDict{String, Int64}(0)
-
-# for subj in subjs
-#     for prb in unique(messy_data[subj].instance)
-#         if prb in prbs
-#             attempted[prb] += 1
-#         end
-#     end
-# end
-# for prb in prbs
-#     diff = parse(Int64, split(prb, "_")[2])-2
-#     push!(y1[diffs[diff]], mean(Ls[prb] .- 1 .== diff))
-#     push!(y2[diffs[diff]], attempted[prb]/length(subjs))
-#     push!(y3[diffs[diff]], length(Ls[prb])/attempted[prb])
-# end
-
-# bar!(string.(sort(collect(keys(diffs)))), mean.(values(y1)), yerr=sem.(values(y1)), sp=1, label=nothing, xlabel="", ylabel="Proportion optimal", ylim=(0, 0.32), c=:transparent, ms=10)
-# bar!(string.(sort(collect(keys(diffs)))), mean.(values(y2)), yerr=sem.(values(y2)), sp=2, label=nothing, xlabel="Length", ylabel="Attempt rate", ylim=(0, 1), c=:transparent, ms=10)
-# bar!(string.(sort(collect(keys(diffs)))), mean.(values(y3)), yerr=sem.(values(y3)), sp=3, label=nothing, xlabel="", ylabel="Completion rate", ylim=(0, 1), c=:transparent, ms=10)

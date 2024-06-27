@@ -68,11 +68,11 @@ end
 function get_mc_dict(df, params, dict)
     subjs = unique(df.subject)
     mc_dict = Dict{String, Dict{String, Vector{Float64}}}()
-    for (m, subj) in enumerate(subjs)
+    for (m, subj) in ProgressBar(enumerate(subjs))
         subj_dict = Dict{String, Vector{Float64}}()
         log_gamma, k = params[m, :]
         γ = exp(-log_gamma)
-        subj_df = df[df.subject .== subjs[1] .&& df.event .== "move", :];
+        subj_df = df[df.subject .== subjs[m] .&& df.event .== "move", :];
         for prb in unique(subj_df.puzzle)
             Q, R, state_to_idx = dict[prb]
             F = apply_gamma(Q, R, γ)
@@ -101,7 +101,11 @@ function p_a(ks::Vector{Int}, ns::Vector{Int32}, F::Vector{Float64}, state_to_id
         end
     end
     p_fail = 1 - sum(p_success)
-    ps = [(p_success .* (1 - (p_fail .^ k))/(1 - p_fail)) .+ (p_fail .^ k/m) for k in ks]
+    if p_fail == 1
+        ps = [ones(m) ./ m for k in ks]
+    else
+        ps = [(p_success .* (1 - (p_fail .^ k))/(1 - p_fail)) .+ (p_fail .^ k/m) for k in ks]
+    end
     return ps
 end
 
@@ -134,10 +138,6 @@ function subj_nll_mc(params, neighs_dict::Dict, moves_dict::Dict, all_moves_dict
             for (n, pps) in enumerate(ps)
                 p = pps[idx]
                 nll[n] -= log(p)
-                # for m in moves[i]
-                #     p = pps[findfirst(x-> x == m, all_moves[i])]
-                #     nll[n] -= log(p)
-                # end
             end
         end
     end
@@ -147,76 +147,3 @@ function subj_nll_mc(params, neighs_dict::Dict, moves_dict::Dict, all_moves_dict
         return minimum(nll)
     end
 end
-
-# function fit_subjects(df, dict)
-#     subjs = unique(df.subject)
-#     M = length(subjs)
-
-#     params = zeros(M, 2)
-#     fitness = zeros(M)
-#     ks = unique(Int.(floor.(10 .^ (range(0, 10, 1000)))))
-#     for m in 1:M
-#         subj_df = df[df.subject .== subjs[m] .&& df.event .== "move", :]
-#         neighs_dict, moves_dict, all_moves_dict = df_to_dict(subj_df)
-
-#         target = (x) -> subj_nll(x, neighs_dict, moves_dict, all_moves_dict, dict, ks)
-#         res = optimize(target, 0.0, 10.0, Brent();rel_tol=0.001, show_trace=true, extended_trace=true, show_every=1)
-#         params[m, 1] = Optim.minimizer(res)
-#         nlls = subj_nll(params[m, 1], neighs_dict, moves_dict, all_moves_dict, dict, ks; return_all=true)
-#         params[m, 2] = ks[argmin(nlls)]
-#         fitness[m] = nlls[argmin(nlls)]
-#         break
-#     end
-#     return params, fitness
-# end
-
-# Q, R, state_to_idx = dict[prbs[1]];
-# ns = neighs_dict[prbs[1]][1];
-# @time F = apply_gamma(Q, R, exp(-0.1));
-# @time a = p_a(exp(-2.0), ks, ns, F, state_to_idx);
-
-# subj_df = df[df.subject .== subjs[1] .&& df.event .== "move", :];
-# neighs_dict, moves_dict, all_moves_dict, s_dict = df_to_dict(subj_df);
-
-# new_moves_dict = generate_data([3.0, 2000], neighs_dict, moves_dict, all_moves_dict, s_dict, dict; N=5)
-
-# sum(length.(collect(values(moves_dict))))
-
-# ks = unique(Int.(floor.(10 .^ (range(0, 8, 1000)))));
-# lgs = range(log(2), 4, 10);
-
-# landscape = zeros(length(lgs), length(ks));
-# for i in ProgressBar(eachindex(lgs))
-#     a = subj_nll(lgs[i], neighs_dict, new_moves_dict, all_moves_dict, dict, ks; return_all=true);
-#     landscape[i, :] = a
-# end
-# heatmap(log10.(ks), lgs, landscape, cmap=cgrad(:nipy_spectral, rev=true), xlabel="log k", ylabel="-log gamma")#, xscale=:log10)
-
-# fitted_params = []
-# true_params = []
-# for file in readdir("cluster_params/paramss")
-#     if split(file, "_")[1] == "fitted"
-#         push!(fitted_params, load("cluster_params/paramss/"*file)["data"][1, :, 1])
-#     elseif split(file, "_")[1] == "true"
-#         push!(true_params, load("cluster_params/paramss/"*file)["data"][1, :])
-#     end
-# end
-
-# plot(layout=(1, 2), grid=false, aspect_ratio=1)
-# #plot(layout=(1, 1), grid=false, aspect_ratio=1)
-# for i in eachindex(true_params)
-#     tp = true_params[i]
-#     fp = fitted_params[i]
-#     scatter!([tp[1]], [fp[1]], sp=1, c=:red, label=nothing, xlim=(0, 6.2), ylim=(0, 6.2))
-#     scatter!(log10.([tp[2]]), log10.([fp[2]]), sp=2, c=:blue, label=nothing, xlim=(0, 6.2), ylim=(0, 6.2))
-# end
-# plot!([0, 6], [0, 6], sp=1, c=:black, label=nothing, title="log gamma")
-# plot!([0, 6], [0, 6], sp=2, c=:black, label=nothing, title="log k")
-# plot!(xlabel="true", ylabel="fitted")
-
-
-
-
-
-
-
