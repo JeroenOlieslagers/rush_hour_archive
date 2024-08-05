@@ -1,41 +1,42 @@
 # Rush Hour
-Analysis code for analyzing data from previous rush hour experiment data as well as solvers.
+Code to reproduce figures from paper.
 
 ```
 rush_hour
 ├── README.md
+├── Project.toml              : tells julia which packages to install
+├── Manifest.toml
 ├── demos
-├── docs
-├── resources
-│   ├── figures
-│   │   ├── animations
-│   │   │   ├── move_analysis
-│   │   │   ├── old_animation_test
-│   │   │   └── subject_A3CTXNQ2GXIQSP
-│   │   └── plots
-│   │       ├── OLD_individual_move_graphs
-│   │       ├── comparing_data_with_random_agents
-│   │       ├── heuristic_analysis
-│   │       ├── raw_data_figures
-│   │       └── state_space_graphs
-│   ├── Finalized plots
-│   └── Presentations
+├── figures                   : contains all figures from paper
 ├── data
 │   ├── processed_data
+│   │   ├── binned_stats.csv
+│   │   ├── d_goals_prbs.jld3
+│   │   ├── df_models.csv
+│   │   ├── df_stats.csv
+│   │   ├── dict.jld2
+│   │   ├── mc_dict.jld2
+│   │   ├── params.jld2
+│   │   └── stuff.jld2
 │   └── raw_data
-│       ├── problems : directory containing all puzzles for experiment in .json format
-│       ├── trialdata.csv
-│       └── trialdata_headers.csv : all move data from 
+│       ├── problems          : directory containing all puzzles for all move data from experiment in .json format
+│       └── all_subjects.csv  : raw data
 └── src
-    ├── best_first_model.jl
-    ├── data_analysis.jl
-    ├── main.jl
-    ├── move_analysis.jl
-    ├── plot_graph.jl
-    ├── rushhour.jl
-    ├── solvers.jl
-    ├── testt.jl
-    └── legacy_python_src
+    ├── and_or_model.jl       : AND-OR tree traversal model
+    ├── and_or_trees.jl       : generate AND-OR trees
+    ├── data_analysis.jl      : additional functions to analyze data for supplementary figures
+    ├── load_scripts.jl       : load all functions, scripts, and data
+    ├── main.jl               : central script
+    ├── markov_chains.jl      : additional functions for forwar search model
+    ├── model_fitting.jl      : function to fit and cross-validated models
+    ├── models.jl             : all models to be tested
+    ├── plotting.jl           : functions to produce figures from paper
+    ├── pre_process.jl        : filter and process data into suitable format
+    ├── representation.jl     : types, structs, and converter functions
+    ├── rush_hour.jl          : game logic
+    ├── search.jl             : BFS to compute d_goal for every state
+    ├── summary_statistics.jl : compute summary statistics for every state
+    └── visualization.jl      : board state and AND-OR tree visualizers
 
 
 

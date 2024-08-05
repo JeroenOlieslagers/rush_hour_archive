@@ -117,7 +117,6 @@ function fit_all_models(df, d_goals_prbs, dict; m=1)
             push!(df_models, [subjs[m], string(model), f[m], cv[m]])
             push!(ps, p[m, :])
         end
-        break
     end
     return df_models, ps
 end
