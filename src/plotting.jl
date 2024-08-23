@@ -87,7 +87,6 @@ function fig5(binned_stats)
         fontfamily="helvetica", tick_direction=:out, xlim=(0, 16));
 
     titles = ["Random" "Optimal" "Hill climbing" "Forward" "Eureka" "AND/OR"];
-    #titles = ["Random" "Optimal\nrandom" "AND-OR\n(no same car)" "AND-OR\n("*latexstring("\\gamma=0")*")" "AND-OR"];
     ylabels = ["Proportion\nin tree" "Proportion\nundos" "Proportion\nsame car" "Depth in tree\n"];
     ytickss = [[0.4, 0.6, 0.8, 1.0], ([0.0, 0.1, 0.2], ["0", "0.1", "0.2"]), ([0.0, 0.1, 0.2, 0.3], ["0", "0.1", "0.2", "0.3"]), [2.0, 3.0, 4.0, 5.0]]
     ylimss = [(-Inf, 1.0), (-Inf, 0.2), (0, 0.3), (2, 5.3)]
@@ -109,8 +108,12 @@ function fig5(binned_stats)
             o = order[j]
 
             plot!(df_data[:, "m_"*IDV], df_data[:, "m_"*DVs[i]], yerr=df_data[:, "sem_"*DVs[i]], sp=sp, c=:white, msw=1.4, label=nothing, xflip=true, linewidth=1, markershape=:none, ms=4, ylabel=ylabel, xticks=xticks, yticks=yticks)
-            plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_data[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
-            plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_data[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
+            if i == 1 && j == 2
+                plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_model[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
+            else
+                plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_model[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
+            end
+            plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_model[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
         end
     end
     plot!(xlabel="Distance to goal", showaxis=false, grid=false, sp=d*MM + 1, top_margin=-18Plots.mm, bottom_margin=0Plots.mm)
@@ -134,10 +137,8 @@ function fig6(df_stats)
         fontfamily="helvetica", tick_direction=:out);
 
     titles = ["Random" "Optimal" "Hill climbing" "Forward" "Eureka" "AND/OR"];
-    #titles = ["Random" "Optimal\nrandom" "AND-OR\n(no same car)" "AND-OR\n("*latexstring("\\gamma=0")*")" "AND-OR"];
     xlabels = ["Depth" "Depth rank"]#[latexstring("d_\\textrm{tree}") "Ranked "*latexstring("d_\\textrm{tree}")]
     order = [2, 3, 7, 6, 5, 4]
-    #order = [2, 7, 6, 5, 4]
     ytickss = [([0.0, 0.1, 0.2], ["0", "0.1", "0.2"]), ([0.0, 0.2, 0.4], ["0", "0.2", "0.4"])]
     xtickss = [[2, 4, 6, 8, 10], [1, 3, 5, 7]]
     ii = 0
@@ -164,12 +165,12 @@ function fig6(df_stats)
             #ylims = ylimss[i]
             o = order[j]
             ii += 1
-            bar!(df_data[:, r], df_data[:, :hist_mean], yerr=2*df_data[:, :hist_sem], sp=ii, c=:white, msw=1.4, label=nothing, linewidth=1.4, markershape=:none, ms=0, title=title, ylabel=ylabel, xticks=xticks, yticks=yticks, linecolor=:gray, markercolor=:gray)#, alpha=0.5)
-            plot!(df_model[:, r], df_model[:, :hist_mean], ribbon=2*df_model[:, :hist_sem], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
-            plot!(df_model[:, r], df_model[:, :hist_mean], ribbon=2*df_model[:, :hist_sem], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
+            bar!(df_data[:, r], df_data[:, :hist_mean], yerr=1.96*df_data[:, :hist_sem], sp=ii, c=:white, msw=1.4, label=nothing, linewidth=1.4, markershape=:none, ms=0, title=title, ylabel=ylabel, xticks=xticks, yticks=yticks, linecolor=:gray, markercolor=:gray)#, alpha=0.5)
+            plot!(df_model[:, r], df_model[:, :hist_mean], ribbon=1.96*df_model[:, :hist_sem], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
+            plot!(df_model[:, r], df_model[:, :hist_mean], ribbon=1.96*df_model[:, :hist_sem], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
             # if i > 1
-            #     plot!(X, y[i, o, X], ribbon=2*yerr[i, o, X], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
-            #     plot!(X, y[i, o, X], ribbon=2*yerr[i, o, X], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
+            #     plot!(X, y[i, o, X], ribbon=1.96*yerr[i, o, X], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
+            #     plot!(X, y[i, o, X], ribbon=1.96*yerr[i, o, X], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
             # end
         end
         ii += 1
@@ -196,8 +197,7 @@ function fig7(binned_stats)
 
     labels = ["Worse" "Same" "Better"]
     bar!([0 0 0], c=[palette(:default)[1] palette(:default)[2] palette(:default)[3]], labels=labels, legend_columns=length(labels), linewidth=0, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:top, top_margin=-2Plots.mm);
-    titles = ["Subjects" "Random" "Hill climbing" "Forward" "Eureka" "AND/OR"];
-    #titles = ["Subjects" "Random" "Optimal\nrandom" "AND-OR\n(no same car)" "AND-OR\n("*latexstring("\\gamma=0")*")" "AND-OR"];
+    titles = ["Participants" "Random" "Hill climbing" "Forward" "Eureka" "AND/OR"];
     xlabels = ["" "" "" "" "" ""]
     ylabels = ["Proportion" "" "" "" "" ""]#latexstring("p")
     yticks = [([0, 0.2, 0.4, 0.6, 0.8, 1], ["0", "0.2", "0.4", "0.6", "0.8", "1"]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""])]
@@ -281,7 +281,7 @@ function supplement_fig4(df)
         diff = diffs[i]
         dummy = diff_df[diff_df.Lopt .== diff, :]
         means = dummy.hist_mean
-        sems = 2*dummy.hist_sem
+        sems = 1.96*dummy.hist_sem
         bar!(means, yerr=sems, sp=i, linecolor=:gray, markerstrokecolor=:gray, linewidth=1, markersize=0, label=nothing, title=titles[i], ylabel=ylabels[i], fillcolor=:transparent, xlabel="", yticks=ytickss[i])
         plot!([diffs[i]+1, diffs[i]+1], [0, 1/(diffs[i]+1)], sp=i, label=i < 4 ? nothing : "optimal", c=:red, linestyle=:dash)
         plot!([0.5, diffs[i]+1], [1/(diffs[i]+1), 1/(diffs[i]+1)], sp=i, label=nothing, c=:red, linestyle=:dash)
@@ -308,7 +308,7 @@ function supplement_fig5(df, d_goals_prbs)
 end
 
 function supplement_fig6(binned_stats)
-    models = ["random_model", "optimal_model", "hill_climbing_model", "forward_search", "eureka_model", "gamma_only_model"]
+    models = ["random_model", "opt_rand_model", "gamma_no_same_model", "gamma_0_model", "gamma_only_model"]
     DVs = ["y_p_in_tree", "y_p_undo", "y_p_same_car", "y_d_tree"]
     IDV = "X_d_goal"
     MM = length(models)
@@ -323,12 +323,11 @@ function supplement_fig6(binned_stats)
         right_margin=0Plots.mm, top_margin=0Plots.mm, bottom_margin=8Plots.mm, left_margin=0Plots.mm, 
         fontfamily="helvetica", tick_direction=:out, xlim=(0, 16));
 
-    titles = ["Random" "Optimal" "Hill climbing" "Forward" "Eureka" "AND/OR"];
-    #titles = ["Random" "Optimal\nrandom" "AND-OR\n(no same car)" "AND-OR\n("*latexstring("\\gamma=0")*")" "AND-OR"];
+    titles = ["Random" "Optimal\nrandom" "AND-OR\n(no same car)" "AND-OR\n("*latexstring("\\gamma")*"=0)" "AND-OR"];
     ylabels = ["Proportion\nin tree" "Proportion\nundos" "Proportion\nsame car" "Depth in tree\n"];
     ytickss = [[0.4, 0.6, 0.8, 1.0], ([0.0, 0.1, 0.2], ["0", "0.1", "0.2"]), ([0.0, 0.1, 0.2, 0.3], ["0", "0.1", "0.2", "0.3"]), [2.0, 3.0, 4.0, 5.0]]
     ylimss = [(-Inf, 1.0), (-Inf, 0.2), (0, 0.3), (2, 5.3)]
-    order = [2, 3, 7, 6, 5, 4]
+    order = [2, 8, 9, 10, 4]
 
     for i in 1:d
         for j in 1:MM
@@ -346,8 +345,12 @@ function supplement_fig6(binned_stats)
             o = order[j]
 
             plot!(df_data[:, "m_"*IDV], df_data[:, "m_"*DVs[i]], yerr=df_data[:, "sem_"*DVs[i]], sp=sp, c=:white, msw=1.4, label=nothing, xflip=true, linewidth=1, markershape=:none, ms=4, ylabel=ylabel, xticks=xticks, yticks=yticks)
-            plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_data[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
-            plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_data[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
+            if i == 1 && j == 2
+                plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_model[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
+            else
+                plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_model[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
+            end
+            plot!(df_model[:, "m_"*IDV], df_model[:, "m_"*DVs[i]], ribbon=df_model[:, "sem_"*DVs[i]], sp=sp, label=nothing, c=palette(:default)[o-1], l=nothing, ylabel=ylabel, title=title, xticks=xticks, yticks=yticks, ylims=ylims)
         end
     end
     plot!(xlabel="Distance to goal", showaxis=false, grid=false, sp=d*MM + 1, top_margin=-18Plots.mm, bottom_margin=0Plots.mm)
@@ -355,7 +358,7 @@ function supplement_fig6(binned_stats)
 end
 
 function supplement_fig7(df_stats)
-    models = ["random_model", "optimal_model", "hill_climbing_model", "forward_search", "eureka_model", "gamma_only_model"]
+    models = ["random_model", "opt_rand_model", "gamma_no_same_model", "gamma_0_model", "gamma_only_model"]
     Vs = [:h_d_tree, :h_d_tree_ranked]
     lims = [2:11, 1:8]
     MM = length(models)
@@ -370,11 +373,9 @@ function supplement_fig7(df_stats)
         right_margin=0Plots.mm, top_margin=6Plots.mm, bottom_margin=4Plots.mm, left_margin=2Plots.mm, 
         fontfamily="helvetica", tick_direction=:out);
 
-    titles = ["Random" "Optimal" "Hill climbing" "Forward" "Eureka" "AND/OR"];
-    #titles = ["Random" "Optimal\nrandom" "AND-OR\n(no same car)" "AND-OR\n("*latexstring("\\gamma=0")*")" "AND-OR"];
+    titles = ["Random" "Optimal\nrandom" "AND-OR\n(no same car)" "AND-OR\n("*latexstring("\\gamma")*"=0)" "AND-OR"];
     xlabels = ["Depth" "Depth rank"]#[latexstring("d_\\textrm{tree}") "Ranked "*latexstring("d_\\textrm{tree}")]
-    order = [2, 3, 7, 6, 5, 4]
-    #order = [2, 7, 6, 5, 4]
+    order = [2, 8, 9, 10, 4]
     ytickss = [([0.0, 0.1, 0.2], ["0", "0.1", "0.2"]), ([0.0, 0.2, 0.4], ["0", "0.2", "0.4"])]
     xtickss = [[2, 4, 6, 8, 10], [1, 3, 5, 7]]
     ii = 0
@@ -401,12 +402,12 @@ function supplement_fig7(df_stats)
             #ylims = ylimss[i]
             o = order[j]
             ii += 1
-            bar!(df_data[:, r], df_data[:, :hist_mean], yerr=2*df_data[:, :hist_sem], sp=ii, c=:white, msw=1.4, label=nothing, linewidth=1.4, markershape=:none, ms=0, title=title, ylabel=ylabel, xticks=xticks, yticks=yticks, linecolor=:gray, markercolor=:gray)#, alpha=0.5)
-            plot!(df_model[:, r], df_model[:, :hist_mean], ribbon=2*df_model[:, :hist_sem], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
-            plot!(df_model[:, r], df_model[:, :hist_mean], ribbon=2*df_model[:, :hist_sem], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
+            bar!(df_data[:, r], df_data[:, :hist_mean], yerr=1.96*df_data[:, :hist_sem], sp=ii, c=:white, msw=1.4, label=nothing, linewidth=1.4, markershape=:none, ms=0, title=title, ylabel=ylabel, xticks=xticks, yticks=yticks, linecolor=:gray, markercolor=:gray)#, alpha=0.5)
+            plot!(df_model[:, r], df_model[:, :hist_mean], ribbon=1.96*df_model[:, :hist_sem], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
+            plot!(df_model[:, r], df_model[:, :hist_mean], ribbon=1.96*df_model[:, :hist_sem], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
             # if i > 1
-            #     plot!(X, y[i, o, X], ribbon=2*yerr[i, o, X], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
-            #     plot!(X, y[i, o, X], ribbon=2*yerr[i, o, X], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
+            #     plot!(X, y[i, o, X], ribbon=1.96*yerr[i, o, X], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
+            #     plot!(X, y[i, o, X], ribbon=1.96*yerr[i, o, X], sp=ii, label=nothing, c=palette(:default)[o-1], l=nothing)
             # end
         end
         ii += 1
@@ -416,7 +417,7 @@ function supplement_fig7(df_stats)
 end
 
 function supplement_fig8(binned_stats)
-    models = ["data", "random_model", "hill_climbing_model", "forward_search", "eureka_model", "gamma_only_model"]
+    models = ["data", "random_model", "opt_rand_model", "gamma_no_same_model", "gamma_0_model", "gamma_only_model"]
     DVs = ["m_y_p_worse", "m_y_p_same", "m_y_p_better"]
     IDV = "m_X_d_goal"
     MM = length(models)
@@ -433,8 +434,7 @@ function supplement_fig8(binned_stats)
 
     labels = ["Worse" "Same" "Better"]
     bar!([0 0 0], c=[palette(:default)[1] palette(:default)[2] palette(:default)[3]], labels=labels, legend_columns=length(labels), linewidth=0, sp=1, showaxis=false, grid=false, background_color_legend=nothing, foreground_color_legend=nothing, legend=:top, top_margin=-2Plots.mm);
-    titles = ["Subjects" "Random" "Hill climbing" "Forward" "Eureka" "AND/OR"];
-    #titles = ["Subjects" "Random" "Optimal\nrandom" "AND-OR\n(no same car)" "AND-OR\n("*latexstring("\\gamma=0")*")" "AND-OR"];
+    titles = ["Participants" "Random" "Optimal\nrandom" "AND-OR\n(no same car)" "AND-OR\n("*latexstring("\\gamma")*"=0)" "AND-OR"];
     xlabels = ["" "" "" "" "" ""]
     ylabels = ["Proportion" "" "" "" "" ""]#latexstring("p")
     yticks = [([0, 0.2, 0.4, 0.6, 0.8, 1], ["0", "0.2", "0.4", "0.6", "0.8", "1"]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""]), ([0, 0.2, 0.4, 0.6, 0.8, 1], ["", "", ""])]

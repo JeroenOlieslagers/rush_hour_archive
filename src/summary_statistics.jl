@@ -208,7 +208,7 @@ function calculate_mean_sem_2(cols...)
     for i in 1:Int(length(cols)/2)
         m = cols[2*i - 1]
         s = cols[2*i]
-        push!(ls, mean(m), 2*sqrt(sem(m)^2 + mean(s .^ 2)/length(s)))
+        push!(ls, mean(m), 1.96*sqrt(sem(m)^2 + mean(s .^ 2)/length(s)))
     end
     return [Tuple(ls)]
 end
