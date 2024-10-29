@@ -26,6 +26,7 @@ include("and_or_trees.jl")
 include("and_or_model.jl")
 include("models.jl")
 include("model_fitting.jl")
+include("markov_chains.jl")
 include("summary_statistics.jl")
 include("plotting.jl")
 
@@ -99,6 +100,17 @@ function load_processed_data()
     else
         println("File containing summary statistics not found, creating now...")
         println("WARNING: THIS MIGHT TAKE ~15min")
+        # We have to fit the forward model on the cluster since it is expensive,
+        # so we assume the fitted parameters are in `params`.
+        # This obtains the final column needed for inference in the forward search model.
+        if isfile("data/processed_data/mc_dict.jld2")
+            println("Loading MC column...")
+            mc_dict = load("data/processed_data/mc_dict.jld2")
+        else
+            println("File containing final column for forward search model not found, creating now...")
+            mc_dict = get_mc_dict(df, params, dict)
+            save("data/processed_data/mc_dict.jld2", mc_dict)
+        end
         df_stats = calculate_summary_statistics(df, df_models, d_goals_prbs, mc_dict, dict)
         CSV.write("data/processed_data/df_stats.csv", df_stats)
     end

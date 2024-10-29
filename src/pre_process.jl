@@ -112,6 +112,7 @@ function pre_process(df, d_goals_prbs)
             end
         end
     end
+    new_df.first_move = circshift(new_df.event .== "start", 1)
     return new_df
 end
 
