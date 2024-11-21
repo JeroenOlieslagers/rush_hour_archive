@@ -45,7 +45,7 @@ function add_completion_data!(opt_df, messy_data, prbs)
             if diff ∉ _df.Lopt
                 push!(opt_df, [subj, diff, 0, 0, 0, 0])
             end
-            if prb in unique(messy_data[subj].instance)
+            if prb in unique(messy_data[messy_data.subject .== subj, :instance])
                 opt_df[opt_df.subject .== subj .&& opt_df.Lopt .== diff, :attempted] .+= 1
             end
             opt_df[opt_df.subject .== subj .&& opt_df.Lopt .== diff, :total] .+= 1

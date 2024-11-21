@@ -1,21 +1,22 @@
-using JSON
-using StaticArrays
 using BenchmarkTools
-using DataStructures
-using DataFrames
 using CSV
+using DataFrames
+using DataStructures
+using GraphViz
 using JLD2
-using StatsPlots
-using StatsBase
+using JSON
+using LaTeXStrings
+using LinearAlgebra
+using MLUtils
+using MixedModels
+using Optim
+using Plots
 using ProgressBars
 using Random
-using MLUtils
-using Plots
-using GraphViz
-using LaTeXStrings
-using Optim
-using LinearAlgebra
 using SparseArrays
+using StaticArrays
+using StatsBase
+using StatsPlots
 include("representations.jl")
 include("rush_hour.jl")
 include("visualization.jl")
@@ -24,9 +25,11 @@ include("pre_process.jl")
 include("data_analysis.jl")
 include("and_or_trees.jl")
 include("and_or_model.jl")
+include("mixed_effects_models.jl")
 include("models.jl")
 include("model_fitting.jl")
 include("markov_chains.jl")
+include("standard_errors.jl")
 include("summary_statistics.jl")
 include("plotting.jl")
 

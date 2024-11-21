@@ -140,6 +140,7 @@ function int32_to_board!(s_free::s_free_type, int::Int32, L::Int64)::Nothing
     return nothing
 end
 
+# THESE ARE IN CASE THERE ARE MORE THAN 9 CARS
 function board_to_int64(s::s_type)::Tuple{Int64, Int64}
     s_free, s_fixed = s
     problem = Int64(0)

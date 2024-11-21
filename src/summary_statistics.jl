@@ -118,20 +118,6 @@ function y_p_better(move, row, d_goals)
     return d_goal_sampled < row.d_goal
 end
 
-# function y_p_in_tree_better(move, row, d_goals)
-#     AND_root, AND, OR, parents_moves = row.tree
-#     counter = 0
-#     for m in keys(parents_moves)
-#         move_idx = findfirst(x->x==m, row.all_moves)
-#         neigh = row.neighs[move_idx]
-#         d_goal_neigh = d_goals[row.puzzle][neigh]
-#         if d_goal_neigh < row.d_goal
-#             counter += 1
-#         end
-#     end
-#     return counter / length(keys(parents_moves))
-# end
-
 function y_p_in_tree_better(move, row, d_goals)
     if y_p_in_tree(move, row, d_goals) == 0
         return 1e9
@@ -146,12 +132,7 @@ function calculate_summary_statistics(df, df_models, d_goals_prbs, mc_dict, dict
     models = [random_model, optimal_model, gamma_only_model, gamma_0_model, gamma_no_same_model, eureka_model, forward_search, opt_rand_model, hill_climbing_model]
     df_stats = DataFrame(subject=String[], puzzle=String[], model=String[], X_d_goal=Int[], X_n_A=Int[], X_diff=Int[], X_rt=Int[], X_AO_size=Int[], X_first_move=Float64[], y_d_goal=Float64[], y_p_in_tree=Float64[], y_p_undo=Float64[], y_p_same_car=Float64[], y_d_tree=Float64[], y_d_tree_ranked=Float64[], y_p_worse=Float64[], y_p_same=Float64[], y_p_better=Float64[], y_p_in_tree_better=Float64[], h_d_tree=Int[], h_d_tree_diff=Int[], h_d_tree_ranked=Int[])
     df_ = df[df.event .== "move", :]
-    j = 0
     for row in ProgressBar(eachrow(df_))
-        j += 1
-        # if j > 2000
-        #     break
-        # end
         # subject data
         s = zeros(N_stats)
         for (n, sum_stat) in enumerate(summary_stats)

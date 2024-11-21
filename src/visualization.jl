@@ -62,7 +62,11 @@ function draw_board(s::s_type; sp=nothing, car_ind=[])
         idxs = findall(x->x==c, board_arr)
         l = length(idxs)
         s = sum(idxs)
-        annotate!(s[2]/l, s[1]/l, text(c, :white, 16))
+        if c == 1
+            annotate!(s[2]/l, s[1]/l, text(9, :white, 16))
+        else
+            annotate!(s[2]/l, s[1]/l, text(c-1, :white, 16))
+        end
     end
     plot!(xticks=[], yticks=[])
 end
@@ -75,13 +79,13 @@ function draw_ao_tree(AND, OR, s; highlight_ANDs=[])
             if or[2][1] != 0
                 graph *= """ "$(and)"->"$(or)"[constraint="true"];"""
                 if or ∉ keys(OR)
-                    graph *= """ "$(or)"[fontname="Helvetica",fixedsize=shape,style=filled,fillcolor="#E05B53",width=0.6,margin=0,label="$(or[2][1])",fontsize=20,shape="circle"];"""
+                    graph *= """ "$(or)"[fontname="Helvetica",fixedsize=shape,style=filled,fillcolor="#E05B53",width=0.6,margin=0,label="$(or[2][1]-1 == 0 ? "9" : or[2][1]-1)",fontsize=20,shape="circle"];"""
                 end
             end
         end
     end
     for or in keys(OR)
-        graph *= """ "$(or)"[fontname="Helvetica",fixedsize=shape,style=filled,fillcolor=white,width=0.6,margin=0,label="$(or[2][1])",fontsize=20,shape="circle"];"""
+        graph *= """ "$(or)"[fontname="Helvetica",fixedsize=shape,style=filled,fillcolor=white,width=0.6,margin=0,label="$(or[2][1]-1 == 0 ? "9" : or[2][1]-1)",fontsize=20,shape="circle"];"""
         for and in OR[or]
             graph *= """ "$(or)"->"$(and)"[constraint="true"];"""
         end
@@ -91,10 +95,10 @@ function draw_ao_tree(AND, OR, s; highlight_ANDs=[])
 end
 
 """
-    save_graph(g, file_name)
+    save_tree(g, file_name)
 
-Save graph as svg
+Save tree as svg
 """
-function save_graph(g, file_name)
+function save_tree(g, file_name)
     FileIO.save(file_name * ".svg", g)
 end

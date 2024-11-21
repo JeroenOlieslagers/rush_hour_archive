@@ -40,6 +40,7 @@ function gamma_0_model(params, row, d_goals)
 end
 
 function gamma_no_same_model(params, row, d_goals)
+    # THIS MODEL IS NOT IN ANY PLOTS
     γ = params
     same_car_moves = [(Int8(0), Int8(0))]
     # modulate depths by (1-γ)^d
